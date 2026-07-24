@@ -20,9 +20,9 @@ audio:
   rms_window_ms: 100
 
 llm:
-  provider: "openai"          # "openai" | "ollama" | "anthropic"
-  model: "gpt-4o"
-  base_url: "https://api.openai.com/v1"
+  provider: "deepseek"        # "deepseek" | "ollama" | "openai" | "anthropic" — padrão ADR-0009
+  model: "deepseek-v4-flash"  # nunca fixar no código — nome do modelo muda (ver ADR-0009)
+  base_url: "https://api.deepseek.com/v1"
   temperature: 0.3
   max_tools: 5
   timeout_sec: 30

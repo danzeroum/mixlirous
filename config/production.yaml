@@ -16,8 +16,8 @@ audio:
   hop_size: 1024
 
 llm:
-  provider: "openai"
-  model: "gpt-4o"
+  provider: "deepseek"
+  model: "deepseek-v4-flash"
   temperature: 0.2          # Menor para produção
   retry_policy:
     max_attempts: 3

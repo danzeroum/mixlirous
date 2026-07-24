@@ -55,7 +55,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run cargo-audit
-        uses: rustsec/audit-check@v2
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          key: cargo-audit
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      # RUSTSEC-2023-0071 ("Marvin Attack", crate `rsa`): chega transitivamente
+      # via jsonwebtoken/rust_crypto, que empacota RSA+EC+HMAC juntos sem
+      # granularidade por algoritmo — não existe feature "só HMAC". Este
+      # projeto só emite/valida HS256 (segredo simétrico, ver
+      # crates/audio_api/src/middleware/auth.rs); o código RSA nunca é
+      # exercitado. Não há correção disponível upstream ainda (o próprio
+      # advisory diz isso). Reavaliar quando existir patch ou quando
+      # jsonwebtoken permitir excluir `rsa` do backend rust_crypto.
+      - name: cargo audit
+        run: cargo audit --ignore RUSTSEC-2023-0071

@@ -1,8 +1,13 @@
 name: Docker Build
 
-# Só builda a imagem em push para main (docs/11-INFRA-DEPLOY.md §7) — em PR,
-# o Rust CI já garante que o binário compila.
+# Builda a imagem em PR e em push para main. `cargo build` passar não
+# garante que o Dockerfile builda (estágio errado, COPY de artefato que não
+# existe, base image quebrada — tudo isso só falha dentro do Docker). Rodar
+# em PR também detecta isso antes do merge, não depois, na main.
+# `paths:` mantém o custo zero em PRs que não tocam nada relevante pra imagem.
 on:
+  pull_request:
+    paths: ["crates/**", "Cargo.*", "config/**", "prompts/**", "Dockerfile"]
   push:
     branches: [main]
     paths: ["crates/**", "Cargo.*", "config/**", "prompts/**", "Dockerfile"]
