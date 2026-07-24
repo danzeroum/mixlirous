@@ -98,10 +98,18 @@ cd ui && npm install && npm run dev
 
 ### Modo completo (Postgres + MinIO + observabilidade)
 
+Três composes, escolhidos pela necessidade (`docs/11-INFRA-DEPLOY.md` §3):
+
 ```bash
+# API + Postgres + MinIO
 docker compose up -d
-CONFIG_ENV=default cargo run --bin audio_api
+
+# Some observabilidade (Grafana + Tempo + Loki + Prometheus) por cima
+docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 ```
+
+Para rodar só a API sem nenhuma dependência externa via Docker, use
+`docker-compose.local.yml` no lugar de `docker-compose.yml`.
 
 | Serviço | URL |
 | --- | --- |

@@ -1,0 +1,15 @@
+# Modo local (docs/11-INFRA-DEPLOY.md §3): nada além do necessário — a API
+# sozinha, com SQLite e storage em disco (config/local.yaml). Sem Postgres,
+# sem MinIO, sem observabilidade.
+services:
+  remix_api:
+    build: .
+    image: mixlirous-api:local
+    volumes:
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=debug
+      - CONFIG_ENV=local
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

@@ -1,0 +1,62 @@
+# Modo VPS (docs/11-INFRA-DEPLOY.md §3): Postgres + MinIO + API. Para juntar
+# observabilidade: `docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d`
+#
+# Nota: a Sprint 0 só entrega o adapter de repositório em memória
+# (audio_api::adapters::InMemoryRepo) — o Postgres já sobe aqui e o
+# DATABASE_URL já é injetado, mas o binário ainda não fala com ele; o
+# adapter real de Postgres é trabalho de Sprint 1+ (ADR-0003).
+networks:
+  mixlirous:
+    name: mixlirous
+
+volumes:
+  postgres_data:
+  minio_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    networks: [mixlirous]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: remix
+      POSTGRES_PASSWORD: remix
+      POSTGRES_DB: remix_ai
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    networks: [mixlirous]
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  remix_api:
+    build: .
+    image: mixlirous-api:latest
+    networks: [mixlirous]
+    volumes:
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=info
+      - CONFIG_ENV=default
+      - DATABASE_URL=postgres://remix:remix@postgres:5432/remix_ai
+      - REMIX__STORAGE__ENDPOINT=minio:9000
+      - REMIX__STORAGE__ACCESS_KEY=minioadmin
+      - REMIX__STORAGE__SECRET_KEY=minioadmin
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - minio
+    restart: unless-stopped

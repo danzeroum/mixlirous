@@ -1,0 +1,27 @@
+name: Docker Build
+
+# Só builda a imagem em push para main (docs/11-INFRA-DEPLOY.md §7) — em PR,
+# o Rust CI já garante que o binário compila.
+on:
+  push:
+    branches: [main]
+    paths: ["crates/**", "Cargo.*", "config/**", "prompts/**", "Dockerfile"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t mixlirous-api:${{ github.sha }} .
+
+      - name: Smoke test /healthz
+        run: |
+          docker run -d --name smoke -p 8080:8080 -e CONFIG_ENV=local mixlirous-api:${{ github.sha }}
+          for i in $(seq 1 10); do
+            if curl -sf localhost:8080/healthz; then exit 0; fi
+            sleep 1
+          done
+          docker logs smoke
+          exit 1
