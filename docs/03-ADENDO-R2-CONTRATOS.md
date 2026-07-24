@@ -229,37 +229,53 @@ como `LLM_INFERRED`.
 
 ---
 
-## 4. Limites que hoje não existem no contrato
+## 4. Limites — corrigido contra `main`, não contra o kit
 
-O protótipo expõe faixas que o modelo de domínio não impõe. Enquanto o limite
-viver só na UI, o agente pode propor fora dele e o validador aceita.
+**Este parágrafo é a correção de um erro meu.** A versão original desta seção
+foi escrita lendo `tools.rs` do scaffold original (branch `scaffold-raw`, que o
+próprio time classificou como não confiável) em vez do estado real da `main`
+depois da Sprint 0. A tabela abaixo substitui a anterior; ela reflete o que
+`crates/audio_agent/src/limits.rs` tem hoje, verificado diretamente no código
+— não a tabela viva: essa é `docs/05-AGENTE-IA-HITL.md` §3, gerada por
+`render_markdown_table()` e comparada por teste (`test_docs_05_table_matches_registry`).
 
-| Parâmetro | Hoje no domínio | Precisa ser |
-|---|---|---|
-| `dynamic_eq.bands` | `Vec<EqBand>` sem teto | **1 a 8 bandas** (`max_items`) |
-| `stem_separation.model` | `String` livre | Enum **derivado do binário detectado**, não lista fixa |
-| `stem_separation.stems` | `Vec<String>` livre | Enum: `drums`, `bass`, `vocals`, `other` — 1 a 4 |
-| `dynamic_eq.bands[].type_filter` | `String` livre | Enum: `peak`, `shelf`, `highpass`, `lowpass` |
+| Parâmetro | Estado ao escrever o adendo original | Estado real na `main` | O que fazer |
+|---|---|---|---|
+| `dynamic_eq.bands` (teto) | "sem teto" | **Já tinha teto 1–8** no validador e no registry | Nada — item já resolvido antes deste adendo existir |
+| `dynamic_eq.bands[].type_filter` | "`String` livre" | Confirmado `String` livre, sem enum em lugar nenhum | **Corrigido nesta rodada**: enum `peak`\|`shelf`\|`highpass`\|`lowpass`, no registry e no validador |
+| `stem_separation.stems` | "precisa ser enum" | `VALID_STEMS` já existia como constante, mas não usado no registry — a entrada só expunha min/max de contagem | **Corrigido nesta rodada**: registry agora expõe o enum |
+| `stem_separation.model` | "lista fixa, devia vir do binário" | Confirmado lista fixa (`htdemucs`, `htdemucs_ft`) | Real, não corrigido ainda — prioridade baixa enquanto a ferramenta for `available: false`, mas não pode passar da Sprint 3 |
+| `knee_db` | "`CompressionParams` não tem esse campo, decisão pendente (a)/(b)" | **Já existia** — domínio, validador e registry, os três, com 0–12 dB / padrão 6.0 | Decisão errada de descrever: ver §4.1 abaixo |
 
-Sobre `stem_separation.model`: a ADR-0010 determina detecção de binário externo.
-A lista de modelos precisa vir do que o binário suporta e ser refletida em
-`GET /tools`, não fixada no código — senão o contrato promete modelo que a
-máquina não tem.
+### 4.1 O achado maior: duas ferramentas fantasma, não um parâmetro pendente
 
-### `knee_db` — decisão pendente
+Corrigir `knee_db` levou a uma pergunta maior: se não existe módulo de
+compressor, **a ferramenta `compression` inteira é fachada**, não só um dos
+seis parâmetros dela. Conferido diretamente em `crates/audio_core/src/dsp/`:
+existem `analysis/` (beat/chroma/fft/rms), `mastering/` (mixer/limiter/
+lufs/stretch) e `stitching/` (crossfade/fades/zero_cross). **Nenhum arquivo de
+compressor, nenhum de EQ.**
 
-O protótipo tem um controle **"Joelho: 0 a 12 dB, padrão 6,0 dB"**.
-`CompressionParams` **não tem esse campo**. Uma das duas:
+Antes desta rodada, `GET /tools` anunciava `compression` e `dynamic_eq` com
+`available: true` — o validador aceita os parâmetros, a UI mostraria os
+controles, e nenhum áudio muda. Exatamente o que `available`/
+`unavailable_reason` existe para impedir (a ADR-0010 já usa o mecanismo
+certo para `stem_separation`); as outras duas simplesmente nunca tinham sido
+checadas contra a existência de DSP.
 
-- **(a)** Adicionar `knee_db` ao domínio, ao validador, à tabela canônica e ao
-  registry. Joelho suave é o que separa compressão musical de compressão que
-  soa apertada — tem mérito real.
-- **(b)** Remover o controle do protótipo.
+**Corrigido nesta rodada:** as duas passam a `available: false,
+unavailable_reason: "not_implemented"`. `knee_db` continua no schema — é
+real, só inerte até o compressor existir. Um teste
+(`test_ghost_tools_are_marked_unavailable`) prende essa checagem para as 8
+ferramentas, não só as duas encontradas agora.
 
-**Recomendo (a)**, mas é decisão do dono do produto e precisa entrar na tabela
-canônica de `docs/05` §3 **antes** de o dev implementar a tela. Um controle na UI
-sem parâmetro no domínio é a divergência que o `CONTRIBUTING.md` chama de bug
-mais caro do sistema — aqui detectada antes de existir, que é o momento certo.
+As cinco ferramentas restantes (`crossfade`, `fade_in`, `fade_out`,
+`time_stretch`, `lufs_normalization`) têm implementação real e testada em
+`audio_core::dsp` — permanecem `available: true`. Ressalva à parte: nenhuma
+delas está conectada ao pipeline de execução ainda (`DefaultMixer::
+render_stitched` é um placeholder explícito que só concatena blocos); isso é
+esperado e documentado como escopo de Sprint 1+, diferente de "não existe
+implementação nenhuma".
 
 ---
 

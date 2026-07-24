@@ -85,38 +85,60 @@ deve impedir alguém de renderizar áudio.
 
 ## 3. Registry de ferramentas — TABELA CANÔNICA DE LIMITES
 
-> **Fonte única de verdade.** Estes valores existem em três lugares e precisam
-> bater: (1) newtypes em `audio_core::domain`, (2) `GET /api/v1/tools`,
-> (3) limites de slider na UI. Mudança aqui = mudança nos três, no mesmo PR.
+> **Fonte única de verdade, e agora literalmente uma só.** A tabela abaixo é
+> **gerada** a partir de `audio_agent::limits::tool_registry()` — a mesma
+> struct que alimenta `GET /api/v1/tools` e que `validator.rs` valida contra
+> (com teste cruzado). Não edite as linhas dentro dos marcadores à mão: rode
+> `cargo test -p audio_agent test_docs_05_table_matches_registry -- --nocapture`
+> (o teste imprime o valor esperado quando falha) e cole o resultado. Editar
+> aqui sem tocar `limits.rs` é exatamente a divergência que este mecanismo
+> existe para impedir.
 
-| Ferramenta | Parâmetro | Tipo | Mín | Máx | Padrão | Unidade |
-| --- | --- | --- | --- | --- | --- | --- |
-| `compression` | `ratio` | float | 1,0 | 10,0 | 2,0 | :1 |
-| | `threshold_db` | float | −60,0 | 0,0 | −18,0 | dB |
-| | `attack_ms` | int | 0 | 500 | 30 | ms |
-| | `release_ms` | int | 10 | 5000 | 250 | ms |
-| | `makeup_gain_db` | float | −12,0 | 12,0 | 0,0 | dB |
-| | `knee_db` | float | 0,0 | 12,0 | 6,0 | dB |
-| `dynamic_eq` | `bands[].freq_hz` | float | 20,0 | 20000,0 | — | Hz |
-| | `bands[].gain_db` | float | −24,0 | 24,0 | 0,0 | dB |
-| | `bands[].q` | float | 0,1 | 10,0 | 0,7 | — |
-| | `bands` (quantidade) | array | 1 | 8 | — | — |
-| `crossfade` | `duration_ms` | int | 0 | **3000** | 1000 | ms |
-| | `curve` | enum | `linear` \| `logarithmic` \| `exponential` | | `logarithmic` | |
-| `fade_in` / `fade_out` | `duration_ms` | int | 0 | 10000 | 1000 | ms |
-| | `curve` | enum | idem crossfade | | `logarithmic` | |
-| `time_stretch` | `factor` | float | 0,90 | 1,10 | 1,0 | × |
-| `lufs_normalization` | `target_lufs` | float | −30,0 | −6,0 | −14,0 | LUFS |
-| | `max_true_peak_db` | float | −6,0 | 0,0 | −1,0 | dBTP |
-| `stem_separation` | `model` | enum | `htdemucs` \| `htdemucs_ft` | | `htdemucs` | |
-| | `stems` | array enum | `drums`,`bass`,`vocals`,`other` | 1–4 itens | `["drums","other"]` | |
-| `block_selection` | `block_size_beats` | enum int | 2,4,8,16,32 | | 8 | batidas |
-| | `min_strong_beat_percentile` | float | 0,5 | 0,95 | 0,80 | — |
-| | `priority` | enum | `energy`\|`onset`\|`brightness`\|`chorus` | | `energy` | |
-| `target_duration` | `target_sec` | float | 5,0 | 600,0 | 30,0 | s |
-| | `tolerance_sec` | float | 0,0 | 10,0 | 2,0 | s |
-| | `preserve_intro_ms` | int | 0 | 30000 | 0 | ms |
-| | `preserve_outro_ms` | int | 0 | 30000 | 3000 | ms |
+<!-- BEGIN GENERATED TOOLS TABLE (ver crates/audio_agent/src/limits.rs::render_markdown_table) -->
+| Ferramenta | Disponível | Parâmetro | Tipo | Mín | Máx | Padrão | Unidade/Enum |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `compression` | não (not_implemented) | `ratio` | float | 1 | 10 | 2.0 | :1 |
+|  |  | `threshold_db` | float | -60 | 0 | -18.0 | dB |
+|  |  | `attack_ms` | integer | 0 | 500 | 30.0 | ms |
+|  |  | `release_ms` | integer | 10 | 5000 | 250.0 | ms |
+|  |  | `makeup_gain_db` | float | -12 | 12 | 0.0 | dB |
+|  |  | `knee_db` | float | 0 | 12 | 6.0 | dB |
+| `dynamic_eq` | não (not_implemented) | `bands[].freq_hz` | float | 20 | 20000 | — | Hz |
+|  |  | `bands[].gain_db` | float | -24 | 24 | 0.0 | dB |
+|  |  | `bands[].q` | float | 0.1 | 10 | 0.7 | — |
+|  |  | `bands[].type_filter` | enum | — | — | "peak" | peak \| shelf \| highpass \| lowpass |
+|  |  | `bands` | array | 1 | 8 | — | — |
+| `crossfade` | sim | `duration_ms` | integer | 0 | 3000 | 1000.0 | ms |
+|  |  | `curve` | enum | — | — | "logarithmic" | linear \| logarithmic \| exponential |
+| `fade_in` | sim | `duration_ms` | integer | 0 | 10000 | 1000.0 | ms |
+|  |  | `curve` | enum | — | — | "logarithmic" | linear \| logarithmic \| exponential |
+| `fade_out` | sim | `duration_ms` | integer | 0 | 10000 | 1000.0 | ms |
+|  |  | `curve` | enum | — | — | "logarithmic" | linear \| logarithmic \| exponential |
+| `time_stretch` | sim | `factor` | float | 0.9 | 1.1 | 1.0 | × |
+| `lufs_normalization` | sim | `target_lufs` | float | -30 | -6 | -14.0 | LUFS |
+|  |  | `max_true_peak_db` | float | -6 | 0 | -1.0 | dBTP |
+| `stem_separation` | não (not_implemented) | `model` | enum | — | — | "htdemucs" | htdemucs \| htdemucs_ft |
+|  |  | `stems` | array_enum | 1 | 4 | ["drums","other"] | drums \| bass \| vocals \| other |
+<!-- END GENERATED TOOLS TABLE -->
+
+**`curve` de `crossfade` está com o vocabulário errado hoje** —
+`linear`/`logarithmic`/`exponential` é o modelo de fade de entrada/saída, não
+de crossfade (dois sinais somando pedem potência-constante/ganho-constante,
+não uma curva de percepção de volume). Ver adendo R2 §0 — a correção
+(`CrossfadeCurve` distinto de `FadeCurve`) é trabalho do pacote `docs/16`,
+atrás de T0.0/T0.1; a tabela acima reflete o registry **como ele é hoje**,
+não como vai ficar.
+
+**`stem_separation.model` é lista fixa** (`htdemucs` \| `htdemucs_ft`) —
+deveria vir do binário externo detectado (ADR-0010), não do código. Prioridade
+baixa enquanto a ferramenta estiver `available: false`, mas não pode passar da
+Sprint 3.
+
+**`block_selection` e `target_duration` não aparecem acima** — são campos de
+`pipeline_config` (ver `docs/03-CONTRATOS-API.md`), não entradas de
+`tool_registry()`. Não são ferramentas que o LLM invoca por tool-calling; são
+parte da configuração do job. Fora do escopo deste mecanismo de geração até
+que (se) ganharem sua própria representação no registry.
 
 ### Regras cruzadas (não expressáveis como min/max)
 

@@ -1,4 +1,4 @@
-use crate::limits::{VALID_CURVES, VALID_STEMS, VALID_STEM_MODELS};
+use crate::limits::{VALID_CURVES, VALID_EQ_FILTER_TYPES, VALID_STEMS, VALID_STEM_MODELS};
 use crate::tools::AudioToolDef;
 use serde_json::Value;
 use thiserror::Error;
@@ -71,6 +71,11 @@ impl ValidationLayer {
                     bound("dynamic_eq.bands[].freq_hz", band.freq_hz, 20.0, 20000.0)?;
                     bound("dynamic_eq.bands[].gain_db", band.gain_db, -24.0, 24.0)?;
                     bound("dynamic_eq.bands[].q", band.q, 0.1, 10.0)?;
+                    enum_value(
+                        "dynamic_eq.bands[].type_filter",
+                        &band.type_filter,
+                        VALID_EQ_FILTER_TYPES,
+                    )?;
                 }
                 // R4: bandas com freq_hz duplicada (±5%)
                 for i in 0..params.bands.len() {
@@ -266,6 +271,22 @@ mod tests {
             })
             .collect();
         let tool = AudioToolDef::DynamicEq(DynamicEqParams { bands });
+        assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
+    }
+
+    #[test]
+    fn test_dynamic_eq_invalid_type_filter_rejected() {
+        // type_filter era String livre — o validador nunca checava o valor.
+        // Registry (limits.rs) já expõe o enum; o validador precisa
+        // impor o mesmo, senão volta a divergência de sempre.
+        let tool = AudioToolDef::DynamicEq(DynamicEqParams {
+            bands: vec![EqBand {
+                freq_hz: 1000.0,
+                gain_db: 0.0,
+                q: 0.7,
+                type_filter: "notch".to_string(),
+            }],
+        });
         assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
     }
 
