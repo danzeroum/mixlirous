@@ -103,6 +103,7 @@ mod tests {
     use super::*;
     use ndarray::Array1;
 
+    /// I10 (docs/10-TESTES-QUALIDADE.md §3): distance(x, x) == 0.
     #[test]
     fn test_fingerprint_distance_zero() {
         let pcm = Array1::from_vec(vec![0.0f32; 44100]);
@@ -110,5 +111,21 @@ mod tests {
         let f2 = AudioFingerprint::from_pcm(&pcm, 44100);
 
         assert_eq!(f1.distance(&f2), 0.0);
+    }
+
+    /// I10: distance é simétrica: distance(a, b) == distance(b, a).
+    #[test]
+    fn test_fingerprint_distance_is_symmetric() {
+        let silence = Array1::from_vec(vec![0.0f32; 44100]);
+        let tone = Array1::from_vec(
+            (0..44100)
+                .map(|i| (i as f32 / 44100.0 * 440.0 * std::f32::consts::TAU).sin())
+                .collect(),
+        );
+
+        let f_silence = AudioFingerprint::from_pcm(&silence, 44100);
+        let f_tone = AudioFingerprint::from_pcm(&tone, 44100);
+
+        assert_eq!(f_silence.distance(&f_tone), f_tone.distance(&f_silence));
     }
 }

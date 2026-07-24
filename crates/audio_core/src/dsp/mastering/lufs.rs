@@ -36,11 +36,15 @@ mod tests {
         assert!(lufs < -60.0);
     }
 
+    /// I11 (docs/10-TESTES-QUALIDADE.md §3): após normalização, |lufs-alvo| <= 0.5 LU.
     #[test]
-    fn test_apply_lufs_gain_moves_toward_target() {
+    fn test_apply_lufs_gain_satisfies_i11_tolerance() {
         let mut pcm = vec![0.05f32; 44100];
         apply_lufs_gain(&mut pcm, 44100, -14.0);
         let result = measure_lufs(&Array1::from_vec(pcm), 44100);
-        assert!((result - -14.0).abs() < 1.0);
+        assert!(
+            (result - -14.0).abs() <= 0.5,
+            "fora do invariante I11: {result} LUFS"
+        );
     }
 }

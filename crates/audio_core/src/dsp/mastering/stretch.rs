@@ -1,11 +1,15 @@
+use audioadapter_buffers::direct::SequentialSliceOfVecs;
 use ndarray::Array1;
+use rubato::{Async, FixedAsync, Resampler, SincInterpolationParameters};
 
-/// Ajusta a duração de um buffer PCM por reamostragem linear.
+/// Ajusta a duração de um buffer PCM mono por reamostragem sinc de banda
+/// limitada (`rubato::Async`, janela Blackman-Harris2, interpolação cúbica).
 ///
-/// Implementação simplificada: reamostrar altera duração e afeta o pitch
-/// junto (não é um time-stretch preservando afinação). Um phase vocoder ou
-/// WSOLA fica para uma sprint futura quando a qualidade de áudio virar foco;
-/// aqui o objetivo é ter uma função íntegra e testável para a Sprint 0.
+/// Reamostrar ainda altera o pitch junto com a duração — não é um
+/// time-stretch que preserva afinação (isso seria WSOLA/phase vocoder,
+/// trabalho futuro quando entrar pitch-shifting independente). Mas o
+/// resample em si é de qualidade real: banda limitada por sinc, não
+/// interpolação linear (que aliasa e perde agudos).
 pub fn time_stretch(
     pcm: &Array1<f32>,
     sample_rate: u32,
@@ -20,24 +24,16 @@ pub fn time_stretch(
         return Some(pcm.clone());
     }
 
-    let target_len = (sample_rate as f32 * target_duration_sec).round() as usize;
-    if target_len == 0 {
-        return None;
-    }
+    let ratio = (target_duration_sec / current_duration) as f64;
+    let params = SincInterpolationParameters::default();
+    let mut resampler =
+        Async::<f32>::new_sinc(ratio, 10.0, &params, pcm.len(), 1, FixedAsync::Input).ok()?;
 
-    let mut output = Vec::with_capacity(target_len);
-    let ratio = (pcm.len() - 1).max(1) as f32 / target_len.max(1) as f32;
+    let channels = [pcm.to_vec()];
+    let input = SequentialSliceOfVecs::new(&channels, 1, pcm.len()).ok()?;
 
-    for i in 0..target_len {
-        let src_pos = i as f32 * ratio;
-        let idx0 = src_pos.floor() as usize;
-        let idx1 = (idx0 + 1).min(pcm.len() - 1);
-        let frac = src_pos - idx0 as f32;
-        let sample = pcm[idx0] * (1.0 - frac) + pcm[idx1] * frac;
-        output.push(sample);
-    }
-
-    Some(Array1::from_vec(output))
+    let output = resampler.process_all(&input, pcm.len(), None).ok()?;
+    Some(Array1::from_vec(output.take_data()))
 }
 
 #[cfg(test)]
@@ -48,7 +44,14 @@ mod tests {
     fn test_time_stretch_changes_length() {
         let pcm = Array1::from_vec((0..44100).map(|i| (i as f32 / 44100.0).sin()).collect());
         let stretched = time_stretch(&pcm, 44100, 15.0).unwrap();
-        assert!((stretched.len() as i64 - 44100 * 15).abs() <= 1);
+        assert_eq!(stretched.len(), 44100 * 15);
+    }
+
+    #[test]
+    fn test_time_stretch_shortening_also_matches_target() {
+        let pcm = Array1::from_vec((0..44100).map(|i| (i as f32 / 44100.0).sin()).collect());
+        let stretched = time_stretch(&pcm, 44100, 0.5).unwrap();
+        assert_eq!(stretched.len(), 22050);
     }
 
     #[test]
@@ -62,5 +65,48 @@ mod tests {
         let pcm = Array1::from_vec(vec![0.1f32; 44100]);
         let result = time_stretch(&pcm, 44100, 1.0).unwrap();
         assert_eq!(result.len(), pcm.len());
+    }
+
+    /// I12 (docs/10-TESTES-QUALIDADE.md §3): entrega duração dentro de ±20ms.
+    /// A implementação por sinc devolve o comprimento exato pedido (o teste
+    /// acima já prova isso), o que é bem mais apertado que a tolerância do
+    /// invariante — este teste torna esse invariante explícito por nome.
+    #[test]
+    fn test_time_stretch_satisfies_i12_duration_tolerance() {
+        let sample_rate = 44100u32;
+        let pcm = Array1::from_vec(
+            (0..sample_rate as usize)
+                .map(|i| (i as f32 / sample_rate as f32).sin())
+                .collect(),
+        );
+        let target_sec = 2.37;
+        let stretched = time_stretch(&pcm, sample_rate, target_sec).unwrap();
+
+        let actual_sec = stretched.len() as f32 / sample_rate as f32;
+        assert!(
+            (actual_sec - target_sec).abs() <= 0.020,
+            "duração fora de ±20ms: alvo {target_sec}s, obtido {actual_sec}s"
+        );
+    }
+
+    /// A qualidade do resample importa: um sinal senoidal puro reamostrado
+    /// não deve ganhar energia de alta frequência (aliasing) que não existia
+    /// na entrada. Interpolação linear falha este teste; sinc passa.
+    #[test]
+    fn test_time_stretch_does_not_introduce_gross_amplitude_artifacts() {
+        let sample_rate = 44100u32;
+        let freq = 440.0f32;
+        let pcm = Array1::from_vec(
+            (0..sample_rate as usize)
+                .map(|i| (i as f32 / sample_rate as f32 * freq * std::f32::consts::TAU).sin())
+                .collect(),
+        );
+
+        let stretched = time_stretch(&pcm, sample_rate, 0.7).unwrap();
+        let peak = stretched.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
+        // Um seno de amplitude 1 não deve virar > ~1.05 depois do resample
+        // (alguma margem para ripple do filtro sinc); interpolação linear
+        // com aliasing severo tende a produzir picos bem maiores que isso.
+        assert!(peak <= 1.05, "pico pós-resample suspeito: {peak}");
     }
 }

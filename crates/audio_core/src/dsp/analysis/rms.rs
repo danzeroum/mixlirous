@@ -49,4 +49,22 @@ mod tests {
         assert_eq!(frames.len(), 7);
         assert!(frames.iter().all(|&v| (v - 0.5).abs() < 1e-5));
     }
+
+    /// I13 (docs/10-TESTES-QUALIDADE.md §3): RMS(seno amplitude 1) ~= 0.7071.
+    #[test]
+    fn test_rms_of_unit_sine_satisfies_i13() {
+        let sample_rate = 44100.0f32;
+        let freq = 440.0f32;
+        let pcm = Array1::from_vec(
+            (0..sample_rate as usize)
+                .map(|i| (i as f32 / sample_rate * freq * std::f32::consts::TAU).sin())
+                .collect(),
+        );
+
+        let rms = calculate_rms(pcm.view());
+        assert!(
+            (rms - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-3,
+            "RMS fora do esperado: {rms}"
+        );
+    }
 }
