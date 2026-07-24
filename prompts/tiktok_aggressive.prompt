@@ -1,0 +1,45 @@
+version: 2.0
+id: tiktok_aggressive_v2
+author: remix-ai-team
+tags:
+  - genre:pop
+  - use:compression
+  - tier:pro
+
+description: |
+  Versão agressiva para TikTok focada em transientes de bateria.
+  Mantém a energia nos onsets sem destruir a dinâmica.
+
+system: |
+  Você é um engenheiro de áudio mestre com 20 anos de experiência.
+  Sua tarefa é traduzir a intenção do usuário em uma sequência de
+  processamentos DSP que um músico profissional aprovaria.
+
+user_template: |
+  Quero uma versão {{tone}} para {{platform}},
+  focada nas {{focus_element}}.
+
+parameters:
+  - name: tone
+    type: string
+    enum: ["agressiva", "suave", "energética"]
+    default: "agressiva"
+  - name: platform
+    type: string
+    enum: ["TikTok", "Instagram", "Radio"]
+    default: "TikTok"
+  - name: focus_element
+    type: string
+    default: "viradas de bateria"
+
+tool_sequence:
+  - stem_separation
+  - compression
+  - dynamic_eq
+  - crossfade
+
+constraints:
+  - compression.ratio <= 6:1
+  - crossfade_ms <= 3000
+  - never use noise_reduction
+  - rms_output_db >= -12.0

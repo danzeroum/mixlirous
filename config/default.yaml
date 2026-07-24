@@ -1,0 +1,39 @@
+database:
+  type: "sqlite"           # "sqlite" | "postgres"
+  url: "sqlite:data/remix_ai.db?mode=rwc"
+  max_connections: 20
+
+storage:
+  type: "minio"            # "minio" | "s3" | "local"
+  endpoint: "localhost:9000"
+  bucket: "audio-pipeline"
+  # access_key / secret_key vêm de REMIX__STORAGE__ACCESS_KEY e
+  # REMIX__STORAGE__SECRET_KEY (ver .env.example) — nunca versionados aqui.
+  region: "us-east-1"
+
+audio:
+  sample_rate: 44100
+  channels: 2
+  frame_size: 2048
+  hop_size: 512
+  crossfade_max_ms: 3000
+  rms_window_ms: 100
+
+llm:
+  provider: "openai"          # "openai" | "ollama" | "anthropic"
+  model: "gpt-4o"
+  base_url: "https://api.openai.com/v1"
+  temperature: 0.3
+  max_tools: 5
+  timeout_sec: 30
+
+observability:
+  otel_collector_endpoint: "http://localhost:4317"
+  prometheus_port: 9090
+  grafana_url: "http://localhost:3001"
+
+features:
+  version_freeze: true
+  canary_rollout_pct: 5
+  prompt_lint_enabled: true
+  golden_master_enabled: true

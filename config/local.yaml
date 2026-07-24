@@ -1,0 +1,10 @@
+# Perfil local (I9 de docs/14-AUDITORIA-KIT.md): sem Postgres, sem MinIO,
+# sem observabilidade — só o necessário para `cargo run --bin audio_api` com
+# CONFIG_ENV=local, como descrito no README.
+database:
+  type: "sqlite"
+  url: "sqlite:data/remix_ai.db?mode=rwc"
+
+storage:
+  type: "local"
+  bucket: "data/audio-pipeline"

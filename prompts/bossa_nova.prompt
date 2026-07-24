@@ -1,0 +1,44 @@
+version: 1.1
+id: bossa_nova_v1
+author: remix-ai-team
+tags:
+  - genre:bossa
+  - use:mastering
+  - tier:free
+
+description: |
+  Masterização suave preservando harmônicos naturais e a
+  dinâmica orgânica do violão de nylon.
+
+system: |
+  Você é um engenheiro de áudio especializado em música acústica.
+  Priorize a naturalidade sobre a loudness. O objetivo é
+  realçar o timbre do violão sem comprimir excessivamente.
+
+user_template: |
+  Quero uma masterização {{intensity}} para {{genre}},
+  preservando {{preserve_element}}.
+
+parameters:
+  - name: intensity
+    type: string
+    enum: ["mínima", "suave", "moderada"]
+    default: "suave"
+  - name: genre
+    type: string
+    enum: ["Bossa Nova", "MPB", "Acoustic"]
+    default: "Bossa Nova"
+  - name: preserve_element
+    type: string
+    default: "harmônicos do violão de nylon"
+
+tool_sequence:
+  - stem_separation
+  - gentle_compression
+  - eq_subtle
+  - lufs_normalization
+
+constraints:
+  - compression.ratio <= 3:1
+  - lufs_target >= -18.0
+  - never apply hard_clip

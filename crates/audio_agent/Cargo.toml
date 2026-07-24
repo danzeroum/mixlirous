@@ -1,0 +1,10 @@
+[package]
+name = "audio_agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+serde_yaml = "0.9.34"

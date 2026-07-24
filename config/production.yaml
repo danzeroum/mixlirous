@@ -1,0 +1,34 @@
+database:
+  type: "postgres"
+  url: "${DATABASE_URL}"  # injetado via secrets manager (SSM / Vault); nunca hardcoded aqui
+  max_connections: 50
+
+storage:
+  type: "s3"
+  bucket: "audio-pipeline-prod"
+  region: "us-east-1"
+  # Access keys virão de secrets manager (SSM / Vault)
+
+audio:
+  sample_rate: 48000
+  channels: 2
+  frame_size: 4096
+  hop_size: 1024
+
+llm:
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.2          # Menor para produção
+  retry_policy:
+    max_attempts: 3
+    backoff_ms: 500
+
+observability:
+  otel_collector_endpoint: "http://otel-collector:4317"
+  prometheus_port: 9090
+
+features:
+  version_freeze: true
+  canary_rollout_pct: 2
+  prompt_lint_enabled: true
+  golden_master_enabled: true
