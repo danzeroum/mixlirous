@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin:0; padding:0; }
+  body { font-family:'Archivo', system-ui, sans-serif; -webkit-font-smoothing:antialiased; color:#14150F; }
+  * { box-sizing:border-box; }
+  a { color:#5A7A12; text-decoration:underline; }
+  a:hover { color:#3F5A08; }
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+
+  <div slot="header" style="display:flex; align-items:baseline; gap:10px; padding-bottom:7px; border-bottom:1px solid #DDDED6; font-size:8pt; color:#5B5F55">
+    <span style="width:14px; height:14px; border-radius:4px; background:#C6F24E; display:inline-block"></span>
+    <span style="font-weight:700; color:#14150F">Mixlirous</span>
+    <span>Handoff de frontend — o que a UI já tem e onde ela pluga</span>
+    <span style="flex:1"></span>
+    <span style="font-family:'JetBrains Mono', monospace">v1 · 24/07/2026</span>
+  </div>
+
+  <div slot="footer" style="display:flex; align-items:baseline; gap:10px; padding-top:7px; border-top:1px solid #DDDED6; font-size:8pt; color:#5B5F55">
+    <span>Design de produto → Engenharia</span>
+    <span style="flex:1"></span>
+    <span style="font-family:'JetBrains Mono', monospace">protótipo: Mixlirous.dc.html</span>
+  </div>
+
+  <h1 style="margin:0 0 6px; font-size:26pt; font-weight:700; letter-spacing:-0.02em; line-height:1.1">Handoff de frontend</h1>
+  <p style="margin:0 0 18px; font-size:12pt; color:#5B5F55; max-width:34em">Todas as telas do protótipo, o contrato de cada componente e o ponto exato da API ou do stream que alimenta cada elemento. Também está aqui o que a UI já pressupõe e o backend ainda não expõe.</p>
+
+  <div style="display:flex; gap:10px; margin-bottom:22px; break-inside:avoid">
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">Telas prontas</div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:17pt; margin-top:3px">13</div>
+    </div>
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">Componentes</div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:17pt; margin-top:3px">21</div>
+    </div>
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">Ligações mapeadas</div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:17pt; margin-top:3px">61</div>
+    </div>
+    <div style="flex:1; padding:11px 13px; border:1px solid #F0C98A; border-radius:8px; background:#FDF6E9">
+      <div style="font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#8A6A20; font-weight:700">Lacunas no backend</div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:17pt; margin-top:3px; color:#8A6A20">11</div>
+    </div>
+  </div>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">1 · Como ler este documento</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; line-height:1.55; max-width:36em">Cada linha das tabelas de ligação nomeia um elemento que <strong>existe no protótipo</strong> e o campo que ele espera. Onde a coluna de origem estiver marcada <span style="font-family:'JetBrains Mono', monospace; font-size:9pt; padding:1px 5px; border-radius:3px; background:#FDF6E9; color:#8A6A20">falta</span>, o desenho está pronto mas o backend ainda não entrega o dado — essas linhas viram issue de backend, não de frontend.</p>
+  <p style="margin:0 0 12px; font-size:10.5pt; line-height:1.55; max-width:36em">Nomes de estado, de ferramenta e de campo no protótipo são <strong>idênticos</strong> aos do contrato e do glossário. Se um nome divergir, o protótipo está errado — corrija a favor do contrato.</p>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">2 · Inventário de telas</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; color:#5B5F55">Navegação do protótipo: seis destinos do app na barra lateral, mais os estados agrupados em <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">PROTO</span>.</p>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:24%">Tela</span><span style="width:20%">Rota sugerida</span><span style="width:14%">Prontidão</span><span style="flex:1">O que já está resolvido no desenho</span>
+  </div>
+  <sc-for list="{{ inventory }}" as="r" hint-placeholder-count="13">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:24%; font-weight:600; padding-right:8px">{{ r.a }}</span>
+      <span style="width:20%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#5B5F55; padding-right:8px">{{ r.b }}</span>
+      <span style="width:14%; color:{{ r.color }}; padding-right:8px">{{ r.c }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.d }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">3 · Ligações UI → API</h2>
+
+  <h3 style="margin:16px 0 6px; font-size:11.5pt; font-weight:700">3.1 Biblioteca e faixas</h3>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:30%">Elemento na tela</span><span style="width:34%">Chamada</span><span style="flex:1">Campo que alimenta</span>
+  </div>
+  <sc-for list="{{ apiTracks }}" as="r" hint-placeholder-count="8">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:30%; padding-right:8px">{{ r.a }}</span>
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h3 style="margin:20px 0 6px; font-size:11.5pt; font-weight:700">3.2 Editor de fluxo, nós e parâmetros</h3>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:30%">Elemento na tela</span><span style="width:34%">Chamada</span><span style="flex:1">Campo que alimenta</span>
+  </div>
+  <sc-for list="{{ apiEditor }}" as="r" hint-placeholder-count="12">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:30%; padding-right:8px">{{ r.a }}</span>
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <div style="margin:14px 0 0; padding:12px 14px; border-left:3px solid #C6F24E; background:#F7FAEE; break-inside:avoid">
+    <div style="font-size:10pt; font-weight:700; margin-bottom:5px">Regra que não pode ser flexibilizada no front</div>
+    <div style="font-size:9.5pt; line-height:1.55; color:#3B3D34">Nenhum limite de slider é escrito no código do frontend. <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">min</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">max</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">step</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">default</span> e <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">unit</span> vêm de <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">GET /api/v1/tools</span> e viram props. O protótipo mostra os valores canônicos (transição 0–3000 ms, LUFS −30…−6, ratio 1–10, bloco 2/4/8/16/32, percentil P50–P95) apenas como ilustração.</div>
+  </div>
+
+  <h3 style="margin:20px 0 6px; font-size:11.5pt; font-weight:700">3.3 Proposta (human-in-the-loop)</h3>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:30%">Elemento na tela</span><span style="width:34%">Chamada ou evento</span><span style="flex:1">Campo que alimenta</span>
+  </div>
+  <sc-for list="{{ apiHitl }}" as="r" hint-placeholder-count="9">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:30%; padding-right:8px">{{ r.a }}</span>
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h3 style="margin:20px 0 6px; font-size:11.5pt; font-weight:700">3.4 Resultado, comparação e diff acústico</h3>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:30%">Elemento na tela</span><span style="width:34%">Chamada</span><span style="flex:1">Campo que alimenta</span>
+  </div>
+  <sc-for list="{{ apiResult }}" as="r" hint-placeholder-count="9">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:30%; padding-right:8px">{{ r.a }}</span>
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h3 style="margin:20px 0 6px; font-size:11.5pt; font-weight:700">3.5 Trabalhos, recursos, espaço e sessão</h3>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:30%">Elemento na tela</span><span style="width:34%">Chamada</span><span style="flex:1">Campo que alimenta</span>
+  </div>
+  <sc-for list="{{ apiSystem }}" as="r" hint-placeholder-count="14">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:30%; padding-right:8px">{{ r.a }}</span>
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">4 · Eventos do stream e o que muda na tela</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; line-height:1.55; max-width:36em">Um <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">EventSource</span> por trabalho aberto. O protótipo já assume acumulação de <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">delta</span> sem relayout, retomada por <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">Last-Event-ID</span> e o selo de conexão na barra superior com três estados.</p>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:26%">Evento</span><span style="width:30%">Componente afetado</span><span style="flex:1">Efeito exato</span>
+  </div>
+  <sc-for list="{{ sseRows }}" as="r" hint-placeholder-count="20">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:26%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; padding-right:8px">{{ r.a }}</span>
+      <span style="width:30%; padding-right:8px; color:#3B3D34">{{ r.b }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">5 · Componentes e contratos de props</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; line-height:1.55; max-width:36em">As variantes usam os mesmos nomes do código — <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">idle</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">proposed</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">queued</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">running</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">completed</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">failed</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">rejected</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">locked</span> — para não sobrar ambiguidade no handoff.</p>
+  <sc-for list="{{ components }}" as="c" hint-placeholder-count="12">
+    <div style="padding:10px 0 11px; border-bottom:1px solid #E6E7DF; break-inside:avoid">
+      <div style="display:flex; align-items:baseline; gap:9px">
+        <span style="font-family:'JetBrains Mono', monospace; font-size:10pt; font-weight:700">{{ c.name }}</span>
+        <span style="font-size:8.5pt; color:#5B5F55">{{ c.where }}</span>
+      </div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34; margin-top:5px; line-height:1.6">{{ c.props }}</div>
+      <div style="font-size:9.5pt; color:#3B3D34; margin-top:5px; line-height:1.5">{{ c.note }}</div>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">6 · Envelope de parâmetro e precedência</h2>
+  <p style="margin:0 0 10px; font-size:10.5pt; line-height:1.55; max-width:36em">Nenhum valor que o assistente pode preencher é número solto na UI. Todo controle recebe o envelope e desenha a origem — é isso que sustenta a promessa de que a pessoa decide.</p>
+  <div style="padding:12px 14px; border-radius:8px; background:#14150F; color:#E9EAE3; font-family:'JetBrains Mono', monospace; font-size:8.5pt; line-height:1.65; white-space:pre-wrap; break-inside:avoid">{{ envelope }}</div>
+  <div style="display:flex; gap:10px; margin-top:12px; break-inside:avoid">
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:9.5pt; font-weight:700; color:#6B4FCB">LLM_INFERRED</div>
+      <div style="font-size:9pt; color:#3B3D34; margin-top:4px; line-height:1.5">Ícone de assistente e confiança visível. Pode ser sobrescrito por evento novo.</div>
+    </div>
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:9.5pt; font-weight:700">USER_DEFINED</div>
+      <div style="font-size:9pt; color:#3B3D34; margin-top:4px; line-height:1.5">Cadeado fechado. O front <strong>ignora e loga</strong> qualquer valor que chegue do servidor para este campo.</div>
+    </div>
+    <div style="flex:1; padding:11px 13px; border:1px solid #DDDED6; border-radius:8px">
+      <div style="font-size:9.5pt; font-weight:700; color:#5B5F55">DEFAULT</div>
+      <div style="font-size:9pt; color:#3B3D34; margin-top:4px; line-height:1.5">Sem ícone, rótulo “padrão do sistema”. Livre para o assistente preencher.</div>
+    </div>
+  </div>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">7 · Tokens</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; color:#5B5F55">Exportáveis como JSON no formato do Style Dictionary. A tela <strong>Fundamentos</strong> do protótipo é a fonte visual.</p>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:26%">Grupo</span><span style="flex:1">Valores</span>
+  </div>
+  <sc-for list="{{ tokens }}" as="r" hint-placeholder-count="9">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:26%; padding-right:8px; color:#3B3D34">{{ r.a }}</span>
+      <span style="flex:1; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:#3B3D34">{{ r.b }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">8 · Estados obrigatórios por tela</h2>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:20%">Tela</span><span style="width:26%">Vazio</span><span style="width:26%">Carregando</span><span style="flex:1">Erro</span>
+  </div>
+  <sc-for list="{{ states }}" as="r" hint-placeholder-count="7">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:20%; font-weight:600; padding-right:8px">{{ r.a }}</span>
+      <span style="width:26%; padding-right:8px; color:#3B3D34">{{ r.b }}</span>
+      <span style="width:26%; padding-right:8px; color:#3B3D34">{{ r.c }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.d }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">9 · Acessibilidade — medido, não prometido</h2>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:26%">Requisito</span><span style="width:16%">Situação</span><span style="flex:1">Detalhe para o dev</span>
+  </div>
+  <sc-for list="{{ a11y }}" as="r" hint-placeholder-count="9">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:26%; padding-right:8px; font-weight:600">{{ r.a }}</span>
+      <span style="width:16%; padding-right:8px; color:{{ r.color }}">{{ r.b }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">10 · Responsividade e i18n</h2>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:20%">Largura</span><span style="flex:1">Comportamento definido</span>
+  </div>
+  <sc-for list="{{ breakpoints }}" as="r" hint-placeholder-count="5">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:20%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; padding-right:8px">{{ r.a }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.b }}</span>
+    </div>
+  </sc-for>
+  <p style="margin:12px 0 0; font-size:10pt; line-height:1.55; max-width:36em"><strong>i18n:</strong> pt-BR é a base e alemão cresce até 30% — nenhum rótulo tem largura fixa, todo número sai com sufixo de unidade separado do valor, e o separador decimal vem da locale (vírgula em pt-BR, ponto em en-US). Identificadores técnicos (<span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">crossfade</span>, <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">trace_id</span>) nunca são traduzidos.</p>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">11 · O que o backend ainda não expõe</h2>
+  <p style="margin:0 0 12px; font-size:10.5pt; line-height:1.55; max-width:36em">A UI já está desenhada para estes dados. Cada linha é uma issue de backend com a tela que fica incompleta sem ela.</p>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:34%">Precisa existir</span><span style="width:22%">Tela bloqueada</span><span style="flex:1">Por quê</span>
+  </div>
+  <sc-for list="{{ gaps }}" as="r" hint-placeholder-count="11">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:34%; font-family:'JetBrains Mono', monospace; font-size:8.5pt; padding-right:8px; color:#8A6A20">{{ r.a }}</span>
+      <span style="width:22%; padding-right:8px">{{ r.b }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.c }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">12 · Ordem de implementação</h2>
+  <div style="display:flex; padding:6px 8px; border-bottom:1.5px solid #14150F; font-size:8pt; letter-spacing:0.06em; text-transform:uppercase; color:#5B5F55; font-weight:700">
+    <span style="width:12%">Sprint</span><span style="width:34%">Entrega</span><span style="width:14%">Dono</span><span style="flex:1">Por que nesta ordem</span>
+  </div>
+  <sc-for list="{{ backlog }}" as="r" hint-placeholder-count="14">
+    <div style="display:flex; padding:7px 8px; border-bottom:1px solid #E6E7DF; font-size:9.5pt; break-inside:avoid">
+      <span style="width:12%; padding-right:8px; font-family:'JetBrains Mono', monospace; font-size:8.5pt; color:{{ r.color }}">{{ r.a }}</span>
+      <span style="width:34%; padding-right:8px; font-weight:600">{{ r.b }}</span>
+      <span style="width:14%; padding-right:8px; color:#5B5F55">{{ r.c }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.d }}</span>
+    </div>
+  </sc-for>
+
+  <h2 style="margin:26px 0 4px; font-size:15pt; font-weight:700; letter-spacing:-0.01em">13 · Como explorar o protótipo</h2>
+  <p style="margin:0 0 10px; font-size:10.5pt; line-height:1.55; max-width:36em">Abra <span style="font-family:'JetBrains Mono', monospace; font-size:9pt">Mixlirous.dc.html</span>. Tudo abaixo é interativo — vale conferir antes de escrever código.</p>
+  <sc-for list="{{ howto }}" as="r" hint-placeholder-count="8">
+    <div style="display:flex; gap:10px; padding:6px 0; font-size:9.5pt; break-inside:avoid">
+      <span style="width:34%; font-weight:600">{{ r.a }}</span>
+      <span style="flex:1; color:#3B3D34">{{ r.b }}</span>
+    </div>
+  </sc-for>
+
+  <div style="margin:22px 0 0; padding:14px 16px; border-left:3px solid #14150F; background:#F4F4EE; break-inside:avoid">
+    <div style="font-size:10.5pt; font-weight:700; margin-bottom:6px">Uma decisão de produto que o código precisa preservar</div>
+    <div style="font-size:10pt; line-height:1.6; color:#3B3D34">Um nó em <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">proposed</span> nunca é processado, e nenhum nó é criado sem <span style="font-family:'JetBrains Mono', monospace; font-size:8.5pt">proposal_id</span> aprovado. Recusar não falha o trabalho: vira observação e o assistente tenta outro caminho. Se algum atalho de implementação quebrar isso, a promessa central do produto cai — “a máquina propõe, a pessoa decide” deixa de ser verdade e nenhuma tela consegue recuperar essa confiança depois.</div>
+  </div>
+
+</doc-page>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const OK = '#3F6B1E', WARN = '#8A6A20', MUT = '#5B5F55';
+const R4 = (a, b, c, d, color) => ({ a, b, c, d, color: color || '#3B3D34' });
+
+class Component extends DCLogic {
+  componentDidMount() {
+    const run = () => { const dp = document.querySelector('doc-page'); if (dp && dp._measure) dp._measure(); };
+    requestAnimationFrame(run);
+    setTimeout(run, 200);
+    setTimeout(run, 900);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  }
+  renderVals() {
+    return {
+      inventory: [
+        R4('Primeiro uso', '/onboarding', 'pronta', '4 passos: promessa do produto, detecção do Ollama, pasta de ensaios, primeiro pedido.', OK),
+        R4('Acesso e sessão', '/login', 'pronta', 'Login, sessão local do modo laptop, claims do token, papéis e sessão expirada.', OK),
+        R4('Biblioteca', '/:tenant/:projeto/faixas', 'pronta', 'Lista com miniatura de onda, estados de análise, busca, seleção múltipla e lote.', OK),
+        R4('Editor de fluxo', '/:tenant/:projeto/fluxo/:jobId', 'pronta', 'Canvas com 6 tipos de nó, paleta, ferramentas disponíveis e indisponíveis, visão em lista.', OK),
+        R4('Painel de propriedades', 'painel do editor', 'pronta', 'Seis variantes por tipo de nó, com trava, enum, multi-seleção e regra cruzada R2.', OK),
+        R4('Raciocínio', 'painel do editor', 'pronta', 'Streaming com cursor, histórico com tempos, orçamento e estado sem assistente.', OK),
+        R4('Proposta', 'sobreposição', 'pronta', 'Parâmetros concretos, confiança, contagem de 2:00, aprovar/recusar/replanejar, 4 variações.', OK),
+        R4('Resultado', '/:tenant/:projeto/render/:jobId', 'pronta', 'Onda com marcadores de emenda, A/B, diff acústico, métricas e aviso do motor.', OK),
+        R4('Trabalhos', '/:tenant/:projeto/trabalhos', 'pronta', 'Filtros por estado, progresso por estágio, refazer, cancelar, cota do mês.', OK),
+        R4('Registro de atividade', '/:tenant/:projeto/atividade', 'pronta', 'Quem fez o quê, filtros por autor, trace_id por linha, exportação.', OK),
+        R4('Recursos e escala', '/:tenant/recursos', 'pronta', 'Slider de processadores, piloto automático somente leitura, fila, CPU, Docker.', OK),
+        R4('Configurações', '/:tenant/:projeto/config', 'pronta', 'Versões congeladas, provedor de LLM, referência sonora, cota, apagar material.', OK),
+        R4('Fundamentos', 'documentação', 'pronta', 'Tokens, matriz dos 8 estados de nó, família de controles e iconografia.', OK)
+      ],
+      apiTracks: [
+        { a: 'Botão “Importar pasta”', b: 'POST /uploads/presign → PUT upload_url', c: 'object_key, expires_at' },
+        { a: 'Lista de faixas', b: 'GET /tracks?limit=50&cursor=', c: 'items[].display_name, status, duration_sec, next_cursor' },
+        { a: 'Miniatura de forma de onda', b: 'GET /tracks/:id/peaks?resolution=1024', c: 'peaks[][min,max]' },
+        { a: 'Chip BPM e batidas', b: 'GET /tracks/:id', c: 'analysis.bpm, bpm_confidence, beat_count, strong_beat_count' },
+        { a: 'Estado “analisando”', b: 'GET /tracks/:id/events', c: 'track.* + job.progress' },
+        { a: 'Seções no painel de fonte', b: 'GET /tracks/:id', c: 'analysis.sections[].label, start_sec, end_sec, repeat_of' },
+        { a: 'Ação de remover faixa', b: 'DELETE /tracks/:id', c: '204 — remove artefatos derivados' },
+        { a: '“Aplicar receita em lote”', b: 'POST /jobs × N com Idempotency-Key', c: 'job_id por faixa, mode: manual' }
+      ],
+      apiEditor: [
+        { a: 'Botão “Renderizar”', b: 'POST /jobs', c: 'track_id, mode, user_prompt, prompt_id, graph, pipeline_config' },
+        { a: 'Alternância assistido/manual', b: 'POST /jobs', c: 'mode: assisted | manual' },
+        { a: 'Campo de pedido', b: 'POST /jobs', c: 'user_prompt — máx. 4096, sanitizado no servidor' },
+        { a: 'Chip da receita', b: 'GET /prompts/:prompt_id', c: 'name, version, status, parameters[], tool_sequence, constraints' },
+        { a: 'Lista “Ferramentas” da paleta', b: 'GET /tools', c: 'available, unavailable_reason, label_ptbr, category' },
+        { a: 'Todo slider e campo', b: 'GET /tools', c: 'parameters[].min, max, default, unit, enum' },
+        { a: 'Nós e arestas do canvas', b: 'GET /jobs/:id', c: 'graph.nodes[].type, tool, status, position; graph.edges[]' },
+        { a: 'Valores dentro do nó', b: 'GET /jobs/:id', c: 'nodes[].parameters[key].value, source, confidence' },
+        { a: 'Cadeado no parâmetro', b: 'PATCH /jobs/:id/nodes/:nodeId/parameters', c: 'servidor força source: USER_DEFINED' },
+        { a: 'Destravar parâmetro', b: 'DELETE /jobs/:id/nodes/:nodeId/parameters/:key', c: 'volta a LLM_INFERRED ou DEFAULT' },
+        { a: 'Botão “Cancelar”', b: 'POST /jobs/:id/cancel', c: 'válido em queued, running, awaiting_approval' },
+        { a: 'Selo “Versão congelada”', b: 'POST /jobs', c: 'version_freeze.enabled, prompt_version, llm_model' },
+        { a: 'Barra de progresso e estágio', b: 'SSE job.progress', c: 'stage, progress_pct, eta_sec' },
+        { a: 'Aviso de beta (canário)', b: 'falta', c: 'flag de rollout por tenant + versão do prompt em teste', color: WARN }
+      ],
+      apiHitl: [
+        { a: 'Abertura do card', b: 'SSE agent.proposal', c: 'proposal_id, tool, tool_label_ptbr, reason, expires_in_sec' },
+        { a: 'Bloco de parâmetros', b: 'SSE agent.proposal', c: 'parameters_suggestion (model, stems…)' },
+        { a: 'Texto “Onde: antes de…”', b: 'SSE agent.proposal', c: 'position_hint.relation, node_id' },
+        { a: 'Selo de confiança', b: 'falta', c: 'confidence na proposta (hoje só existe no envelope de parâmetro)', color: WARN },
+        { a: 'Botão “Aprovar”', b: 'POST /jobs/:id/proposals/:pid/approve', c: 'parameters opcionais → created_node' },
+        { a: 'Botão “Recusar”', b: 'POST /jobs/:id/proposals/:pid/reject', c: 'reason → agent_will_replan' },
+        { a: 'Botão “Replanejar”', b: 'falta', c: 'recusar pedindo alternativa imediata sem descartar a estratégia', color: WARN },
+        { a: 'Reabrir após F5', b: 'GET /jobs/:id/proposals', c: 'pendentes; reabre o card no mount' },
+        { a: 'Expiração e outra aba', b: 'SSE proposal.expired, proposal.decided', c: 'fecha o card, sincroniza abas' },
+        { a: 'Duplo clique', b: '409 proposal_already_decided', c: 'ignorar em silêncio; botões já desabilitam' }
+      ],
+      apiResult: [
+        { a: 'Forma de onda do resultado', b: 'falta', c: 'peaks do artefato (hoje só a faixa original tem /peaks)', color: WARN },
+        { a: 'Marcadores de emenda', b: 'falta', c: 'splice_markers[] em segundos no artifact', color: WARN },
+        { a: 'Aviso “emenda brusca”', b: 'falta', c: 'warnings[] com code, at_sec, hint', color: WARN },
+        { a: 'Volume percebido e pico', b: 'GET /jobs/:id', c: 'artifact.lufs, true_peak_db' },
+        { a: 'Blocos usados', b: 'GET /jobs/:id', c: 'pipeline_config.selection + total de candidatos' },
+        { a: 'Similaridade', b: 'GET /jobs/:id', c: 'similarity_score' },
+        { a: 'Diff acústico (números)', b: 'GET /jobs/:id', c: 'artifact.fingerprint.mfcc, spectral_centroid, rms_energy' },
+        { a: 'Diff acústico (espectro)', b: 'falta', c: 'matriz de energia por banda para original e render', color: WARN },
+        { a: 'Botão “Baixar WAV”', b: 'GET /jobs/:id/artifact?redirect=false', c: 'download_url, expires_at' },
+        { a: 'Hash do arquivo', b: 'GET /jobs/:id', c: 'artifact.sha256, size_bytes' }
+      ],
+      apiSystem: [
+        { a: 'Lista de trabalhos', b: 'GET /jobs?status=&track_id=&limit=&cursor=', c: 'items[].status, progress_pct, duration_sec, similarity_score' },
+        { a: 'Botão “Refazer”', b: 'POST /jobs/:id/retry', c: '202 com novo job_id — só em failed' },
+        { a: 'Erro na linha do trabalho', b: 'GET /jobs/:id', c: 'error.code, error.detail, trace_id' },
+        { a: 'Slider de processadores', b: 'POST /system/scale', c: '{ workers } → 422 limit_exceeded acima de cpu_cores − 1' },
+        { a: 'Piloto automático', b: 'POST /system/scale', c: '{ autopilot: true } → slider vira somente leitura' },
+        { a: 'Fila, CPU, memória', b: 'GET /system/resources + SSE system.resources', c: 'queue.*, cpu_usage_pct, memory_used_mb (a cada 5 s)' },
+        { a: 'Histórico do piloto', b: 'GET /system/resources', c: 'autopilot.last_action.from, to, reason, at' },
+        { a: 'Cartão do Docker', b: 'GET /system/resources', c: 'docker_available; 409 docker_unavailable ao escalar' },
+        { a: 'Cartões por processador', b: 'falta', c: 'workers[] com id e job atual (hoje só contadores)', color: WARN },
+        { a: 'Espaço, plano, integrantes', b: 'GET /tenants/me', c: 'name, plan, members' },
+        { a: 'Cota na barra e em config', b: 'GET /tenants/me/quota', c: 'jobs.used/limit, storage, llm_tokens' },
+        { a: 'Trocador de espaços', b: 'falta', c: 'GET /tenants do usuário + reemissão de token com outro tenant_id', color: WARN },
+        { a: 'Selo de conexão', b: 'EventSource.readyState + Last-Event-ID', c: 'conectado, reconectando, sem conexão' },
+        { a: 'Provedor e modelo', b: 'GET /system/info', c: 'llm_provider, model, db_backend, cpu_cores' },
+        { a: 'Ajustes do assistente', b: 'falta', c: 'PATCH de temperatura, timeout, max_tools e freeze por projeto', color: WARN },
+        { a: 'Referência sonora', b: 'falta', c: 'último resultado do golden master por projeto', color: WARN },
+        { a: 'Registro de atividade', b: 'falta', c: 'GET /audit-events?actor=&cursor= (o evento já é gravado, falta ler)', color: WARN },
+        { a: 'Sair da sessão', b: 'falta', c: 'invalidação do token no servidor', color: WARN }
+      ],
+      sseRows: [
+        { a: 'stream.ready', b: 'Selo de conexão', c: 'fica verde; guarda resumed_from para o replay' },
+        { a: 'job.state', b: 'Selo de estado no cabeçalho', c: 'ponto e rótulo mudam; habilita ou desabilita Cancelar' },
+        { a: 'job.progress', b: 'Barra do cabeçalho e da linha', c: 'largura da barra e nome do estágio em português' },
+        { a: 'agent.step_started', b: 'Cabeçalho do raciocínio', c: '“passo 2 de 5” e pontos do orçamento' },
+        { a: 'agent.thought', b: 'Painel de raciocínio', c: 'acumula delta sem relayout; cursor pisca enquanto chega' },
+        { a: 'agent.tool_call', b: 'Nó correspondente', c: 'destaca a ferramenta escolhida no canvas' },
+        { a: 'agent.tool_result', b: 'Histórico e nó', c: 'linha com valor e tempo; nó vai para completed' },
+        { a: 'agent.error', b: 'Painel de raciocínio', c: 'nó em failed; aviso de assistente indisponível se will_replan for falso' },
+        { a: 'agent.proposal', b: 'Card de proposta', c: 'abre o card, cria nó proposed, aplica halo no nó de referência' },
+        { a: 'agent.finished', b: 'Painel de raciocínio', c: 'encerra o streaming e mostra ferramentas usadas' },
+        { a: 'proposal.expired', b: 'Card de proposta', c: 'fecha com aviso neutro; nó proposto some em 3 s' },
+        { a: 'proposal.decided', b: 'Card de proposta', c: 'sincroniza outra aba sem pedir decisão de novo' },
+        { a: 'node.state', b: 'Nó no canvas e na lista', c: 'borda, ícone e rodapé conforme a matriz de estados' },
+        { a: 'node.parameters', b: 'Painel de propriedades', c: 'preenche sliders; ignora campos travados como USER_DEFINED' },
+        { a: 'node.created', b: 'Canvas', c: 'anima entrada do nó aprovado e das arestas' },
+        { a: 'job.completed', b: 'Aviso e tela de resultado', c: 'toast “Pronto — 30,4 s” com ação de ver resultado' },
+        { a: 'job.failed', b: 'Tela de erro', c: 'code, detail e trace_id copiável; “Refazer” se retryable' },
+        { a: 'job.cancelled', b: 'Selo de estado', c: 'estado cancelado, controles liberados' },
+        { a: 'system.resources', b: 'Tela de recursos', c: 'fila, CPU, memória e cartões de processador a cada 5 s' },
+        { a: 'recovery.report', b: 'Faixa de recuperação', c: 'variante calma quando lost = 0, variante de atenção quando > 0' }
+      ],
+      components: [
+        { name: 'NodeCard', where: 'canvas e visão em lista', props: '{ id, type: NodeType, tool?, title, status: NodeStatus, params: ParamRow[], selected, haloed, onSelect, onMenu }', note: 'Oito variantes de status, cada uma com forma ou ícone além da cor. O halo é controlado de fora, pela proposta pendente.' },
+        { name: 'ParamSlider', where: 'painel de propriedades', props: '{ label, value, min, max, step, unit, source, confidence?, locked, disabled, error?, onChange, onToggleLock }', note: 'Limites vêm da API. O rótulo abaixo do controle diz a origem do valor em uma frase, não em jargão.' },
+        { name: 'SourceBadge', where: 'nós, painel, resultado', props: '{ source: ParameterSource, confidence?, size }', note: 'Assistente em violeta com confiança, trava em cor de texto primário, padrão sem ícone.' },
+        { name: 'ProposalCard', where: 'coluna do raciocínio', props: '{ proposalId, toolLabel, reason, parameters, positionHint, expiresInSec, confidence?, queuedCount, decided, onApprove, onReject, onReplan, onWhy }', note: 'Não bloqueia a tela. Fila, nunca pilha. Botões desabilitam na decisão. Enter, Esc e R.' },
+        { name: 'ReasoningPanel', where: 'rodapé do editor', props: '{ thought, streaming, steps, step, budget, collapsed, error?, onToggle }', note: 'Altura estável durante o streaming. Colapsado mostra só o passo atual.' },
+        { name: 'WaveformPlayer', where: 'resultado e biblioteca', props: '{ peaks, durationSec, spliceMarkers, position, ab, loop, onSeek, onToggleAb, onSoloSplice }', note: 'A troca A/B mantém a posição de reprodução. Marcadores diferenciam emenda normal de emenda com aviso.' },
+        { name: 'SpectrumDiff', where: 'resultado', props: '{ original: number[][], render: number[][], similarity, metrics }', note: 'Mesma escala nos dois lados. O número de similaridade vem com o limite ao lado para dar contexto.' },
+        { name: 'StatusBadge', where: 'trabalhos, nós, painéis', props: '{ status: JobStatus | NodeStatus, size }', note: 'Uma tabela única de cor e rótulo, importada por todas as telas — nunca redefinir localmente.' },
+        { name: 'TenantSwitcher', where: 'barra superior', props: '{ current, tenants, role, onSwitch }', note: 'Trocar reemite a sessão. O caminho do espaço aparece ao lado, em mono, para o usuário saber onde está.' },
+        { name: 'SseBadge', where: 'barra superior', props: '{ state: live | retry | off, lastEventId, attempt }', note: 'Três estados com cor e movimento distintos. O título traz a tentativa e o backoff.' },
+        { name: 'QuotaChip', where: 'barra superior e config', props: '{ used, limit, period, resetsAt }', note: 'Fica visível sempre; ao estourar, a mesma peça leva para a tela de plano.' },
+        { name: 'Toast', where: 'global', props: '{ kind: info | ok | warn | danger, message, action?, traceId? }', note: 'Sobe sem empurrar conteúdo. Erro técnico sempre com trace_id copiável.' }
+      ],
+      envelope: '{\n  "crossfade_ms": { "value": 1500, "source": "LLM_INFERRED", "confidence": 0.88 },\n  "block_size_beats": { "value": 8, "source": "USER_DEFINED" },\n  "target_lufs": { "value": -14.0, "source": "DEFAULT" }\n}',
+      tokens: [
+        { a: 'superfície', b: 'sunken #0C0D0B · base #121311 · raised #1A1B18 · overlay #212320' },
+        { a: 'borda', b: 'subtle rgba(233,234,227,.07) · default .12 · strong .22 · focus #C6F24E' },
+        { a: 'texto', b: 'primary #ECEDE4 · secondary #A3A69A · tertiary #7E8277 · inverse #121311' },
+        { a: 'acento', b: 'default #C6F24E · hover #D6FF6E · pressed #AEDC3C · subtle rgba(198,242,78,.12)' },
+        { a: 'semântica', b: 'success #57D69A · warning #F2B341 · danger #F2705B · info #7FB2F0' },
+        { a: 'origem do valor', b: 'param/ai #B79CFF · param/locked #ECEDE4 · param/default #7E8277' },
+        { a: 'áudio', b: 'waveform/fill #43473E · played #C6F24E · playhead #FFFFFF · splice #F2B341' },
+        { a: 'tipografia', b: "Archivo 400/500/600/700 · JetBrains Mono para valores e identificadores · tabular-nums em todo número" },
+        { a: 'escala e raio', b: 'espaço 4 8 12 16 20 24 32 · raio input 6 · botão 8 · nó 10 · card 12 · chip 20' },
+        { a: 'movimento', b: 'proposta 1900ms ease-in-out · nó 1200ms · entrada 280ms ease-out · texto 62ms/2 palavras' }
+      ],
+      states: [
+        R4('Biblioteca', 'sem faixas: convite a importar', 'análise em segundo plano com contagem', 'formato não suportado (415) por linha'),
+        R4('Editor', 'fluxo novo com nós padrão', 'grafo esqueleto enquanto GET /jobs volta', 'grafo inválido (422) com aresta culpada'),
+        R4('Propriedades', 'nenhum nó selecionado', 'limites carregando de /tools', 'valor fora do limite (422) no campo'),
+        R4('Raciocínio', 'nenhuma ferramenta usada ainda', 'streaming com cursor', 'assistente indisponível, modo manual'),
+        R4('Resultado', 'nada renderizado ainda', 'render em andamento com estágio', 'render perdido, com refazer'),
+        R4('Trabalhos', 'nenhum trabalho no filtro', 'esqueleto de 5 linhas', 'falha por linha com trace_id'),
+        R4('Recursos', 'sem Docker: só até 7', 'primeira leitura de recursos', 'docker_unavailable (409) explicado')
+      ],
+      a11y: [
+        { a: 'Contraste de texto', b: 'medido', c: 'secondary #A3A69A sobre raised = 7,06:1 · tertiary #7E8277 sobre base = 4,74:1 · ambos passam AA', color: OK },
+        { a: 'Micro-rótulos', b: 'com regra', c: 'o cinza mais fraco (3,77:1) só em informação redundante, como o mínimo e o máximo já visíveis no slider', color: WARN },
+        { a: 'Estado sem cor', b: 'pronto', c: 'cada estado de nó tem borda, ícone e rodapé próprios — funciona em monitor não calibrado', color: OK },
+        { a: 'Foco visível', b: 'pronto', c: 'anel de 3 px em rgba(198,242,78,.12) com borda de acento; nunca outline: none', color: OK },
+        { a: 'Teclado', b: 'pronto', c: 'proposta: Enter aprova, Esc recusa, R replaneja. Canvas tem visão em lista navegável por Tab', color: OK },
+        { a: 'Leitor de tela', b: 'especificado', c: 'proposta com role="alertdialog" e aria-live="assertive"; raciocínio com aria-live="polite"', color: OK },
+        { a: 'Alvo de toque', b: 'pronto', c: 'controles principais em 44 px; ações densas de tabela ficam acima de 28 px com área clicável ampliada', color: OK },
+        { a: 'Movimento reduzido', b: 'pronto', c: 'prefers-reduced-motion desliga pulsação, borda animada e cursor', color: OK },
+        { a: 'Ordem de tabulação', b: 'a validar no código', c: 'barra superior → paleta → canvas → propriedades → raciocínio; proposta captura o foco ao abrir', color: WARN }
+      ],
+      breakpoints: [
+        { a: '≥ 1600px', b: 'Layout de referência do protótipo: paleta 190, canvas fluido, propriedades 310.' },
+        { a: '1280–1599px', b: 'Propriedades vira gaveta sobre o canvas, aberta por seleção de nó; paleta mantém rótulos.' },
+        { a: '1024–1279px', b: 'Paleta colapsa em ícones com tooltip; raciocínio vira aba ao lado do canvas.' },
+        { a: '768–1023px', b: 'Canvas assume a visão em lista por padrão; edição de parâmetro em modal de página inteira.' },
+        { a: '< 768px', b: 'Somente acompanhar e ouvir: trabalhos, resultado e decisão de proposta. Sem edição de grafo.' }
+      ],
+      gaps: [
+        { a: 'peaks do artefato renderizado', b: 'Resultado', c: 'sem isso a onda do resultado é ilustração, não o áudio real' },
+        { a: 'splice_markers[] no artifact', b: 'Resultado', c: 'o usuário quer ver onde estão os cortes para julgar a emenda' },
+        { a: 'warnings[] no job', b: 'Resultado', c: '“emenda brusca aos 0:18” precisa vir do motor com posição e dica' },
+        { a: 'matriz de espectro (A e B)', b: 'Resultado', c: 'o diff acústico é a prova visual de que o som não mudou' },
+        { a: 'confidence na proposta', b: 'Proposta', c: 'sem número, o usuário não sabe o quanto pesar a sugestão' },
+        { a: 'POST .../proposals/:id/replan', b: 'Proposta', c: 'pedir alternativa é diferente de recusar e ficar sem nada' },
+        { a: 'GET /audit-events', b: 'Atividade', c: 'o evento já é gravado no backend; falta um endpoint de leitura paginado' },
+        { a: 'GET /tenants + troca de espaço', b: 'Barra superior', c: 'isolamento invisível não gera confiança; o switcher precisa de lista real' },
+        { a: 'PATCH de ajustes do projeto', b: 'Configurações', c: 'freeze, temperatura, timeout e orçamento hoje só existem por trabalho' },
+        { a: 'golden master por projeto', b: 'Configurações', c: 'a UI promete “referência sonora em dia” e precisa da última execução' },
+        { a: 'workers[] detalhado', b: 'Recursos', c: 'ver cada processador agindo é o que constrói confiança no piloto automático' }
+      ],
+      backlog: [
+        R4('S1', 'Barra de espaço com papel e cota', 'front', 'Isolamento visível é pré-requisito de segurança percebida.', '#8A6A20'),
+        R4('S1', 'Selo de conexão do stream', 'front', 'Silêncio em espera longa é o que mais gera desconfiança.', '#8A6A20'),
+        R4('S1', 'Confiança e parâmetros na proposta', 'back + front', 'Decidir sem ver o que vai ser aplicado não é decidir.', '#8A6A20'),
+        R4('S1', 'Replanejar na proposta', 'back + front', 'Fecha o ciclo do agente sem obrigar o usuário a abrir mão.', '#8A6A20'),
+        R4('S1', 'Freeze de versão por projeto', 'back + front', 'Sem trava persistida, o MLOps não chega ao usuário.', '#8A6A20'),
+        R4('S2', 'Onda e marcadores do render', 'back + front', 'A prova do produto é ouvir e ver onde estão os cortes.', '#3F6B1E'),
+        R4('S2', 'Diff acústico completo', 'back + front', 'Transforma o golden master em argumento visível.', '#3F6B1E'),
+        R4('S2', 'Registro de atividade', 'back + front', 'Responsabilidade compartilhada na banda depende disso.', '#3F6B1E'),
+        R4('S2', 'Avisos do motor no resultado', 'back + front', 'Aviso não é erro; tratar como atenção evita alarme falso.', '#3F6B1E'),
+        R4('S2', 'Cartões de processador ao vivo', 'back + front', 'Ver a automação agir é o que faz confiar nela.', '#3F6B1E'),
+        R4('S3', 'Gaveta de propriedades em 1280', 'front', 'Muita gente trabalha em notebook de 1366 de largura.', MUT),
+        R4('S3', 'Tema claro', 'design + front', 'Escuro segue padrão; claro atende quem trabalha de dia.', MUT),
+        R4('S3', 'Auditoria de teclado ponta a ponta', 'front', 'O canvas é o ponto fraco; a visão em lista é a mitigação.', MUT),
+        R4('S3', 'Elasticidade de texto para i18n', 'design + front', 'Alemão cresce 30% e quebra rótulo de largura fixa.', MUT)
+      ],
+      howto: [
+        { a: 'Botão “Renderizar”', b: 'roda a execução inteira: estados de nó, raciocínio em streaming, proposta e conclusão.' },
+        { a: 'Enter, Esc e R', b: 'com a proposta aberta, aprovam, recusam e pedem replanejamento — cada caminho tem um raciocínio diferente.' },
+        { a: 'Selo de conexão', b: 'clique para percorrer conectado, reconectando e sem conexão, com os avisos de cada estado.' },
+        { a: 'Cadeado ao lado do valor', b: 'trava e destrava o parâmetro; o rótulo de origem muda junto.' },
+        { a: 'Ratio acima de 8 com threshold raso', b: 'dispara a regra cruzada R2 no painel de masterização.' },
+        { a: 'Tweak “agentDown”', b: 'simula provedor de LLM fora do ar: toda tela cai para o modo manual.' },
+        { a: 'Tweak “autoApprove”', b: 'liga a flag de aprovação automática do espaço, desligada por padrão.' },
+        { a: 'Seção PROTO na barra lateral', b: 'primeiro uso, fundamentos, variações de proposta, erros e recuperação, acesso e sessão.' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>
