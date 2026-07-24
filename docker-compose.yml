@@ -50,6 +50,12 @@ services:
     environment:
       - RUST_LOG=info
       - CONFIG_ENV=default
+      # Obrigatório — CONFIG_ENV=default não é "local", o binário recusa
+      # subir sem isto (ver middleware/auth.rs). Defina JWT_SECRET no .env
+      # antes de rodar (ver .env.example); a sintaxe ${VAR:?msg} falha o
+      # `docker compose up` com uma mensagem clara em vez de deixar o
+      # container crash-loopar.
+      - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env antes de subir em modo VPS}
       - DATABASE_URL=postgres://remix:remix@postgres:5432/remix_ai
       - REMIX__STORAGE__ENDPOINT=minio:9000
       - REMIX__STORAGE__ACCESS_KEY=minioadmin

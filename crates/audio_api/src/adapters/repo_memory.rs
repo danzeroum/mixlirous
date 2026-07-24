@@ -57,11 +57,12 @@ impl AudioRepo for InMemoryRepo {
         Ok(())
     }
 
-    async fn get_job(&self, job_id: Uuid) -> Result<JobRecord, RepoError> {
+    async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
         let state = self.state.read().await;
         state
             .jobs
             .get(&job_id)
+            .filter(|r| r.tenant_id == tenant_id)
             .cloned()
             .ok_or(RepoError::NotFound(job_id))
     }
@@ -135,7 +136,7 @@ mod tests {
         repo.save_job(job_id, tenant_id, user_id, &PipelineConfig::default(), &[])
             .await
             .unwrap();
-        let job = repo.get_job(job_id).await.unwrap();
+        let job = repo.get_job(job_id, tenant_id).await.unwrap();
 
         assert_eq!(job.id, job_id);
         assert_eq!(job.tenant_id, tenant_id);
@@ -145,8 +146,39 @@ mod tests {
     #[tokio::test]
     async fn test_get_unknown_job_returns_not_found() {
         let repo = InMemoryRepo::new();
-        let err = repo.get_job(Uuid::new_v4()).await.unwrap_err();
+        let err = repo
+            .get_job(Uuid::new_v4(), Uuid::new_v4())
+            .await
+            .unwrap_err();
         assert!(matches!(err, RepoError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn test_get_job_from_another_tenant_returns_not_found() {
+        // O caso grave: job existe, mas pertence a outro tenant. Tem que dar
+        // o mesmo NotFound de um job inexistente — nunca um erro que deixe
+        // dá pra distinguir "não existe" de "existe mas não é seu" (ver
+        // docs/08-SEGURANCA-MULTITENANCY.md §3, 404 nunca 403).
+        let repo = InMemoryRepo::new();
+        let job_id = Uuid::new_v4();
+        let owner_tenant = Uuid::new_v4();
+        let attacker_tenant = Uuid::new_v4();
+
+        repo.save_job(
+            job_id,
+            owner_tenant,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let err = repo.get_job(job_id, attacker_tenant).await.unwrap_err();
+        assert!(matches!(err, RepoError::NotFound(_)));
+
+        // Confere que o dono de verdade ainda consegue.
+        assert!(repo.get_job(job_id, owner_tenant).await.is_ok());
     }
 
     #[tokio::test]
@@ -217,9 +249,10 @@ mod tests {
     async fn test_transition_job_updates_status_and_records_audit_together() {
         let repo = InMemoryRepo::new();
         let job_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
         repo.save_job(
             job_id,
-            Uuid::new_v4(),
+            tenant_id,
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
@@ -231,7 +264,7 @@ mod tests {
             .await
             .unwrap();
 
-        let job = repo.get_job(job_id).await.unwrap();
+        let job = repo.get_job(job_id, tenant_id).await.unwrap();
         assert_eq!(job.status, JobStatus::Processing);
 
         let audit = repo.list_audit_records(job_id).await.unwrap();

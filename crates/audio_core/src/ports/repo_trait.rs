@@ -11,7 +11,12 @@ pub trait AudioRepo: Send + Sync {
         config: &PipelineConfig,
         blocks: &[BeatBlock],
     ) -> Result<(), RepoError>;
-    async fn get_job(&self, job_id: Uuid) -> Result<JobRecord, RepoError>;
+    /// Escopado por `tenant_id`: se o job existe mas pertence a outro
+    /// tenant, o resultado é o mesmo `RepoError::NotFound` de um job que não
+    /// existe — nunca dá para diferenciar os dois casos a partir da
+    /// resposta. Um 403 (job existe, mas não é seu) vaza que o ID é válido;
+    /// `docs/08-SEGURANCA-MULTITENANCY.md` §3 exige 404 nos dois casos.
+    async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError>;
     /// Escopado por `tenant_id`, nunca por `user_id` — um tenant pode ter mais
     /// de um usuário, e `docs/08-SEGURANCA-MULTITENANCY.md` §1 é explícito que
     /// o isolamento é por tenant. `JobRecord` carrega os dois campos
