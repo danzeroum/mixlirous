@@ -13,15 +13,20 @@ fn jwt_secret() -> String {
 
 /// Chamado uma vez no boot (`main.rs`, logo após `AppConfig::load()`). O
 /// fallback de `jwt_secret()` existe para rodar local sem configurar nada —
-/// mas se isso chegar em `CONFIG_ENV=production` sem `JWT_SECRET` definido,
-/// todo token é assinado com uma string hardcoded neste repositório público.
-/// Falha o boot em vez de subir servindo com um segredo forjável (ver
-/// `docs/08-SEGURANCA-MULTITENANCY.md` §9).
+/// mas se isso chegar em qualquer ambiente que não seja `local` sem
+/// `JWT_SECRET` definido, todo token é assinado com uma string hardcoded
+/// neste repositório público. `.env.example` documenta três valores para
+/// `CONFIG_ENV` (`local | default | production`) — fail-closed exige o
+/// segredo nos dois que não são `local`, em vez de listar por nome só
+/// `production` (falharia aberto em `default`, que já é modo VPS real com
+/// Postgres/MinIO — ver `docker-compose.yml`, não é o laptop do
+/// desenvolvedor). Falha o boot em vez de subir servindo com um segredo
+/// forjável (ver `docs/08-SEGURANCA-MULTITENANCY.md` §9).
 pub fn assert_secret_configured_for_production(config_env: &str, jwt_secret_is_set: bool) {
     assert!(
-        config_env != "production" || jwt_secret_is_set,
-        "JWT_SECRET não definido com CONFIG_ENV=production — recusando subir com o \
-         segredo de desenvolvimento hardcoded"
+        config_env == "local" || jwt_secret_is_set,
+        "JWT_SECRET não definido com CONFIG_ENV={config_env} — recusando subir com o \
+         segredo de desenvolvimento hardcoded fora do modo local"
     );
 }
 
@@ -130,8 +135,33 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "JWT_SECRET não definido")]
+    fn test_assert_secret_configured_panics_in_default_without_secret() {
+        // Fail-closed: "default" (modo VPS, ver docker-compose.yml) não é
+        // "local" — não pode passar sem segredo só por não se chamar
+        // "production". Regressão direta contra a versão anterior deste
+        // guard, que só checava `config_env != "production"`.
+        assert_secret_configured_for_production("default", false);
+    }
+
+    #[test]
+    #[should_panic(expected = "JWT_SECRET não definido")]
+    fn test_assert_secret_configured_panics_on_empty_env_without_secret() {
+        // Fail-closed também cobre CONFIG_ENV vazia/não setada — o valor
+        // default de `AppConfig::load()` é "local" (string literal), mas
+        // esta função não deve confiar nisso: qualquer string que não seja
+        // exatamente "local" exige segredo.
+        assert_secret_configured_for_production("", false);
+    }
+
+    #[test]
     fn test_assert_secret_configured_allows_production_with_secret() {
         assert_secret_configured_for_production("production", true);
+    }
+
+    #[test]
+    fn test_assert_secret_configured_allows_default_with_secret() {
+        assert_secret_configured_for_production("default", true);
     }
 
     #[test]
