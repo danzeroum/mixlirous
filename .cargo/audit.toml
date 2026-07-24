@@ -1,0 +1,16 @@
+# Config do `cargo-audit` (rodado em CI via .github/workflows/ci-rust.yml,
+# job security_scan). Caminho e nome são exigidos pelo próprio cargo-audit —
+# ele só lê `~/.cargo/audit.toml` ou `.cargo/audit.toml` (ver
+# cargo-audit/src/config.rs), nunca `audit.toml` na raiz do repo.
+
+[advisories]
+# RUSTSEC-2023-0071 — "Marvin Attack" (timing side-channel), crate `rsa`.
+# Chega transitivamente via jsonwebtoken/rust_crypto, que empacota
+# RSA+EC+HMAC sem granularidade por algoritmo (não existe feature "só
+# HMAC" nessa crate). Este projeto só emite/valida HS256 — segredo
+# simétrico, ver crates/audio_api/src/middleware/auth.rs — o código RSA
+# nunca roda. Sem correção disponível upstream (o advisory mesmo diz isso).
+#
+# Revisar em: 2026-10-24 (3 meses) ou quando RUSTSEC-2023-0071 tiver
+# "Solution" != "No fixed upgrade is available!", o que vier primeiro.
+ignore = ["RUSTSEC-2023-0071"]

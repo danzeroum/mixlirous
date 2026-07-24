@@ -22,6 +22,8 @@ audio:
 llm:
   provider: "deepseek"        # "deepseek" | "ollama" | "openai" | "anthropic" — padrão ADR-0009
   model: "deepseek-v4-flash"  # nunca fixar no código — nome do modelo muda (ver ADR-0009)
+  # Já inclui /v1 — o cliente (Sprint 2, `LlmProvider`, ver ADR-0004/ADR-0009)
+  # deve concatenar path sem acrescentar outro /v1, senão dá /v1/v1.
   base_url: "https://api.deepseek.com/v1"
   temperature: 0.3
   max_tools: 5
