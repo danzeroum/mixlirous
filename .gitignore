@@ -1,0 +1,10 @@
+target/
+node_modules/
+dist/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+data/
