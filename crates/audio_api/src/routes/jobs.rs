@@ -121,11 +121,15 @@ pub async fn list_jobs(
 
 pub async fn get_job(
     State(state): State<AppState>,
+    TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<JobSummary>, (StatusCode, String)> {
+    // Antes desta rota nem exigia JWT. tenant_id escopa a busca — job de
+    // outro tenant dá o mesmo 404 de um job inexistente, nunca um 403 (ver
+    // docs/08-SEGURANCA-MULTITENANCY.md §3).
     let job = state
         .repo
-        .get_job(job_id)
+        .get_job(job_id, tenant_id)
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
 
@@ -137,7 +141,22 @@ pub async fn get_job(
     }))
 }
 
-pub async fn cancel_job(Path(job_id): Path<Uuid>) -> Json<serde_json::Value> {
-    // Placeholder: cancelamento real precisa do estado de fila (Sprint 1+).
-    Json(serde_json::json!({ "job_id": job_id, "status": "cancelled" }))
+pub async fn cancel_job(
+    State(state): State<AppState>,
+    TenantScope(tenant_id): TenantScope,
+    Path(job_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Placeholder: cancelamento real (mudar status e liberar a fila) precisa
+    // do estado de fila de verdade (Sprint 1+). Mesmo como placeholder, a
+    // rota já é escopada por tenant — nunca cancela (nem finge cancelar) um
+    // job que não pertence a quem chamou.
+    let job = state
+        .repo
+        .get_job(job_id, tenant_id)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
+
+    Ok(Json(
+        serde_json::json!({ "job_id": job.id, "status": "cancelled" }),
+    ))
 }
