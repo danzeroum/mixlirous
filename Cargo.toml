@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/audio_core",
+    "crates/audio_agent",
+    "crates/audio_api",
+]
+
+# Dependências usadas por 2+ crates do workspace, para herança via
+# `dep.workspace = true` (ver docs/14-AUDITORIA-KIT.md C21). Dependências
+# usadas por uma única crate ficam declaradas só nela.
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4", "serde"] }
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"

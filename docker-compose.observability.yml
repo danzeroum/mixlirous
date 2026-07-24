@@ -1,0 +1,66 @@
+# Observabilidade (docs/11-INFRA-DEPLOY.md §3): Grafana + Tempo + Loki +
+# Prometheus, separados do compose principal para não subir 6 containers
+# para um `cargo run`. Rodar junto do docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# Correção obrigatória do kit: Grafana estava na porta 3000, que conflita
+# com o dev server do Vite. Grafana passa para 3001.
+networks:
+  mixlirous:
+    external: true
+
+volumes:
+  grafana_data:
+  tempo_data:
+  loki_data:
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    networks: [mixlirous]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:latest
+    networks: [mixlirous]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200" # Tempo UI/API
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    networks: [mixlirous]
+    volumes:
+      - ./observability/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/var/loki
+    ports:
+      - "3100:3100"
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    networks: [mixlirous]
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    restart: unless-stopped

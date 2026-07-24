@@ -1,0 +1,24 @@
+{
+  "default": "tiktok_aggressive_v2",
+  "prompts": [
+    {
+      "id": "tiktok_aggressive_v2",
+      "name": "TikTok Agressivo",
+      "description": "Versão agressiva para TikTok focada em transientes de bateria.",
+      "version": "2.0",
+      "file": "tiktok_aggressive.prompt",
+      "tags": ["genre:pop", "use:compression", "tier:pro"],
+      "status": "stable",
+      "created_at": "2025-07-01T12:00:00Z"
+    },
+    {
+      "id": "bossa_nova_v1",
+      "name": "Bossa Nova Suave",
+      "description": "Masterização suave preservando harmônicos naturais.",
+      "version": "1.0",
+      "file": "bossa_nova.prompt",
+      "tags": ["genre:bossa", "use:mastering", "tier:free"],
+      "status": "stable"
+    }
+  ]
+}
