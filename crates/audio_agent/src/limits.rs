@@ -26,6 +26,14 @@ pub struct ToolLimits {
     pub label_ptbr: &'static str,
     pub category: &'static str,
     pub available: bool,
+    /// `available` reflete a existência do DSP, não a existência do schema.
+    /// Um parâmetro validado e exposto aqui sem nenhum código que o
+    /// consuma é a mesma classe de bug que a divergência
+    /// validador/registry — só que na direção "promete mais do que existe"
+    /// em vez de "promete menos". `docs/03-CONTRATOS-API.md` §3.7 documenta
+    /// os códigos (`"not_implemented"`, `"requires_plan_pro"`, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<&'static str>,
     pub parameters: Vec<ParamLimit>,
 }
 
@@ -64,6 +72,26 @@ fn e(
     }
 }
 
+/// Array cujos itens vêm de um enum fechado, com contagem mínima/máxima
+/// (ex.: `stem_separation.stems`: 1 a 4 itens, cada um de `VALID_STEMS`).
+fn array_enum(
+    name: &'static str,
+    values: &'static [&'static str],
+    min_items: f64,
+    max_items: f64,
+    default: Option<serde_json::Value>,
+) -> ParamLimit {
+    ParamLimit {
+        name,
+        type_name: "array_enum",
+        min: Some(min_items),
+        max: Some(max_items),
+        default,
+        enum_values: Some(values),
+        unit: None,
+    }
+}
+
 /// Registry de ferramentas com limites, na forma exposta por `GET /api/v1/tools`.
 pub fn tool_registry() -> Vec<ToolLimits> {
     vec![
@@ -71,7 +99,13 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             name: "compression",
             label_ptbr: "Compressão",
             category: "mastering",
-            available: true,
+            // Sem módulo de DSP (nenhum arquivo em audio_core::dsp implementa
+            // compressor) — o schema existe e o validador aceita, mas
+            // nenhum código lê os parâmetros. `available: true` aqui seria a
+            // ferramenta fantasma que a ADR-0010 (docs/adr/README.md) já
+            // resolve corretamente para stem_separation.
+            available: false,
+            unavailable_reason: Some("not_implemented"),
             parameters: vec![
                 p(
                     "ratio",
@@ -127,7 +161,10 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             name: "dynamic_eq",
             label_ptbr: "EQ dinâmico",
             category: "mastering",
-            available: true,
+            // Mesma situação de `compression`: sem módulo de DSP sob
+            // audio_core::dsp, mesmo com schema e validação completos.
+            available: false,
+            unavailable_reason: Some("not_implemented"),
             parameters: vec![
                 p(
                     "bands[].freq_hz",
@@ -153,6 +190,11 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                     Some(0.7.into()),
                     None,
                 ),
+                e(
+                    "bands[].type_filter",
+                    VALID_EQ_FILTER_TYPES,
+                    Some("peak".into()),
+                ),
                 p("bands", "array", Some(1.0), Some(8.0), None, None),
             ],
         },
@@ -161,6 +203,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             label_ptbr: "Transição",
             category: "stitching",
             available: true,
+            unavailable_reason: None,
             parameters: vec![
                 p(
                     "duration_ms",
@@ -178,6 +221,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             label_ptbr: "Fade in",
             category: "stitching",
             available: true,
+            unavailable_reason: None,
             parameters: vec![
                 p(
                     "duration_ms",
@@ -195,6 +239,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             label_ptbr: "Fade out",
             category: "stitching",
             available: true,
+            unavailable_reason: None,
             parameters: vec![
                 p(
                     "duration_ms",
@@ -212,6 +257,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             label_ptbr: "Ajuste de duração",
             category: "mastering",
             available: true,
+            unavailable_reason: None,
             parameters: vec![p(
                 "factor",
                 "float",
@@ -226,6 +272,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             label_ptbr: "Normalização LUFS",
             category: "mastering",
             available: true,
+            unavailable_reason: None,
             parameters: vec![
                 p(
                     "target_lufs",
@@ -249,25 +296,116 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             name: "stem_separation",
             label_ptbr: "Separação de stems",
             category: "analysis",
-            available: false, // ADR-0010 pendente — ver docs/adr/README.md
+            // ADR-0010 pendente — ver docs/adr/README.md. `model` ainda é
+            // lista fixa (VALID_STEM_MODELS); deveria vir do binário
+            // detectado, não do código (prioridade baixa enquanto a
+            // ferramenta estiver indisponível, mas não pode passar da
+            // Sprint 3 sem virar detecção real).
+            available: false,
+            unavailable_reason: Some("not_implemented"),
             parameters: vec![
                 e("model", VALID_STEM_MODELS, Some("htdemucs".into())),
-                p(
+                array_enum(
                     "stems",
-                    "array_enum",
-                    Some(1.0),
-                    Some(4.0),
+                    VALID_STEMS,
+                    1.0,
+                    4.0,
                     Some(serde_json::json!(["drums", "other"])),
-                    None,
                 ),
             ],
         },
     ]
 }
 
+// TODO(docs/16 T2.1 + adendo R2 §0): crossfade e fade_in/fade_out precisam de
+// enums distintos (CrossfadeCurve: constant_gain/constant_power vs FadeCurve:
+// linear/logarithmic/exponential) — hoje os dois compartilham VALID_CURVES,
+// e o DSP em dsp::stitching::crossfade também usa o modelo antigo (conferido
+// diretamente: crossfade_buffers() ainda opera sobre FadeCurve, não um
+// CrossfadeCurve separado). Não é só rótulo de doc — o código de verdade
+// também precisa mudar. Fica para o pacote docs/16, atrás de T0.0/T0.1.
 pub const VALID_CURVES: &[&str] = &["linear", "logarithmic", "exponential"];
 pub const VALID_STEM_MODELS: &[&str] = &["htdemucs", "htdemucs_ft"];
 pub const VALID_STEMS: &[&str] = &["drums", "bass", "vocals", "other"];
+pub const VALID_EQ_FILTER_TYPES: &[&str] = &["peak", "shelf", "highpass", "lowpass"];
+
+/// Gera a tabela markdown de `docs/05-AGENTE-IA-HITL.md` §3 a partir do
+/// registry — a fonte é `tool_registry()`, a tabela é projeção. Um teste no
+/// fundo deste arquivo compara este output contra o bloco marcado no arquivo
+/// de doc; se divergirem, o teste falha e diz para regenerar. Só cobre as
+/// ferramentas de `GET /api/v1/tools`: `block_selection` e `target_duration`
+/// (campos de `pipeline_config`, não uma entrada de tool_registry) ficam de
+/// fora de propósito — ver nota logo abaixo do bloco gerado em docs/05.
+pub fn render_markdown_table() -> String {
+    let mut out = String::from(
+        "| Ferramenta | Disponível | Parâmetro | Tipo | Mín | Máx | Padrão | Unidade/Enum |\n",
+    );
+    out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- |\n");
+
+    for tool in tool_registry() {
+        let availability = if tool.available {
+            "sim".to_string()
+        } else {
+            format!(
+                "não ({})",
+                tool.unavailable_reason.unwrap_or("motivo não registrado")
+            )
+        };
+
+        if tool.parameters.is_empty() {
+            out.push_str(&format!(
+                "| `{}` | {} | — | — | — | — | — | — |\n",
+                tool.name, availability
+            ));
+            continue;
+        }
+
+        for (i, param) in tool.parameters.iter().enumerate() {
+            let tool_col = if i == 0 {
+                format!("`{}`", tool.name)
+            } else {
+                String::new()
+            };
+            let avail_col = if i == 0 {
+                availability.clone()
+            } else {
+                String::new()
+            };
+            let min = param
+                .min
+                .map(format_number)
+                .unwrap_or_else(|| "—".to_string());
+            let max = param
+                .max
+                .map(format_number)
+                .unwrap_or_else(|| "—".to_string());
+            let default = param
+                .default
+                .as_ref()
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "—".to_string());
+            let unit_or_enum = match param.enum_values {
+                Some(values) => values.join(" \\| "),
+                None => param.unit.unwrap_or("—").to_string(),
+            };
+
+            out.push_str(&format!(
+                "| {} | {} | `{}` | {} | {} | {} | {} | {} |\n",
+                tool_col, avail_col, param.name, param.type_name, min, max, default, unit_or_enum
+            ));
+        }
+    }
+
+    out
+}
+
+fn format_number(v: f64) -> String {
+    if v.fract() == 0.0 {
+        format!("{v:.0}")
+    } else {
+        format!("{v}")
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -275,6 +413,65 @@ mod tests {
     use crate::tools::*;
     use crate::validator::ValidationLayer;
     use serde_json::Value;
+
+    const DOCS_05: &str = include_str!("../../../docs/05-AGENTE-IA-HITL.md");
+    const BEGIN_MARKER: &str = "<!-- BEGIN GENERATED TOOLS TABLE";
+    const END_MARKER: &str = "<!-- END GENERATED TOOLS TABLE -->";
+
+    /// Extrai o bloco entre os marcadores e normaliza fim de linha.
+    /// `include_str!` preserva o fim de linha do arquivo em disco — no
+    /// runner Windows do CI isso é `\r\n` (checkout do git normaliza),
+    /// enquanto `render_markdown_table()` sempre gera `\n`. Sem normalizar,
+    /// a comparação falha em CRLF mesmo com conteúdo idêntico — não é
+    /// divergência real, é diferença de fim de linha entre SOs.
+    fn extract_generated_block(doc: &str) -> &str {
+        let begin = doc
+            .find(BEGIN_MARKER)
+            .expect("marcador BEGIN não encontrado em docs/05-AGENTE-IA-HITL.md");
+        let begin_line_end = doc[begin..]
+            .find('\n')
+            .map(|i| begin + i + 1)
+            .expect("marcador BEGIN sem quebra de linha");
+        let end = doc
+            .find(END_MARKER)
+            .expect("marcador END não encontrado em docs/05-AGENTE-IA-HITL.md");
+        doc[begin_line_end..end].trim_end()
+    }
+
+    /// A tabela §3 de docs/05 é gerada a partir do registry, não mantida à
+    /// mão — este teste é o que impede as duas de divergirem de novo (a
+    /// causa raiz do adendo R2 estar desatualizado: foi escrito lendo o kit
+    /// original, não a `main`). Se este teste falhar, rode
+    /// `render_markdown_table()` (ex.: via um teste com `--nocapture`) e
+    /// cole o resultado entre os marcadores no arquivo de doc.
+    #[test]
+    fn test_docs_05_table_matches_registry() {
+        let committed = extract_generated_block(DOCS_05).replace("\r\n", "\n");
+        let generated = render_markdown_table();
+        let generated = generated.trim_end();
+
+        assert_eq!(
+            committed, generated,
+            "\n\ndocs/05 §3 divergiu do registry. Cole isto entre os marcadores:\n\n{generated}\n"
+        );
+    }
+
+    /// Prova a normalização de CRLF isolada do arquivo real — este sandbox
+    /// roda Linux, então o bug (CI falhando só no runner Windows) não
+    /// reproduz aqui sem simular o \r\n manualmente. Sem este teste, a
+    /// correção do CRLF só seria verificada de novo no próximo push ao CI.
+    #[test]
+    fn test_extract_generated_block_normalizes_crlf() {
+        let doc_unix =
+            format!("prefixo\n{BEGIN_MARKER} ver x)\nlinha 1\nlinha 2\n{END_MARKER}\nsufixo\n");
+        let doc_windows = doc_unix.replace('\n', "\r\n");
+
+        let unix_block = extract_generated_block(&doc_unix);
+        let windows_block = extract_generated_block(&doc_windows).replace("\r\n", "\n");
+
+        assert_eq!(unix_block, windows_block);
+        assert_eq!(unix_block, "linha 1\nlinha 2");
+    }
 
     fn find<'a>(reg: &'a [ToolLimits], tool: &str) -> &'a ToolLimits {
         reg.iter()
@@ -390,6 +587,71 @@ mod tests {
             assert!(
                 names.contains(&expected),
                 "registry não descreve a ferramenta {expected}"
+            );
+        }
+    }
+
+    /// `available: true` sem nenhum módulo de DSP por baixo é a ferramenta
+    /// fantasma: GET /tools anuncia, o validador aceita, o áudio não muda.
+    /// compression e dynamic_eq não têm implementação em audio_core::dsp
+    /// (nenhum arquivo compressor/eq existe lá) — as duas têm que estar
+    /// `available: false` com motivo, não `true`. As cinco ferramentas com
+    /// DSP real (crossfade, fade_in, fade_out, time_stretch,
+    /// lufs_normalization) continuam `true`.
+    #[test]
+    fn test_ghost_tools_are_marked_unavailable() {
+        let reg = tool_registry();
+
+        for name in ["compression", "dynamic_eq"] {
+            let tool = find(&reg, name);
+            assert!(
+                !tool.available,
+                "{name} não tem DSP mas está available: true"
+            );
+            assert!(
+                tool.unavailable_reason.is_some(),
+                "{name} está unavailable mas sem unavailable_reason"
+            );
+        }
+
+        for name in [
+            "crossfade",
+            "fade_in",
+            "fade_out",
+            "time_stretch",
+            "lufs_normalization",
+        ] {
+            let tool = find(&reg, name);
+            assert!(
+                tool.available,
+                "{name} tem DSP real mas está available: false"
+            );
+            assert!(
+                tool.unavailable_reason.is_none(),
+                "{name} está available mas tem unavailable_reason"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dynamic_eq_type_filter_enum_matches_validator() {
+        let reg = tool_registry();
+        let type_filter = param(find(&reg, "dynamic_eq"), "bands[].type_filter");
+        assert_eq!(type_filter.enum_values, Some(VALID_EQ_FILTER_TYPES));
+
+        let layer = ValidationLayer::new();
+        for valid in VALID_EQ_FILTER_TYPES {
+            let tool = AudioToolDef::DynamicEq(DynamicEqParams {
+                bands: vec![EqBand {
+                    freq_hz: 1000.0,
+                    gain_db: 0.0,
+                    q: 0.7,
+                    type_filter: valid.to_string(),
+                }],
+            });
+            assert!(
+                layer.validate_tool_call(&tool, &Value::Null).is_ok(),
+                "{valid} deveria ser aceito"
             );
         }
     }
