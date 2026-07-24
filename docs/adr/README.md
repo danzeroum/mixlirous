@@ -181,60 +181,122 @@ timeout. Aceitável: o arquivo é do próprio usuário.
 
 ---
 
-## ADR-0009 — Provedor LLM padrão do MVP
+## ADR-0009 — Provedor LLM: abstração agnóstica, DeepSeek como padrão inicial
 
-**Status:** **proposto** — precisa de decisão antes da Sprint 2
+**Status:** aceito
+**Data:** 2026-07-24
+**Dono:** `<preencher>`
 
-**Contexto.** Duas opções para o padrão de fábrica:
+**Contexto.** O sistema precisa de um LLM para o loop ReAct. As opções eram
+rodar local (Ollama), usar serviço externo, ou detectar e decidir no boot.
 
-| | Ollama local | OpenAI/Anthropic |
-| --- | --- | --- |
-| Custo | zero | por token |
-| Privacidade | total | prompt e metadados saem |
-| Instalação | usuário instala Ollama + baixa modelo (~5 GB) | só uma chave de API |
-| Qualidade de tool calling | boa em modelos 8B+, inferior | melhor |
-| Funciona offline | sim | não |
+**Decisão.** Opção C — **detectar Ollama no boot; se não houver, usar o provedor
+configurado; se não houver configuração, pedir a chave.** A camada de provedor é
+agnóstica por contrato, e o padrão inicial do projeto é **DeepSeek**.
 
-**Opções.**
+**Por quê.** Respeita quem já tem ambiente local, não bloqueia quem não tem, e
+não obriga o usuário a escolher antes de entender a diferença. O agnosticismo já
+estava decidido na ADR-0004 — esta ADR só nomeia o padrão de fábrica.
 
-- **A** — Ollama padrão, externo opcional. Alinha com a promessa de privacidade
-  (persona P3) e custo zero, mas adiciona um passo pesado de instalação.
-- **B** — Externo padrão, Ollama opcional. Onboarding mais fácil, mas exige
-  cartão e envia dados.
-- **C** — Detectar Ollama no boot; se existir, usar; senão, pedir a chave.
+**Consequências.**
 
-**Recomendação:** **C**. Respeita quem já tem ambiente local, não bloqueia quem
-não tem, e evita fazer o usuário escolher antes de entender a diferença. Custa
-uma tela a mais de onboarding.
+Nenhuma mudança arquitetural. O DeepSeek é compatível com o formato OpenAI por
+configuração, então o adapter existente atende: muda `base_url`, `model` e a
+chave. Nada é compilado dentro do binário.
 
-**Decisão pendente. Dono: —**
+Três armadilhas específicas do DeepSeek que precisam virar tarefa:
+
+1. **Não fixe o nome do modelo no código.** Os nomes `deepseek-chat` e
+   `deepseek-reasoner` estão sendo descontinuados — a data anunciada é
+   **2026-07-24**, hoje. Eles correspondiam aos modos sem raciocínio e com
+   raciocínio do `deepseek-v4-flash`. Os nomes atuais são `deepseek-v4-flash` e
+   `deepseek-v4-pro`. O modelo é campo de configuração, sempre.
+
+2. **Modo de raciocínio quebra o loop ReAct se mal implementado.** Com o modo
+   de raciocínio ativo, turnos com chamada de ferramenta exigem que o
+   `reasoning_content` seja preservado nas requisições seguintes, senão a API
+   devolve 400. Nosso loop é multi-turno por definição (budget 5), então isso
+   aparece já no segundo passo. Teste com um caso de duas ferramentas
+   encadeadas, não com um só.
+
+3. **Avaliar o modo estrito.** Existe um modo beta que força os argumentos da
+   chamada de ferramenta a aderirem ao JSON Schema, ativado por uma base URL
+   diferente e `strict: true` na definição da função. Vale medir: se reduzir a
+   taxa de rejeição do nosso validador, compensa. O validador continua sendo a
+   rede de segurança de qualquer forma — modo estrito não substitui a
+   ADR-0004/validação.
+
+Detalhe operacional: alguns clientes esperam `/v1` na base URL e outros não.
+Não duplique `/v1/v1`.
+
+**O custo do agnosticismo — pague explicitamente.**
+
+Trocar de provedor muda o áudio de saída. Isso colide com a doutrina de version
+freeze de `09-MLOPS-GOLDEN-MASTER.md`:
+
+- O registro de version freeze passa a gravar **provedor + modelo + hash do
+  prompt** como uma tripla, não só o hash do prompt.
+- Os Golden Masters passam a ser **por provedor e modelo**. Trocar de provedor
+  exige regerar e reescutar.
+- Os 10 casos de teste A1–A10 de `05-AGENTE-IA-HITL.md` viram **suíte de
+  conformidade de provedor**. Um provedor que não passa é marcado como não
+  suportado — nunca aceito com degradação silenciosa.
+
+Esse último ponto é a regra que importa. Um provedor que erra tool calling não
+falha ruidosamente: ele propõe parâmetros ruins, o validador rejeita, e o usuário
+vê um agente que "não entende" em vez de um erro de configuração.
+
+**Privacidade.** `08-SEGURANCA-MULTITENANCY.md` já estabelece que no modo
+assistido o prompt e os metadados vão ao LLM, e **o áudio nunca vai**. Com
+provedor externo configurável, o aviso ao usuário precisa **nomear o provedor
+ativo** e indicar que os dados saem da máquina — antes da primeira execução em
+modo assistido, não escondido nos termos. Para usuários no Brasil, transferência
+internacional de dados é item de LGPD e precisa estar declarada.
+
+**Quando revisar.** Se a suíte A1–A10 reprovar o provedor padrão, ou se o custo
+por render inviabilizar o modelo de negócio.
 
 ---
 
-## ADR-0010 — Separação de stems no MVP
+## ADR-0010 — Separação de stems: binário externo opcional
 
-**Status:** **proposto** — precisa de decisão antes da Sprint 3
+**Status:** aceito
+**Data:** 2026-07-24
+**Dono:** `<preencher>`
 
-**Contexto.** `stem_separation` é a ferramenta mais desejada e a mais cara. Não
-existe implementação madura em Rust puro; o estado da arte (`demucs`) é PyTorch.
+**Contexto.** `stem_separation` é a ferramenta mais desejada — o prompt de
+exemplo pede comprimir só a bateria — e a mais cara. Não existe implementação
+madura em Rust puro; o estado da arte (`demucs`) é PyTorch.
 
-**Opções.**
+**Decisão.** Opção B — **detectar o binário externo no PATH e habilitar a
+ferramenta quando presente.** Sem ele, a ferramenta aparece como indisponível
+com motivo explícito.
 
-- **A — Remover do MVP.** Simples, honesto. Perde valor real: comprimir só a
-  bateria é justamente o que o prompt exemplo pede.
-- **B — Binário externo opcional.** O sistema detecta `demucs` no PATH e habilita
-  a ferramenta. Sem ele, a ferramenta aparece como indisponível. Custo baixo,
-  valor alto para quem já tem.
-- **C — ONNX Runtime embutido.** Rodar um modelo exportado via `ort`. Viável,
-  mas é um projeto próprio: exportar, quantizar, validar qualidade, empacotar
-  ~100 MB de pesos.
+**Por quê.** O contrato já tem o mecanismo: `GET /api/v1/tools` expõe
+`available` e `unavailable_reason`. O desenvolvedor já usou exatamente esse
+campo na Sprint 0, com `available: false` para `stem_separation`. O custo
+restante é um adapter de subprocesso, não superfície de contrato nova.
 
-**Recomendação:** **B** no MVP, **C** depois se houver demanda. A separação
-entre "ferramenta registrada" e "ferramenta disponível" já existe no contrato
-(`GET /api/v1/tools` tem `available` e `unavailable_reason`), então B custa
-pouco além do adapter de subprocesso.
+**Alternativas descartadas.** Remover do MVP perde valor real. Embutir um modelo
+ONNX é um projeto próprio — exportar, quantizar, validar qualidade, empacotar
+~100 MB de pesos.
 
-**Decisão pendente. Dono: —**
+**Consequências.**
+
+- O agente precisa saber que a ferramenta está indisponível **antes** de propor
+  usá-la, senão propõe algo impossível e o usuário vê uma falha em vez de uma
+  ausência. A lista de ferramentas disponíveis entra no contexto do prompt.
+- A UI precisa de um estado visual para ferramenta indisponível, com o motivo
+  legível e instrução de instalação. Isso é item para o designer.
+- Subprocesso significa tempo limite, limite de memória e tratamento de saída
+  corrompida. Um binário externo pode travar, e o job não pode travar junto.
+- O orçamento de performance de `04-DOMINIO-DSP.md` (< 20 s sem LLM) **não vale**
+  quando a separação está ativa. Precisa de orçamento próprio e de aviso na UI.
+- Fica fora do binário único que entregamos. A promessa de instalação sem
+  fricção continua valendo para tudo, menos esta ferramenta.
+
+**Quando revisar.** Se surgir implementação em Rust com qualidade comparável, ou
+se a demanda justificar o projeto de embutir ONNX.
 
 ---
 
