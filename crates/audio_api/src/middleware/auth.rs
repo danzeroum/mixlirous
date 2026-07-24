@@ -11,6 +11,20 @@ fn jwt_secret() -> String {
     std::env::var("JWT_SECRET").unwrap_or_else(|_| "local-dev-secret-change-me".to_string())
 }
 
+/// Chamado uma vez no boot (`main.rs`, logo após `AppConfig::load()`). O
+/// fallback de `jwt_secret()` existe para rodar local sem configurar nada —
+/// mas se isso chegar em `CONFIG_ENV=production` sem `JWT_SECRET` definido,
+/// todo token é assinado com uma string hardcoded neste repositório público.
+/// Falha o boot em vez de subir servindo com um segredo forjável (ver
+/// `docs/08-SEGURANCA-MULTITENANCY.md` §9).
+pub fn assert_secret_configured_for_production(config_env: &str, jwt_secret_is_set: bool) {
+    assert!(
+        config_env != "production" || jwt_secret_is_set,
+        "JWT_SECRET não definido com CONFIG_ENV=production — recusando subir com o \
+         segredo de desenvolvimento hardcoded"
+    );
+}
+
 /// Claims esperadas do JWT (ver `docs/03-CONTRATOS-API.md` §1). Só
 /// `tenant_id` é consumido hoje (via `TenantScope`); os demais campos ficam
 /// disponíveis para checagens de autorização por papel/plano na Sprint 1+.
@@ -107,5 +121,21 @@ mod tests {
         .unwrap();
 
         assert!(decode_claims(&token, "test-secret").is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "JWT_SECRET não definido")]
+    fn test_assert_secret_configured_panics_in_production_without_secret() {
+        assert_secret_configured_for_production("production", false);
+    }
+
+    #[test]
+    fn test_assert_secret_configured_allows_production_with_secret() {
+        assert_secret_configured_for_production("production", true);
+    }
+
+    #[test]
+    fn test_assert_secret_configured_allows_local_without_secret() {
+        assert_secret_configured_for_production("local", false);
     }
 }

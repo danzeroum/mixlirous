@@ -21,6 +21,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_config = AppConfig::load()?;
 
+    let config_env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
+    middleware::auth::assert_secret_configured_for_production(
+        &config_env,
+        std::env::var("JWT_SECRET").is_ok(),
+    );
+
     let repo = InMemoryRepo::new();
     let validator = Arc::new(ValidationLayer::new());
     let orchestrator = Arc::new(ReActOrchestrator::new(validator, app_config.llm.max_tools));
