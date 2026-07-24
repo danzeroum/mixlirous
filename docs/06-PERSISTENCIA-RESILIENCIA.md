@@ -294,6 +294,18 @@ reivindicação acima de 100 ms, ou necessidade de fan-out para múltiplos
 consumidores distintos. Antes disso, Postgres como fila é mais simples e mais
 confiável do que operar RabbitMQ. Ver ADR-0005.
 
+### Forma do repositório: operações compostas, não transação genérica
+
+`AudioRepo` expõe operações nomeadas — `claim_job`, `transition_job`,
+`heartbeat`, `fail_and_retry` — e cada uma é atômica por construção do lado do
+adapter (uma transação SQL por baixo). **Não existe `begin_transaction()` nem
+um tipo `Transaction` exposto pelo trait.** A justificativa não é estilo: sem
+um segundo adapter real (SQLite) para validar contra, uma abstração genérica de
+transação vira chute sobre uma API que nenhum dos dois bancos obriga a ter a
+mesma forma. Adicionar uma operação nova é modelar o que ela precisa fazer
+atomicamente e nomear isso — não abrir uma transação genérica no meio do
+código de negócio.
+
 ---
 
 ## 4. Escrita atômica de artefato
