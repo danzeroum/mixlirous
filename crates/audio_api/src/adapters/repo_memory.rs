@@ -37,6 +37,7 @@ impl AudioRepo for InMemoryRepo {
     async fn save_job(
         &self,
         job_id: Uuid,
+        tenant_id: Uuid,
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
@@ -44,6 +45,7 @@ impl AudioRepo for InMemoryRepo {
         let mut state = self.state.write().await;
         let record = JobRecord {
             id: job_id,
+            tenant_id,
             user_id,
             config: serde_json::to_value(config)?,
             blocks: serde_json::to_value(blocks)?,
@@ -69,7 +71,7 @@ impl AudioRepo for InMemoryRepo {
         Ok(state
             .jobs
             .values()
-            .filter(|r| r.user_id == tenant_id)
+            .filter(|r| r.tenant_id == tenant_id)
             .cloned()
             .collect())
     }
@@ -127,14 +129,16 @@ mod tests {
     async fn test_save_then_get_job_roundtrip() {
         let repo = InMemoryRepo::new();
         let job_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
 
-        repo.save_job(job_id, user_id, &PipelineConfig::default(), &[])
+        repo.save_job(job_id, tenant_id, user_id, &PipelineConfig::default(), &[])
             .await
             .unwrap();
         let job = repo.get_job(job_id).await.unwrap();
 
         assert_eq!(job.id, job_id);
+        assert_eq!(job.tenant_id, tenant_id);
         assert_eq!(job.user_id, user_id);
     }
 
@@ -151,25 +155,77 @@ mod tests {
         let tenant_a = Uuid::new_v4();
         let tenant_b = Uuid::new_v4();
 
-        repo.save_job(Uuid::new_v4(), tenant_a, &PipelineConfig::default(), &[])
-            .await
-            .unwrap();
-        repo.save_job(Uuid::new_v4(), tenant_b, &PipelineConfig::default(), &[])
-            .await
-            .unwrap();
+        repo.save_job(
+            Uuid::new_v4(),
+            tenant_a,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.save_job(
+            Uuid::new_v4(),
+            tenant_b,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
 
         let jobs_a = repo.list_jobs(tenant_a).await.unwrap();
         assert_eq!(jobs_a.len(), 1);
-        assert_eq!(jobs_a[0].user_id, tenant_a);
+        assert_eq!(jobs_a[0].tenant_id, tenant_a);
+    }
+
+    #[tokio::test]
+    async fn test_list_jobs_returns_all_users_within_same_tenant() {
+        // Regressão: list_jobs já filtrou por `user_id` no lugar de
+        // `tenant_id` — passava com um usuário por tenant e escondia jobs de
+        // outros usuários do mesmo tenant. Dois usuários, um tenant, os dois
+        // jobs têm que aparecer.
+        let repo = InMemoryRepo::new();
+        let tenant = Uuid::new_v4();
+        let user_a = Uuid::new_v4();
+        let user_b = Uuid::new_v4();
+
+        repo.save_job(
+            Uuid::new_v4(),
+            tenant,
+            user_a,
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.save_job(
+            Uuid::new_v4(),
+            tenant,
+            user_b,
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+
+        let jobs = repo.list_jobs(tenant).await.unwrap();
+        assert_eq!(jobs.len(), 2);
     }
 
     #[tokio::test]
     async fn test_transition_job_updates_status_and_records_audit_together() {
         let repo = InMemoryRepo::new();
         let job_id = Uuid::new_v4();
-        repo.save_job(job_id, Uuid::new_v4(), &PipelineConfig::default(), &[])
-            .await
-            .unwrap();
+        repo.save_job(
+            job_id,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
 
         repo.transition_job(job_id, JobStatus::Processing, "JOB_STARTED")
             .await

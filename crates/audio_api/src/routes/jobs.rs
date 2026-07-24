@@ -1,4 +1,4 @@
-use crate::middleware::{TenantScope, TraceParent};
+use crate::middleware::{AuthContext, TenantScope, TraceParent};
 use crate::state::AppState;
 use audio_core::PipelineConfig;
 use axum::{extract::Path, extract::State, http::StatusCode, Json};
@@ -49,7 +49,7 @@ pub struct JobListResponse {
 
 pub async fn create_job(
     State(state): State<AppState>,
-    TenantScope(tenant_id): TenantScope,
+    AuthContext(claims): AuthContext,
     trace: TraceParent,
     Json(payload): Json<CreateJobRequest>,
 ) -> Result<(StatusCode, Json<CreateJobResponse>), (StatusCode, String)> {
@@ -67,9 +67,11 @@ pub async fn create_job(
 
     // Sprint 0: enfileira o job sem rodar o pipeline de fato (fila real e
     // motor DSP/agente são Sprint 1+; ver docs/13-ROADMAP-SPRINTS.md).
+    // tenant_id e user_id vêm das claims do JWT, nunca do corpo/query (ver
+    // docs/08-SEGURANCA-MULTITENANCY.md §1) — e nunca um no lugar do outro.
     state
         .repo
-        .save_job(job_id, tenant_id, &config, &[])
+        .save_job(job_id, claims.tenant_id, claims.sub, &config, &[])
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

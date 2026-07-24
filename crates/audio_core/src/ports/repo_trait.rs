@@ -6,11 +6,17 @@ pub trait AudioRepo: Send + Sync {
     async fn save_job(
         &self,
         job_id: Uuid,
+        tenant_id: Uuid,
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
     ) -> Result<(), RepoError>;
     async fn get_job(&self, job_id: Uuid) -> Result<JobRecord, RepoError>;
+    /// Escopado por `tenant_id`, nunca por `user_id` — um tenant pode ter mais
+    /// de um usuário, e `docs/08-SEGURANCA-MULTITENANCY.md` §1 é explícito que
+    /// o isolamento é por tenant. `JobRecord` carrega os dois campos
+    /// separados de propósito para que essa distinção não dependa de quem
+    /// chama `save_job` passar o valor certo no campo certo.
     async fn list_jobs(&self, tenant_id: Uuid) -> Result<Vec<JobRecord>, RepoError>;
     async fn save_fingerprint(
         &self,
@@ -53,6 +59,7 @@ pub struct AuditRecord {
 #[derive(Debug, Clone)]
 pub struct JobRecord {
     pub id: Uuid,
+    pub tenant_id: Uuid,
     pub user_id: Uuid,
     pub config: serde_json::Value,
     pub blocks: serde_json::Value,
