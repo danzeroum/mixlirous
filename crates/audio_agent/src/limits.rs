@@ -418,6 +418,26 @@ mod tests {
     const BEGIN_MARKER: &str = "<!-- BEGIN GENERATED TOOLS TABLE";
     const END_MARKER: &str = "<!-- END GENERATED TOOLS TABLE -->";
 
+    /// Extrai o bloco entre os marcadores e normaliza fim de linha.
+    /// `include_str!` preserva o fim de linha do arquivo em disco — no
+    /// runner Windows do CI isso é `\r\n` (checkout do git normaliza),
+    /// enquanto `render_markdown_table()` sempre gera `\n`. Sem normalizar,
+    /// a comparação falha em CRLF mesmo com conteúdo idêntico — não é
+    /// divergência real, é diferença de fim de linha entre SOs.
+    fn extract_generated_block(doc: &str) -> &str {
+        let begin = doc
+            .find(BEGIN_MARKER)
+            .expect("marcador BEGIN não encontrado em docs/05-AGENTE-IA-HITL.md");
+        let begin_line_end = doc[begin..]
+            .find('\n')
+            .map(|i| begin + i + 1)
+            .expect("marcador BEGIN sem quebra de linha");
+        let end = doc
+            .find(END_MARKER)
+            .expect("marcador END não encontrado em docs/05-AGENTE-IA-HITL.md");
+        doc[begin_line_end..end].trim_end()
+    }
+
     /// A tabela §3 de docs/05 é gerada a partir do registry, não mantida à
     /// mão — este teste é o que impede as duas de divergirem de novo (a
     /// causa raiz do adendo R2 estar desatualizado: foi escrito lendo o kit
@@ -426,18 +446,7 @@ mod tests {
     /// cole o resultado entre os marcadores no arquivo de doc.
     #[test]
     fn test_docs_05_table_matches_registry() {
-        let begin = DOCS_05
-            .find(BEGIN_MARKER)
-            .expect("marcador BEGIN não encontrado em docs/05-AGENTE-IA-HITL.md");
-        let begin_line_end = DOCS_05[begin..]
-            .find('\n')
-            .map(|i| begin + i + 1)
-            .expect("marcador BEGIN sem quebra de linha");
-        let end = DOCS_05
-            .find(END_MARKER)
-            .expect("marcador END não encontrado em docs/05-AGENTE-IA-HITL.md");
-
-        let committed = DOCS_05[begin_line_end..end].trim_end();
+        let committed = extract_generated_block(DOCS_05).replace("\r\n", "\n");
         let generated = render_markdown_table();
         let generated = generated.trim_end();
 
@@ -445,6 +454,23 @@ mod tests {
             committed, generated,
             "\n\ndocs/05 §3 divergiu do registry. Cole isto entre os marcadores:\n\n{generated}\n"
         );
+    }
+
+    /// Prova a normalização de CRLF isolada do arquivo real — este sandbox
+    /// roda Linux, então o bug (CI falhando só no runner Windows) não
+    /// reproduz aqui sem simular o \r\n manualmente. Sem este teste, a
+    /// correção do CRLF só seria verificada de novo no próximo push ao CI.
+    #[test]
+    fn test_extract_generated_block_normalizes_crlf() {
+        let doc_unix =
+            format!("prefixo\n{BEGIN_MARKER} ver x)\nlinha 1\nlinha 2\n{END_MARKER}\nsufixo\n");
+        let doc_windows = doc_unix.replace('\n', "\r\n");
+
+        let unix_block = extract_generated_block(&doc_unix);
+        let windows_block = extract_generated_block(&doc_windows).replace("\r\n", "\n");
+
+        assert_eq!(unix_block, windows_block);
+        assert_eq!(unix_block, "linha 1\nlinha 2");
     }
 
     fn find<'a>(reg: &'a [ToolLimits], tool: &str) -> &'a ToolLimits {
