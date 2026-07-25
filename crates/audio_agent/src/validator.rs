@@ -32,15 +32,19 @@ impl ValidationLayer {
     ) -> Result<AudioToolDef, ValidationError> {
         match tool {
             AudioToolDef::Compression(params) => {
-                bound("compression.ratio", params.ratio, 1.0, 10.0)?;
-                bound("compression.threshold_db", params.threshold_db, -60.0, 0.0)?;
-                bound("compression.attack_ms", params.attack_ms as f32, 0.0, 500.0)?;
-                bound(
-                    "compression.release_ms",
-                    params.release_ms as f32,
-                    10.0,
-                    5000.0,
-                )?;
+                // T0.0 (docs/16, I14): os quatro limites abaixo não são
+                // redigitados aqui — cada newtype é a checagem, igual ao
+                // braço de Crossfade logo adiante. makeup_gain_db/knee_db
+                // ficam de fora do lote de 9 (docs/04 não os lista) e
+                // continuam via `bound()`.
+                audio_core::CompressionRatio::try_from(params.ratio)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
+                audio_core::ThresholdDb::try_from(params.threshold_db)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
+                audio_core::AttackMs::try_from(params.attack_ms)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
+                audio_core::ReleaseMs::try_from(params.release_ms)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 bound(
                     "compression.makeup_gain_db",
                     params.makeup_gain_db,
@@ -72,7 +76,10 @@ impl ValidationLayer {
                 }
                 for band in &params.bands {
                     bound("dynamic_eq.bands[].freq_hz", band.freq_hz, 20.0, 20000.0)?;
-                    bound("dynamic_eq.bands[].gain_db", band.gain_db, -24.0, 24.0)?;
+                    // T0.0 (docs/16, I14): não redigita -24.0/24.0 — checagem
+                    // é audio_core::EqGainDb.
+                    audio_core::EqGainDb::try_from(band.gain_db)
+                        .map_err(|e| ValidationError::Bound(e.to_string()))?;
                     bound("dynamic_eq.bands[].q", band.q, 0.1, 10.0)?;
                     enum_value(
                         "dynamic_eq.bands[].type_filter",
@@ -125,16 +132,18 @@ impl ValidationLayer {
                 Ok(AudioToolDef::FadeOut(params.clone()))
             }
             AudioToolDef::TimeStretch(params) => {
-                bound("time_stretch.factor", params.factor, 0.90, 1.10)?;
+                // T0.0 (docs/16, I14): não redigita 0.90/1.10 — checagem é
+                // audio_core::TimeStretchFactor.
+                audio_core::TimeStretchFactor::try_from(params.factor)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 Ok(AudioToolDef::TimeStretch(params.clone()))
             }
             AudioToolDef::LufsNormalization(params) => {
-                bound(
-                    "lufs_normalization.target_lufs",
-                    params.target_lufs,
-                    -30.0,
-                    -6.0,
-                )?;
+                // T0.0 (docs/16, I14): não redigita -30.0/-6.0 — checagem é
+                // audio_core::LufsTarget. max_true_peak_db fica de fora do
+                // lote de 9 (docs/04 não o lista) e continua via `bound()`.
+                audio_core::LufsTarget::try_from(params.target_lufs)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 bound(
                     "lufs_normalization.max_true_peak_db",
                     params.max_true_peak_db,

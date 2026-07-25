@@ -1,4 +1,4 @@
-use crate::domain::CrossfadeMs;
+use crate::domain::{BlockSizeBeats, CompressionRatio, CrossfadeMs, LufsTarget, Percentile};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -37,16 +37,24 @@ pub enum CrossfadeCurve {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MasteringConfig {
-    pub lufs_target: f32,
+    /// Newtype validado na desserialização (T0.0, I14) — ver
+    /// `crate::LufsTarget`.
+    pub lufs_target: LufsTarget,
     pub peak_db: f32,
     pub enable_limiting: bool,
-    pub compression_ratio: f32,
+    /// Newtype validado na desserialização (T0.0, I14) — ver
+    /// `crate::CompressionRatio`.
+    pub compression_ratio: CompressionRatio,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SelectionConfig {
-    pub min_strong_beat_percentile: f32,
-    pub block_size_beats: usize,
+    /// Newtype validado na desserialização (T0.0, I14) — ver
+    /// `crate::Percentile`.
+    pub min_strong_beat_percentile: Percentile,
+    /// Newtype validado na desserialização (T0.0, I14) — ver
+    /// `crate::BlockSizeBeats`.
+    pub block_size_beats: BlockSizeBeats,
     pub preserve_intro_ms: u32,
     pub preserve_outro_ms: u32,
 }
@@ -78,14 +86,18 @@ impl Default for PipelineConfig {
                 curve: CrossfadeCurve::ConstantPower,
             },
             mastering: MasteringConfig {
-                lufs_target: -14.0,
+                lufs_target: LufsTarget::try_from(-14.0)
+                    .expect("-14.0 está dentro de LufsTarget::MIN..=MAX por construção"),
                 peak_db: -1.0,
                 enable_limiting: true,
-                compression_ratio: 2.0,
+                compression_ratio: CompressionRatio::try_from(2.0)
+                    .expect("2.0 está dentro de CompressionRatio::MIN..=MAX por construção"),
             },
             selection: SelectionConfig {
-                min_strong_beat_percentile: 0.8,
-                block_size_beats: 4,
+                min_strong_beat_percentile: Percentile::try_from(0.8)
+                    .expect("0.8 está dentro de Percentile::MIN..=MAX por construção"),
+                block_size_beats: BlockSizeBeats::try_from(4)
+                    .expect("4 está dentro de BlockSizeBeats::MIN..=MAX por construção"),
                 preserve_intro_ms: 3000,
                 preserve_outro_ms: 3000,
             },

@@ -14,9 +14,11 @@ pub use error::Error;
 
 // Re-exports seletivos para conveniência do API layer
 pub use domain::{
-    AudioCodec, AudioFingerprint, AudioFormat, BeatBlock, BeatCandidate, BeatDetectionParams,
-    BlockEnergy, CrossfadeConfig, CrossfadeCurve, CrossfadeMs, EnergyProfile, MasteringConfig,
-    OnsetMethod, OnsetStrength, PipelineConfig, SelectionConfig,
+    AttackMs, AudioCodec, AudioFingerprint, AudioFormat, BeatBlock, BeatCandidate,
+    BeatDetectionParams, BlockEnergy, BlockSizeBeats, CompressionRatio, CrossfadeConfig,
+    CrossfadeCurve, CrossfadeMs, EnergyProfile, EqGainDb, LufsTarget, MasteringConfig, OnsetMethod,
+    OnsetStrength, Percentile, PipelineConfig, ReleaseMs, SelectionConfig, ThresholdDb,
+    TimeStretchFactor,
 };
 pub use dsp::stitching::FadeCurve;
 pub use ports::{AudioAnalyzer, AudioMixer, AudioRepo};
