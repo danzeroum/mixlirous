@@ -204,6 +204,16 @@ aqui, não só na mensagem do commit:
   0,15 (margem pequena acima de 0,1037) é apertado o bastante para pegar
   regressão real e largo o bastante para não quebrar por causa da própria
   precisão do meter.
+- **`gen_log_sweep` normalizava o expoente da fase por segundos, não por
+  `duration`.** A frequência instantânea batia o alvo em `t=1,0s` sempre,
+  nunca em `t=duration` — para `duration=5.0` (o valor real de toda fixture
+  gerada), os últimos 4 dos 5 segundos de `sweeps/sweep_20_20k_mono.wav` e
+  `sweep_200_2k_mono.wav` eram `sin()` de uma fase da ordem de 1e16 radianos:
+  ruído numérico, não uma varredura. Só passava despercebido porque
+  `duration=1.0s` faz o fator de normalização virar 1 e mascarar o erro, e
+  porque nenhum teste tinha usado essas fixtures para medir frequência antes
+  de `docs/17.1` §3.2 (aliasing) — `sample_peak_db`/`true_peak_dbtp` não
+  distinguem uma varredura de ruído de alta frequência com o mesmo pico.
 
 Mais duas, encontradas só quando o CI de fato rodou nas três plataformas da
 matriz pela primeira vez — a razão de gerar fixtures nos três SOs em vez de só

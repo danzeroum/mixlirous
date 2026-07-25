@@ -239,14 +239,29 @@ def gen_log_sweep(
     amplitude: float = 0.8,
     filename: str = "sweep",
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
-    """Varredura logarítmica com solução analítica exata da fase."""
+    """Varredura logarítmica com solução analítica exata da fase.
+
+    f(t) = freq_start * (freq_end/freq_start)^(t/duration), então
+    phase(t) = 2*pi*freq_start*duration/L * (exp((t/duration)*L) - 1), com
+    L = ln(freq_end/freq_start). O expoente tem que ser normalizado por
+    `duration` — sem isso (bug encontrado ao tentar validar sinc/aliasing
+    contra esta fixture, docs/17.1 §3.2) a frequência instantânea bate o alvo
+    em t=1,0s **sempre**, não em t=duration: para duration=5.0 a varredura
+    real termina em ~20 Hz a ~20 kHz por volta de t=1s e o resto (4 dos 5
+    segundos) é `sin()` de uma fase da ordem de 1e16 radianos — silenciosamente
+    ruído numérico, não uma varredura. Só passava despercebido porque
+    duration=1.0s faz o fator de normalização virar 1 e mascarar o erro.
+    """
     total_samples = int(sample_rate * duration)
     t = np.linspace(0, duration, total_samples, endpoint=False)
 
     if freq_start <= 0 or freq_end <= 0 or freq_start == freq_end:
         raise ValueError("freq_start e freq_end devem ser positivos e diferentes")
-    k = 2.0 * np.pi * freq_start / np.log(freq_end / freq_start)
-    phase = k * (np.exp(t * np.log(freq_end / freq_start)) - 1.0)
+    if duration <= 0:
+        raise ValueError("duration deve ser positiva")
+    log_ratio = np.log(freq_end / freq_start)
+    k = 2.0 * np.pi * freq_start * duration / log_ratio
+    phase = k * (np.exp((t / duration) * log_ratio) - 1.0)
 
     audio = amplitude * np.sin(phase)
     audio = normalize(audio, amplitude)

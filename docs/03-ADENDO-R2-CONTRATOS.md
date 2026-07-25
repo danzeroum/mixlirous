@@ -120,6 +120,7 @@ Adicionar a `GET /jobs/:id`:
 | `abrupt_splice` | emenda | Descontinuidade acima do limiar de I4.1 |
 | `splice_power_dip` | emenda | Queda de RMS acima de 1 dB na emenda (I4.2) |
 | `loudness_target_conflict` | masterização | Alvo de LUFS e teto de pico incompatíveis (`docs/16` §4 passo 6) |
+| `unmeasurable_loudness` | masterização | Trecho curto/silencioso demais para formar bloco de gating da BS.1770 — `apply_lufs_gain` devolve `LufsGainOutcome::UnmeasurableLoudness` e não normaliza |
 | `duration_target_unreachable` | montagem | Duração alvo exige esticamento fora de ±10% |
 | `limiting_heavy` | masterização | Redução de ganho acima do limiar de transparência |
 | `insufficient_material` | seleção | Blocos aprovados não somam a duração alvo |

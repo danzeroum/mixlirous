@@ -14,7 +14,7 @@
 mod generators;
 
 use audio_core::domain::CrossfadeCurve;
-use audio_core::dsp::mastering::lufs::{apply_lufs_gain, measure_lufs};
+use audio_core::dsp::mastering::lufs::{apply_lufs_gain, measure_lufs, LufsGainOutcome};
 use audio_core::dsp::mastering::stretch::time_stretch;
 use audio_core::dsp::stitching::crossfade::crossfade_buffers;
 use audio_core::dsp::stitching::fades::{apply_fade_in, apply_fade_out, FadeCurve};
@@ -88,17 +88,27 @@ proptest! {
         prop_assert_eq!(residual_db(&x, out.as_slice().unwrap()), f32::NEG_INFINITY);
     }
 
-    /// Normalizar para o próprio LUFS medido (alvo == atual) não move nada:
-    /// `gain_db = alvo - atual = 0`, `gain_linear = 10^0 = 1.0` exato,
-    /// independente de qual seja o valor medido (cancela algebricamente,
-    /// inclusive nos sentinelas de silêncio/degenerado).
+    /// Normalizar para o próprio LUFS medido (alvo == atual) não move nada.
+    /// Dois casos, os dois preservam a entrada: se `atual` é finito,
+    /// `gain_db = alvo - atual = 0` exato, `gain_linear = 10^0 = 1.0`. Se
+    /// `atual` é `-inf` (buffer curto/silencioso demais para formar bloco de
+    /// gating — `x` vazio incluso, `arb_pcm()` sorteia isso), `atual - atual`
+    /// seria `NaN` (forma indeterminada `-inf - (-inf)`, NÃO zero — cancelar
+    /// "algebricamente" é falso aqui), e é exatamente por isso que
+    /// `apply_lufs_gain` verifica `current.is_finite()` antes de calcular
+    /// `gain_db` — devolve `UnmeasurableLoudness` sem tocar no buffer.
     #[test]
     fn lufs_normalization_to_own_measurement_is_identity(x in arb_pcm()) {
         let sample_rate = 44_100u32;
         let atual = measure_lufs(&Array1::from_vec(x.clone()), sample_rate);
 
         let mut y = x.clone();
-        apply_lufs_gain(&mut y, sample_rate, atual);
+        let outcome = apply_lufs_gain(&mut y, sample_rate, atual);
+        let outcome_esperado = match outcome {
+            LufsGainOutcome::Applied { gain_db } => gain_db == 0.0,
+            LufsGainOutcome::UnmeasurableLoudness => true,
+        };
+        prop_assert!(outcome_esperado, "outcome inesperado: {outcome:?}");
         prop_assert_eq!(residual_db(&x, &y), f32::NEG_INFINITY);
     }
 }
