@@ -1,3 +1,4 @@
+use crate::domain::CrossfadeMs;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -13,7 +14,11 @@ pub struct PipelineConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrossfadeConfig {
     pub enabled: bool,
-    pub max_duration_ms: u32,
+    /// Newtype validado na desserialização (T0.0, I14) — um `PipelineConfig`
+    /// recuperado do banco depois de um crash não pode reconstruir um
+    /// crossfade fora da faixa 0–3000 ms; o erro acontece aqui, não seis
+    /// passos depois num DSP que assume o valor já é válido.
+    pub max_duration_ms: CrossfadeMs,
     pub curve: CrossfadeCurve,
 }
 
@@ -68,7 +73,8 @@ impl Default for PipelineConfig {
             target_duration: Duration::from_secs(30),
             crossfade: CrossfadeConfig {
                 enabled: true,
-                max_duration_ms: 3000,
+                max_duration_ms: CrossfadeMs::try_from(3000)
+                    .expect("3000 está dentro de CrossfadeMs::MIN..=MAX por construção"),
                 curve: CrossfadeCurve::ConstantPower,
             },
             mastering: MasteringConfig {
