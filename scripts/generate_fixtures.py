@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import math
+import sys
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,15 @@ from typing import Dict, Any, Optional, Tuple, List
 
 import numpy as np
 import soundfile as sf
+
+# stdout/stderr do Windows usa o codepage do console (cp1252 em runners de CI
+# e em instalações padrão) em vez de UTF-8 — os emojis dos prints abaixo
+# (🎵, ✅, 📁...) derrubam o processo com UnicodeEncodeError antes de gerar
+# um único arquivo. Linux/macOS já são UTF-8 por padrão; reconfigure() aí é
+# um no-op.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # Suprime avisos de divisão por zero em filtros
 warnings.filterwarnings("ignore", category=RuntimeWarning)
