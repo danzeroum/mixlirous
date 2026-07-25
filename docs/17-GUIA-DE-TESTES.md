@@ -20,7 +20,7 @@ mesma ordem duas vezes. Criar `scripts/test-all.sh` e fazer dele o único
 caminho ainda está pendente (§6, item 4) — o que existe hoje:
 
 ```bash
-pip install numpy==2.1.3 soundfile==0.12.1 scipy==1.17.1
+pip install -r scripts/requirements-fixtures.txt
 python scripts/generate_fixtures.py --duration 5.0
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
@@ -47,7 +47,7 @@ fixtures/audio/**/*.wav           ← no .gitignore, gerado localmente
 Depois de clonar ou dar `pull`:
 
 ```bash
-pip install numpy==2.1.3 soundfile==0.12.1 scipy==1.17.1
+pip install -r scripts/requirements-fixtures.txt
 python scripts/generate_fixtures.py --duration 5.0
 ```
 
@@ -71,7 +71,10 @@ não estejam.
 > falha. Falha em voz alta, que é o comportamento certo — mas é evitável.
 > `scipy` entrou na lista porque `pink_noise` e o fundo de `conflict_targets`
 > dependem dele sem fallback (ver §2.4) — instalar só numpy+soundfile faz o
-> gerador quebrar no meio, não gerar algo diferente.
+> gerador quebrar no meio, não gerar algo diferente. As três versões só
+> existem num único lugar, `scripts/requirements-fixtures.txt` — `ci-rust.yml`
+> e este guia apontam para ele, em vez de repetir a string de versão em três
+> lugares que podem divergir entre si.
 
 ### 2.1 Inventário — o que cada fixture prova
 
@@ -123,7 +126,12 @@ confiar no manifesto. Os dois foram checados contra o áudio real (harness da
    o pico de amostra medido é −1,51 dBFS (não 0,0 dBFS — não está clipado).
    A construção (`fs/4`, fase 45°) garante essa relação exata por
    trigonometria: toda amostra cai em `sin(45° + n·90°) = ±0,7071`,
-   `20·log10(0,7071) ≈ −3,01 dB` abaixo do pico contínuo.
+   `20·log10(0,7071) ≈ −3,01 dB` abaixo do pico contínuo. O `measure_true_peak`
+   do harness, que sobreamostra 4x com FIR de 12 taps (`ebur128`), mede um
+   viés sistemático de ~0,1037 dB nessa construção — idêntico à 4ª casa
+   decimal nos três níveis, ou seja, característico do filtro, não ruído
+   (ver §2.4/§5 para a causa exata). A tolerância da asserção é 0,15 dB, não
+   0,01 — cobre o viés real do meter, não abre margem para regressão.
 
 2. **`degenerate_single_sample.wav` imprimiu "5.0s" na geração.** Verificado
    — **era bug real, corrigido**. `gen_degenerate_cases` tinha os dois casos
@@ -181,6 +189,37 @@ aqui, não só na mensagem do commit:
   diferente — quebra a garantia de reprodutibilidade sem avisar). Removido o
   fallback; `scipy` é dependência obrigatória e está na lista de instalação
   (§2).
+- **Tolerância de true peak alargada sem causa registrada (0,1 → 0,2), depois
+  apertada com a causa certa (0,2 → 0,15).** A primeira revisão só constatou
+  que o delta medido (~0,104 dB) cabia numa tolerância maior e parou aí — sem
+  explicar o porquê, indistinguível de "aumentei até passar". A causa real:
+  `ebur128::Mode::TRUE_PEAK` sobreamostra 4x com um FIR polifásico de 12 taps
+  por fase (`InterpF<12, 4, _>`, escolhido porque `sample_rate < 96_000` — ver
+  `ebur128::true_peak::UpsamplingScanner::new`). `fs/4` com fase 45° é
+  justamente o caso didático clássico de "pico de amostra ≠ pico real": as
+  amostras caem exatamente nos zeros do padrão de ripple de um reconstrutor
+  ideal, o que também o torna o pior caso para um FIR curto de 12 taps
+  divergir do ideal. O delta é idêntico à 4ª casa decimal nos três níveis
+  (m10/p0/p15) — viés determinístico do filtro, não ruído de medição — então
+  0,15 (margem pequena acima de 0,1037) é apertado o bastante para pegar
+  regressão real e largo o bastante para não quebrar por causa da própria
+  precisão do meter.
+
+Mais duas, encontradas só quando o CI de fato rodou nas três plataformas da
+matriz pela primeira vez — a razão de gerar fixtures nos três SOs em vez de só
+Linux, mesmo custando tempo de execução:
+
+- **`UnicodeEncodeError` no Windows.** stdout do Python usa o codepage do
+  console (`cp1252`) por padrão, não UTF-8; os emojis dos prints de progresso
+  (🎵, ✅, 📁...) derrubavam o processo antes de gerar um único arquivo.
+  Corrigido com `sys.stdout.reconfigure(encoding="utf-8")` no início do
+  script (no-op em Linux/macOS, que já são UTF-8).
+- **`/tmp` hardcoded quebra no Windows.** `gen_corrupted_wav` escrevia num
+  arquivo temporário em `Path("/tmp/corrupted_tmp.wav")` — caminho absoluto
+  só faz sentido no POSIX; no Windows resolve para `\tmp` na raiz da unidade
+  atual, que não existe (`LibsndfileError: Error opening
+  '\tmp\corrupted_tmp.wav'`). Trocado por `tempfile.mkstemp()`, que resolve
+  o diretório temporário certo em qualquer SO.
 
 ---
 
@@ -279,12 +318,18 @@ fn fixtures_conformam_ao_manifesto() {
 
         // 3. Condicional ao que o manifesto declara
         if let (Some(bpm), Some(tol)) = (spec.expected.bpm, spec.expected.bpm_tolerance_pct) {
-            let medido = estimate_bpm(&onset_strength(&audio.mono, 2048, 512), audio.sample_rate, 512);
-            // tolerante a bpm/2 e bpm*2 — ambiguidade de oitava, issue #18
-            let erro_pct = [bpm, bpm / 2.0, bpm * 2.0]
-                .iter().map(|c| (medido as f64 - c).abs() / c * 100.0)
-                .fold(f64::INFINITY, f64::min);
-            assert!(erro_pct <= tol, "{caminho}: BPM {medido:.1}, esperado {bpm:.1}");
+            let medido = estimate_bpm(&onset_strength(&audio.mono, 2048, 512), audio.sample_rate, 512) as f64;
+            // As 3 fixtures em BPM_METADE_CONHECIDA_ISSUE_18 são cobradas
+            // contra bpm/2 (o valor ERRADO que produzem hoje), não contra
+            // bpm — pin explícito do bug, não tolerância de oitava. Quando
+            // o #18 for corrigido esta asserção passa a falhar; é para
+            // falhar. As outras 4 fixtures de BPM não têm essa complacência:
+            // um trem de cliques uniforme não tem ambiguidade musical entre
+            // tempo e metade de tempo, então medir metade ali é falha de
+            // detecção, não leitura alternativa válida.
+            let alvo = if BPM_METADE_CONHECIDA_ISSUE_18.contains(&caminho.as_str()) { bpm / 2.0 } else { bpm };
+            let erro_pct = (medido - alvo).abs() / alvo * 100.0;
+            assert!(erro_pct <= tol, "{caminho}: BPM {medido:.1}, esperado {alvo:.1}");
         }
 
         // só afirmado quando o gerador declara tolerância explícita — hoje

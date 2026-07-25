@@ -50,10 +50,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      # Versões fixas (docs/17 §2): ponto flutuante diverge entre versões e
-      # quebra o sha256 do manifesto comitado.
       - name: Install fixture generator dependencies
-        run: pip install numpy==2.1.3 soundfile==0.12.1 scipy==1.17.1
+        run: pip install -r scripts/requirements-fixtures.txt
 
       - name: Generate audio fixtures
         run: python scripts/generate_fixtures.py --duration 5.0

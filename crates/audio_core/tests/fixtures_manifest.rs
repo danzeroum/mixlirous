@@ -21,6 +21,20 @@ use sha2::{Digest, Sha256};
 
 const EXPECTED_FIXTURE_COUNT: usize = 35;
 
+/// Issue #18: `estimate_bpm` reporta metade do andamento nestas três fixtures
+/// (confirmado com o autocorrelograma real: em cada uma, o score no lag do
+/// dobro do período vence — por pouco — o score no lag do período
+/// verdadeiro; não é limite de faixa de busca, os dois lags estão dentro do
+/// intervalo pesquisado). Isto pina o comportamento ERRADO de hoje, não o
+/// correto — quando o #18 for corrigido, a asserção abaixo passa a FALHAR
+/// (porque o medido deixa de ser metade do esperado), e é para falhar:
+/// remova a entrada da lista e feche a issue.
+const BPM_METADE_CONHECIDA_ISSUE_18: &[&str] = &[
+    "click_tracks/click_128bpm_mono.wav",
+    "rhythm/rhythm_120bpm_mono.wav",
+    "rhythm/rhythm_140bpm_mono.wav",
+];
+
 /// Caminho relativo resolve a partir da crate (`CARGO_MANIFEST_DIR`), não do
 /// workspace — docs/17 §3.1. Sem isso o teste passa numa máquina e falha na
 /// outra dependendo de onde `cargo test` foi invocado.
@@ -169,20 +183,22 @@ fn fixtures_conformam_ao_manifesto() {
         {
             let onset = onset_strength(&audio.mono, 2048, 512);
             let medido = estimate_bpm(&onset, audio.sample_rate, 512) as f64;
-            // Tolerante a erro de oitava (medido ~= bpm/2 ou ~= bpm*2): a
-            // autocorrelação em `estimate_bpm` pode travar na subdivisão ou
-            // no dobro do período em padrões com acentuação forte a cada N
-            // batidas (rhythm/*) — ambiguidade documentada na literatura de
-            // estimação de tempo (métrica Accuracy2 do MIREX), não um erro
-            // de decodificação ou de construção da fixture. Um resultado
-            // fora de {bpm, bpm/2, bpm*2} ainda falha.
-            let erro_pct = [bpm, bpm / 2.0, bpm * 2.0]
-                .iter()
-                .map(|candidato| (medido - candidato).abs() / candidato * 100.0)
-                .fold(f64::INFINITY, f64::min);
+            // Fixtures na lista de bug conhecido (issue #18) são cobradas
+            // contra o valor ERRADO que produzem hoje, não contra `bpm` —
+            // ver comentário na constante. Todas as outras são cobradas
+            // contra o valor verdadeiro, sem tolerância a oitava: um trem de
+            // cliques uniforme não tem ambiguidade musical legítima entre
+            // tempo e metade de tempo, então medir metade ali é falha de
+            // detecção, não uma leitura alternativa defensável.
+            let alvo = if BPM_METADE_CONHECIDA_ISSUE_18.contains(&caminho.as_str()) {
+                bpm / 2.0
+            } else {
+                bpm
+            };
+            let erro_pct = (medido - alvo).abs() / alvo * 100.0;
             assert!(
                 erro_pct <= tolerancia_pct,
-                "{caminho}: BPM medido {medido:.1}, esperado {bpm:.1} (ou metade/dobro, tolerância {tolerancia_pct}%)"
+                "{caminho}: BPM medido {medido:.1}, esperado {alvo:.1} (tolerância {tolerancia_pct}%)"
             );
         }
 

@@ -1,6 +1,6 @@
 {
   "generator_version": "2.0.2",
-  "generated_at": "2026-07-25T14:52:43.567466Z",
+  "generated_at": "2026-07-25T15:14:40.901896Z",
   "files": {
     "click_tracks/click_60bpm_mono.wav": {
       "sample_rate": 44100,
@@ -252,7 +252,7 @@
         "freq_hz": 11025.0,
         "sample_peak_dbfs": -4.010299955982893,
         "true_peak_dbtp": -1.0,
-        "true_peak_dbtp_tolerance": 0.2
+        "true_peak_dbtp_tolerance": 0.15
       }
     },
     "true_peak/true_peak_p0.wav": {
@@ -265,7 +265,7 @@
         "freq_hz": 11025.0,
         "sample_peak_dbfs": -3.010299955982894,
         "true_peak_dbtp": 0.0,
-        "true_peak_dbtp_tolerance": 0.2
+        "true_peak_dbtp_tolerance": 0.15
       }
     },
     "true_peak/true_peak_p15.wav": {
@@ -278,7 +278,7 @@
         "freq_hz": 11025.0,
         "sample_peak_dbfs": -1.5102999559828931,
         "true_peak_dbtp": 1.5,
-        "true_peak_dbtp_tolerance": 0.2
+        "true_peak_dbtp_tolerance": 0.15
       }
     },
     "conflicts/conflict_targets.wav": {

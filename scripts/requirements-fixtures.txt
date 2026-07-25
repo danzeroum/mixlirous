@@ -1,0 +1,7 @@
+# Dependências de scripts/generate_fixtures.py — versões fixas (docs/17 §2):
+# ponto flutuante diverge entre versões e quebra o sha256 do manifesto
+# comitado em fixtures/audio/manifest.json. Único lugar onde essas versões
+# são declaradas — ci-rust.yml e docs/17 apontam para este arquivo.
+numpy==2.1.3
+soundfile==0.12.1
+scipy==1.17.1

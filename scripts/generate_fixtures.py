@@ -13,7 +13,7 @@ Regras:
 
 Dependências (versão fixa — ponto flutuante diverge entre versões e quebra o
 sha256 do manifesto):
-    pip install numpy==2.1.3 soundfile==0.12.1 scipy==1.17.1
+    pip install -r scripts/requirements-fixtures.txt
 """
 
 import argparse
@@ -440,11 +440,19 @@ def gen_inter_sample_peak(
         "freq_hz": freq,
         "sample_peak_dbfs": float(linear_to_db(np.max(np.abs(audio)))),
         "true_peak_dbtp": true_peak_dbtp,
-        # 0.2, não 0.1: sobreamostragem ITU-R BS.1770 (ebur128) tem viés
-        # sistemático de ~0.1 dB nesta construção (fs/4, fase 45°) — medido
-        # empiricamente contra o harness Rust (docs/17 §5), não é erro do
-        # meter, é a precisão de qualquer implementação conforme o padrão.
-        "true_peak_dbtp_tolerance": 0.2,
+        # 0,15, não 0,1: medido empiricamente contra o harness Rust
+        # (docs/17 §5) um viés sistemático e determinístico de ~0,1037 dB
+        # nesta construção — idêntico (à 4ª casa decimal) nos três níveis
+        # (m10/p0/p15), ou seja, característico do filtro, não ruído. Causa:
+        # a crate `ebur128` mede true peak sobreamostrando 4x com um FIR
+        # polifásico de 12 taps por fase (`InterpF<12, 4, _>`, escolhido
+        # porque sample_rate < 96000 — ver `ebur128::true_peak::
+        # UpsamplingScanner::new`). fs/4 com fase 45° é o caso clássico de
+        # "pico de amostra != pico real" justamente porque as amostras caem
+        # exatamente nos zeros do padrão de ripple de um reconstrutor
+        # sobreamostrado — um FIR de 12 taps diverge mais do ideal aí do que
+        # em conteúdo genérico. Não é bug do meter nem do teste.
+        "true_peak_dbtp_tolerance": 0.15,
     }
     return audio, expected
 
