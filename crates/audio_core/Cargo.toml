@@ -12,7 +12,16 @@ async-trait.workspace = true
 chrono.workspace = true
 symphonia = { version = "0.6.0", features = ["mp3", "aac", "isomp4"] }
 ndarray = "0.17.2"
-realfft = "3.5.0"
-ebur128 = "0.1.10"
-rubato = "4.0.0"
-audioadapter-buffers = "4.0.0"
+# Fixadas em versão exata (docs/16 T1.1): estas quatro implementam a
+# matemática de DSP em si (FFT, loudness, resampling), não infraestrutura de
+# decodificação/array genérica — o rubato publicou quatro versões maiores em
+# sete meses, e a Sprint 0 já perdeu tempo com uma API que mudou embaixo.
+# Atualização destas quatro é tarefa agendada, com escuta, não efeito
+# colateral de `cargo update`.
+realfft = "=3.5.0"
+ebur128 = "=0.1.10"
+rubato = "=4.0.0"
+audioadapter-buffers = "=4.0.0"
+
+[dev-dependencies]
+proptest = "1"
