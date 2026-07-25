@@ -11,8 +11,9 @@ Regras:
     - Gera manifest.json com SHA-256 e valores esperados.
     - Não comitar os WAVs; comitar apenas o manifesto.
 
-Dependências:
-    pip install numpy soundfile scipy
+Dependências (versão fixa — ponto flutuante diverge entre versões e quebra o
+sha256 do manifesto):
+    pip install numpy==2.1.3 soundfile==0.12.1 scipy==1.17.1
 """
 
 import argparse
@@ -86,6 +87,28 @@ def sha256_file(path: Path) -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def quantize_like(audio: np.ndarray, subtype: str) -> np.ndarray:
+    """Simula a quantização que `sf.write` vai aplicar, para calcular valores
+    esperados sobre o que realmente será decodificado — não sobre o float64
+    pré-quantização.
+
+    Importa para zero-crossing: numa senoide cujo período cabe um número
+    inteiro de amostras (100 Hz a 44100 Hz = 441 amostras/ciclo), o cruzamento
+    cai exatamente EM cima de uma amostra a cada período. Em float64 o ruído
+    de arredondamento do `sin()` mantém essa amostra ligeiramente positiva ou
+    negativa (nunca zero exato), então `np.sign` não vê um terceiro estado. Em
+    PCM_16 (passo de quantização ~3e-5) esse resíduo desaparece e a amostra
+    quantiza para exatamente 0 — `np.sign` passa a ver +/0/- em vez de só
+    +/-, e cada cruzamento nesses pontos é contado duas vezes. Sem isso o
+    manifesto reflete o sinal ideal, não o arquivo que o teste realmente lê.
+    """
+    bits = {"PCM_16": 16, "PCM_24": 24}.get(subtype)
+    if bits is None:  # FLOAT ou outro subtype de ponto flutuante: sem quantização
+        return audio
+    full_scale = float(1 << (bits - 1))
+    return np.round(np.clip(audio, -1.0, 1.0) * full_scale).clip(-full_scale, full_scale - 1) / full_scale
+
+
 # =============================================================================
 # Geradores de sinal
 # =============================================================================
@@ -122,7 +145,7 @@ def gen_click_train(
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio)))),
         "true_peak_dbtp": float(linear_to_db(np.max(np.abs(audio)))),
         "lufs_i": None,
-        "zero_crossings": int(np.sum(np.diff(np.sign(audio)) != 0)),
+        "zero_crossing_count": int(np.sum(np.diff(np.sign(audio)) != 0)),
     }
     return audio, expected
 
@@ -269,7 +292,7 @@ def gen_rhythm_pattern(
         "bpm_tolerance_pct": 2.0,
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio)))),
         "true_peak_dbtp": float(linear_to_db(np.max(np.abs(audio)))),
-        "zero_crossings": int(np.sum(np.diff(np.sign(audio)) != 0)),
+        "zero_crossing_count": int(np.sum(np.diff(np.sign(audio)) != 0)),
     }
     return audio, expected
 
@@ -405,7 +428,11 @@ def gen_inter_sample_peak(
         "freq_hz": freq,
         "sample_peak_dbfs": float(linear_to_db(np.max(np.abs(audio)))),
         "true_peak_dbtp": true_peak_dbtp,
-        "true_peak_dbtp_tolerance": 0.1,
+        # 0.2, não 0.1: sobreamostragem ITU-R BS.1770 (ebur128) tem viés
+        # sistemático de ~0.1 dB nesta construção (fs/4, fase 45°) — medido
+        # empiricamente contra o harness Rust (docs/17 §5), não é erro do
+        # meter, é a precisão de qualquer implementação conforme o padrão.
+        "true_peak_dbtp_tolerance": 0.2,
     }
     return audio, expected
 
@@ -421,14 +448,11 @@ def gen_conflict_targets(
     total_samples = int(sample_rate * duration)
     t = np.linspace(0, duration, total_samples, endpoint=False)
 
-    try:
-        from scipy.signal import lfilter
-        b = [0.049922035, -0.095993537, 0.050612699, -0.004408786]
-        a = [1.0, -2.494956002, 2.017265875, -0.522189400]
-        bg = lfilter(b, a, rng.normal(0, 1, total_samples))
-        bg = bg * db_to_linear(-30.0)
-    except ImportError:
-        bg = rng.normal(0, 1, total_samples) * db_to_linear(-30.0)
+    from scipy.signal import lfilter
+    b = [0.049922035, -0.095993537, 0.050612699, -0.004408786]
+    a = [1.0, -2.494956002, 2.017265875, -0.522189400]
+    bg = lfilter(b, a, rng.normal(0, 1, total_samples))
+    bg = bg * db_to_linear(-30.0)
 
     audio = bg.copy()
 
@@ -473,6 +497,7 @@ def gen_zero_crossing_cases(
     duration: float,
     sample_rate: int,
     filename: str = "zero_crossing",
+    subtype: str = "PCM_16",
 ) -> List[Tuple[Path, np.ndarray, Dict[str, Any]]]:
     """Casos específicos de zero-crossing."""
     results = []
@@ -482,7 +507,7 @@ def gen_zero_crossing_cases(
     # Offset DC (nunca cruza)
     audio_dc = 0.5 + 0.4 * np.sin(2.0 * np.pi * 100 * t)
     exp_dc = {
-        "zero_crossings": None,
+        "zero_crossing_count": 0,
         "expected_behavior": "none",
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio_dc)))),
     }
@@ -491,9 +516,10 @@ def gen_zero_crossing_cases(
     # Senoide 100 Hz (cruzamentos conhecidos)
     freq = 100.0
     audio_sine = 0.8 * np.sin(2.0 * np.pi * freq * t)
-    crossings = np.where(np.diff(np.sign(audio_sine)) != 0)[0]
+    crossings = np.where(np.diff(np.sign(quantize_like(audio_sine, subtype))) != 0)[0]
     exp_sine = {
-        "zero_crossings": crossings.tolist(),
+        "zero_crossing_count": int(len(crossings)),
+        "zero_crossing_indices": crossings.tolist(),
         "expected_behavior": "known_indices",
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio_sine)))),
     }
@@ -526,20 +552,21 @@ def gen_degenerate_cases(
     total_samples = int(sample_rate * duration)
 
     audio = np.zeros(total_samples)
-    exp = {"expected_behavior": "silence", "sample_peak_db": -float('inf')}
+    exp = {"expected_behavior": "silence", "sample_peak_db": None}  # -inf não é JSON válido
     results.append((Path(f"{filename}_silence.wav"), audio, exp))
 
     audio = np.ones(total_samples) * 0.5
     exp = {"expected_behavior": "dc_constant", "sample_peak_db": float(linear_to_db(0.5))}
     results.append((Path(f"{filename}_dc_constant.wav"), audio, exp))
 
-    audio = np.zeros(total_samples)
-    audio[0] = 0.9
+    # Buffer de exatamente uma amostra — expõe `len() - 1` estourando.
+    audio = np.array([0.9], dtype=np.float32)
     exp = {"expected_behavior": "single_sample", "sample_peak_db": float(linear_to_db(0.9))}
     results.append((Path(f"{filename}_single_sample.wav"), audio, exp))
 
-    audio = np.array([0.5], dtype=np.float32)
-    exp = {"expected_behavior": "zero_duration", "sample_peak_db": float(linear_to_db(0.5))}
+    # Buffer vazio — decoder tem que recusar, não estourar.
+    audio = np.array([], dtype=np.float32)
+    exp = {"expected_behavior": "zero_duration", "sample_peak_db": None}
     results.append((Path(f"{filename}_zero_duration.wav"), audio, exp))
 
     audio = np.ones(total_samples) * 1.0
@@ -560,7 +587,8 @@ def gen_corrupted_wav(
 ) -> Tuple[Path, bytes, Dict[str, Any]]:
     """Gera um WAV com cabeçalho válido, mas dados truncados."""
     total_samples = int(sample_rate * duration)
-    audio = np.random.normal(0, 0.5, total_samples).astype(np.float32)
+    rng = build_rng(filename)
+    audio = rng.normal(0, 0.5, total_samples).astype(np.float32)
 
     tmp_path = Path(f"/tmp/{filename}_tmp.wav")
     sf.write(str(tmp_path), audio, sample_rate, subtype="PCM_16")
@@ -645,7 +673,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s, {entry['channels']}ch)")
 
     # ------------------------------------------------------------------------
@@ -659,7 +687,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -673,7 +701,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -687,7 +715,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -701,7 +729,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -714,7 +742,7 @@ def main():
     entry = {}
     write_wav(path, audio, sample_rate, entry, subtype)
     entry["expected"] = exp
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -727,7 +755,7 @@ def main():
     entry = {}
     write_wav(path, audio, sample_rate, entry, subtype)
     entry["expected"] = exp
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -742,7 +770,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} (true peak {tp_db:.1f} dBTP)")
 
     # ------------------------------------------------------------------------
@@ -755,7 +783,7 @@ def main():
     entry = {}
     write_wav(path, audio, sample_rate, entry, subtype)
     entry["expected"] = exp
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -768,20 +796,20 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
     # 11. Zero-crossing (F4)
     # ------------------------------------------------------------------------
     print("📁 zero_crossing/")
-    zcases = gen_zero_crossing_cases(duration, sample_rate, "zero_crossing")
+    zcases = gen_zero_crossing_cases(duration, sample_rate, "zero_crossing", subtype)
     for path_rel, audio, exp in zcases:
         path = output_dir / "zero_crossing" / path_rel
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -794,7 +822,7 @@ def main():
     entry = {}
     write_wav(path, audio, sample_rate, entry, subtype)
     entry["expected"] = exp
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -807,7 +835,7 @@ def main():
         entry = {}
         write_wav(path, audio, sample_rate, entry, subtype)
         entry["expected"] = exp
-        manifest["files"][str(path.relative_to(output_dir))] = entry
+        manifest["files"][path.relative_to(output_dir).as_posix()] = entry
         print(f"  ✅ {path.name} ({entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------
@@ -826,7 +854,7 @@ def main():
         "sha256": hashlib.sha256(data).hexdigest(),
         "expected": exp,
     }
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} (corrompido, {len(data)} bytes)")
 
     # ------------------------------------------------------------------------
@@ -846,7 +874,7 @@ def main():
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio_stereo)))),
         "true_peak_dbtp": float(linear_to_db(np.max(np.abs(audio_stereo)))),
     }
-    manifest["files"][str(path.relative_to(output_dir))] = entry
+    manifest["files"][path.relative_to(output_dir).as_posix()] = entry
     print(f"  ✅ {path.name} (estéreo, {entry['duration_sec']:.1f}s)")
 
     # ------------------------------------------------------------------------

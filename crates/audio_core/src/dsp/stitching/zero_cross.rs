@@ -21,6 +21,34 @@ pub fn find_zero_crossing(
     target_idx
 }
 
+/// Sinal no estilo `numpy.sign`: zero mapeia para 0, não para +1 como
+/// `f32::signum`. A distinção importa para `zero_crossing_indices` — um
+/// trem de cliques que retorna a exatamente 0.0 entre pulsos só conta como
+/// cruzamento se 0.0 tiver sinal próprio.
+fn sign_bucket(x: f32) -> i8 {
+    if x > 0.0 {
+        1
+    } else if x < 0.0 {
+        -1
+    } else {
+        0
+    }
+}
+
+/// Índices onde o sinal muda de sinal (ou toca zero) entre uma amostra e a
+/// seguinte. Índice `i` significa a transição entre `pcm[i]` e `pcm[i+1]`.
+pub fn zero_crossing_indices(pcm: &Array1<f32>) -> Vec<usize> {
+    let signs: Vec<i8> = pcm.iter().map(|&x| sign_bucket(x)).collect();
+    (0..signs.len().saturating_sub(1))
+        .filter(|&i| signs[i] != signs[i + 1])
+        .collect()
+}
+
+/// Conta o total de zero-crossings no buffer inteiro (ver `zero_crossing_indices`).
+pub fn count_zero_crossings(pcm: &Array1<f32>) -> usize {
+    zero_crossing_indices(pcm).len()
+}
+
 /// Aplica fade-out logarítmico em um buffer
 pub fn fade_out_log(pcm: &mut [f32], start_sample: usize, fade_samples: usize) {
     let len = fade_samples.min(pcm.len() - start_sample);
@@ -78,5 +106,25 @@ mod tests {
         let mut pcm = vec![1.0f32; 100];
         fade_in_log(&mut pcm, 0, 100);
         assert!(pcm[0] < 0.2);
+    }
+
+    #[test]
+    fn test_count_zero_crossings_of_dc_offset_is_zero() {
+        let pcm = Array1::from_vec(vec![0.5f32; 1000]);
+        assert_eq!(count_zero_crossings(&pcm), 0);
+    }
+
+    #[test]
+    fn test_zero_crossing_indices_matches_known_alternation() {
+        let pcm = Array1::from_vec(vec![1.0f32, -1.0, 1.0, -1.0, 1.0]);
+        assert_eq!(zero_crossing_indices(&pcm), vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_sign_bucket_treats_exact_zero_as_its_own_value() {
+        // Um pulso que retorna a exatamente 0.0 entre picos positivos conta
+        // como dois cruzamentos (0->+ e +->0), não zero.
+        let pcm = Array1::from_vec(vec![0.0f32, 0.5, 0.0]);
+        assert_eq!(count_zero_crossings(&pcm), 2);
     }
 }

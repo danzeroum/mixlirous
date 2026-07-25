@@ -25,3 +25,8 @@ audioadapter-buffers = "=4.0.0"
 
 [dev-dependencies]
 proptest = "1"
+# Decodificador WAV só para os testes de fixture (docs/17 §5) — o pipeline de
+# produção ainda não decodifica nada (ver default_mixer.rs), então não há
+# decoder real para reusar aqui.
+hound = "3.5"
+sha2 = "0.10"
