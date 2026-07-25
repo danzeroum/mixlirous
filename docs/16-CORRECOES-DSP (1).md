@@ -56,6 +56,29 @@ crossfade fora da faixa. Os outros dez parâmetros do Bloco 0 (ver tabela em
 `05-AGENTE-IA-HITL.md` §3) continuam sem newtype — aplicação mecânica do
 mesmo padrão, ainda não feita.
 
+**Correção de direção em relação ao parágrafo "Fonte dos limites" abaixo:**
+aquele parágrafo diz que o newtype deriva do registry (`audio_agent::limits`).
+Na prática saiu ao contrário, e de propósito — `audio_core` não pode depender
+de `audio_agent` sem inverter a camada errada (domínio dependendo do agente).
+`CrossfadeMs::MIN`/`MAX` é quem guarda o número literal; `limits.rs` importa
+dali (`audio_agent` ganhou dependência de `audio_core`, direção que o projeto
+ia precisar de qualquer forma na Sprint 2). O efeito prático é o mesmo — um
+número, todo o resto projeta ou é testado contra ele — só a direção da seta
+mudou.
+
+**Estado final da migração, para não parar no meio sem ninguém notar:**
+quando os dez parâmetros restantes tiverem newtype, `limits.rs` não guarda
+**nenhum** limite numérico literal — cada `p(...)` do registry lê
+`audio_core::<Tipo>::MIN`/`MAX`, e a tabela de `05-AGENTE-IA-HITL.md` §3
+vira projeção de uma projeção (registry projeta o tipo, a tabela projeta o
+registry). Até lá, durante a migração, existem propositalmente **duas casas**
+para limite: os parâmetros já migrados (hoje só `crossfade.duration_ms`) leem
+do tipo; os outros nove continuam com o literal em `limits.rs`, como sempre
+estiveram. Isso é esperado — não é o mesmo bug de duas fontes divergentes,
+porque não há cópia, só migração incompleta. Mas é o tipo de coisa que para
+no meio do caminho sem ninguém perceber se não estiver escrito em algum
+lugar qual é o estado final: **zero literais em `limits.rs`.**
+
 Hoje os parâmetros são validados apenas na `ValidationLayer`. O `04-DOMINIO-DSP.md`
 prescreve validação **na desserialização do newtype**. A diferença não é
 estilística.
