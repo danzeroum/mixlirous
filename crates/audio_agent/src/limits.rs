@@ -327,14 +327,12 @@ pub fn tool_registry() -> Vec<ToolLimits> {
 }
 
 // Adendo R2 §0: crossfade (dois sinais somando) e fade_in/fade_out (um sinal
-// de/para o silêncio) são conceitos diferentes e agora têm enums distintos —
+// de/para o silêncio) são conceitos diferentes e têm enums distintos —
 // contrato, validador e registry, os três. `crossfade` nunca aceitou
-// "linear"/"exponential" de verdade (a implementação em
-// dsp::stitching::crossfade::crossfade_buffers() ainda opera sobre o
-// FadeCurve antigo por baixo, e a matemática de potência/ganho constante real
-// fica para o pacote docs/16 T2.2, atrás de T0.0/T0.1) — mas o contrato
-// exposto por GET /tools precisa nomear o vocabulário certo agora, porque a
-// tela FERR do desenho já lê daqui.
+// "linear"/"exponential" de verdade; a matemática de potência/ganho
+// constante (docs/16 T2.2) também já está em
+// dsp::stitching::crossfade::crossfade_buffers() — não sobra mais operando
+// sobre o FadeCurve antigo por baixo.
 pub const VALID_CROSSFADE_CURVES: &[&str] = &["constant_power", "constant_gain"];
 pub const VALID_FADE_CURVES: &[&str] = &["linear", "logarithmic", "exponential"];
 pub const VALID_STEM_MODELS: &[&str] = &["htdemucs", "htdemucs_ft"];
