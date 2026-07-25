@@ -1,6 +1,6 @@
 {
   "generator_version": "2.0.2",
-  "generated_at": "2026-07-25T15:14:40.901896Z",
+  "generated_at": "2026-07-25T16:42:28.713508Z",
   "files": {
     "click_tracks/click_60bpm_mono.wav": {
       "sample_rate": 44100,
@@ -168,7 +168,7 @@
       "sample_rate": 44100,
       "channels": 1,
       "duration_sec": 5.0,
-      "sha256": "953bf09e8713b382a38ccc366d7a2fa3e8b1521fae4c64afc93f5ab03fc82c57",
+      "sha256": "280c48a3daaaf5f2df13165bb9b2c750535d0ed12db7c3afa1b3476dd28e2498",
       "seed": null,
       "expected": {
         "freq_start_hz": 20,
@@ -181,7 +181,7 @@
       "sample_rate": 44100,
       "channels": 1,
       "duration_sec": 5.0,
-      "sha256": "3b3d0223b06db9d2c110a9840fe5c6661549d3647f7544d64ca57da4494a4305",
+      "sha256": "129b424c593fd78f498ec50f7b284105777d96970f22fea658b946ace59b962f",
       "seed": null,
       "expected": {
         "freq_start_hz": 200,

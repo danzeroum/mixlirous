@@ -20,7 +20,7 @@
 
 use audio_core::domain::CrossfadeCurve;
 use audio_core::dsp::mastering::limiter::brickwall_limiter;
-use audio_core::dsp::mastering::lufs::apply_lufs_gain;
+use audio_core::dsp::mastering::lufs::{apply_lufs_gain, LufsGainOutcome};
 use audio_core::dsp::stitching::crossfade::crossfade_buffers;
 use audio_core::dsp::stitching::fades::{apply_fade_in, apply_fade_out, FadeCurve};
 
@@ -114,7 +114,8 @@ fn limiter_nao_desloca_o_impulso() {
 #[test]
 fn lufs_gain_nao_desloca_o_impulso() {
     let mut x = impulso();
-    apply_lufs_gain(&mut x, SAMPLE_RATE as u32, -10.0);
+    let outcome = apply_lufs_gain(&mut x, SAMPLE_RATE as u32, -10.0);
+    assert!(matches!(outcome, LufsGainOutcome::Applied { .. }));
     assert_eq!(
         argmax_abs(&x) as isize - IMPULSE_IDX as isize,
         LATENCIA_LUFS_GAIN as isize,

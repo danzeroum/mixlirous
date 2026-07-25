@@ -51,7 +51,9 @@ proptest! {
         prop_assume!(!x.is_empty());
         de_media(&mut x);
         let mut y = x.clone();
-        apply_lufs_gain(&mut y, 44_100, -14.0);
+        // Aplicado ou não (buffer curto demais para medir loudness), a
+        // propriedade tem que valer nos dois casos — não afirmamos qual.
+        let _ = apply_lufs_gain(&mut y, 44_100, -14.0);
         prop_assert!(media(&y).abs() < 1e-4, "ganho LUFS introduziu DC: {}", media(&y));
     }
 }
