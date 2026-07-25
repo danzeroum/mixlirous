@@ -223,7 +223,7 @@ publicou quatro versões maiores em sete meses; a Sprint 0 já perdeu tempo com 
 API que mudou embaixo. Atualização de dependência de áudio é tarefa agendada,
 com escuta, não efeito colateral de um `cargo update`.
 
-### T1.1 — Geradores de sinal
+### T1.1 — Geradores de sinal — **feito**
 
 `crates/audio_core/tests/generators.rs`. Gerados em código, nunca arquivos de
 áudio — atendem a `09-MLOPS-GOLDEN-MASTER.md` sem questão de licença e são
@@ -268,7 +268,18 @@ proptest! {
 Note a forma da terceira: ela não exige que o sistema acerte sempre — exige que
 ele **nunca erre calado**. É a asserção que codifica a tese do produto.
 
-### T1.3 — Propriedades de emenda
+### T1.3 — Propriedades de emenda — **feito, escopo reduzido**
+
+**Só o que T2.2 precisava para ser confiável**, liberado junto com ele:
+`crates/audio_core/tests/crossfade_properties.rs` cobre I15 (finitude, para
+qualquer curva e entrada — incluindo os degenerados de T1.1, sorteados com
+peso alto) e a identidade de ganho constante (`crossfade(x, x, _,
+ConstantGain) ≈ x`) através do espaço de entrada, não só no exemplo fixo.
+**Não fazem parte ainda:** `descontinuidade_max`/I4.1 e
+`queda_rms_db`/I4.2 em janela deslizante (dependem de infraestrutura de
+análise que não existe) e o detector de correlação/fase do pseudocódigo
+abaixo. Ficam para quando o Bloco 2/3 completo entrar — não são necessários
+para a fatia vertical, que é o que motivou adiantar T2.2.
 
 ```rust
 proptest! {
@@ -362,7 +373,27 @@ silencioso — o mesmo padrão que produziu B1 e B2.
 
 Se as curvas voltarem depois, voltam com teste.
 
-### T2.2 — Crossfade de potência constante (B3)
+### T2.2 — Crossfade de potência constante (B3) — **feito**
+
+**Feito, fora de ordem em relação ao resto do Bloco 2/3** — liberado
+adiantado porque é o pré-requisito da fatia vertical (uma faixa → um
+crossfade → uma normalização → WAV), que responde a pergunta central do
+produto antes do resto do pacote. T2.1/T2.3 e o Bloco 3 (masterização,
+limiter) continuam pendentes.
+
+`dsp::stitching::crossfade::compute_gains()` usa exatamente a forma abaixo,
+com `CrossfadeCurve` (não `FadeCurve` — os dois já eram tipos distintos desde
+o adendo R2 §0, `ConstantGain`/`ConstantPower`, importado de `crate::domain`
+em vez de redefinido no módulo). Testado com identidades exatas
+(`gain_a + gain_b = 1`, `gain_a² + gain_b² = 1`, ganho constante de um sinal
+consigo mesmo é a identidade) e uma propriedade (T1.3,
+`crates/audio_core/tests/crossfade_properties.rs`, usando os geradores de
+T1.1) provando I15 (finitude) e a identidade de ganho constante através do
+espaço de entrada, não só em casos fixos. Verificado ao vivo que os testes
+pegam a regressão: revertido `ConstantPower` para ganho linear localmente,
+confirmado que `test_constant_power_gains_satisfy_pythagorean_identity` e
+`test_constant_gain_underpowers_relative_to_constant_power_at_midpoint`
+falham, restaurado antes de commitar.
 
 O crossfade linear mantém `gain_a + gain_b = 1`. Para sinais **não
 correlacionados** — blocos de trechos diferentes, que é o caso do motor — o que
