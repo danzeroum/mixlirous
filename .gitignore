@@ -10,3 +10,4 @@ dist/
 data/
 .mixlirous/
 *.tsbuildinfo
+fixtures/audio/**/*.wav
