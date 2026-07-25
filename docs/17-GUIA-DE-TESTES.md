@@ -271,6 +271,22 @@ contagem) deveria carregá-la no manifesto — é o mesmo raciocínio que já
 motiva o sha256, aplicado um nível abaixo: à validade do sinal, não só à
 sua imutabilidade.
 
+**Aplicado de volta às fixtures existentes, achou uma segunda lacuna real.**
+`tones/*` e `time_stretch/pure_tone_440hz.wav` já carregavam `freq_hz` e
+`freq_tolerance_hz` no manifesto desde o gerador original — mas o harness
+nunca tinha modelado nem afirmado esses campos. Adicionado: mesma técnica
+de pico espectral, mas com janela do tamanho do buffer inteiro, não os 4096
+usados na varredura — o tom é estacionário (sem risco de borrar frequência
+mudando dentro da janela), e a tolerância declarada (`freq_tolerance_hz: 2.0`)
+é mais apertada que a resolução de bin de uma janela de 4096 amostras
+(~10,8 Hz/bin a 44100 Hz) permitiria bater. `true_peak/*` **já** tinha essa
+cobertura desde o início — `true_peak_dbtp` é literalmente o valor usado
+para construir o sinal, e a asserção existente já confere o medido contra
+ele; não havia lacuna ali para fechar. `click_tracks/*` (intervalo exato
+entre onsets) continua sem essa verificação — exigiria um detector de
+posição de onset, não só de frequência, e fica como próximo candidato
+quando fizer sentido revisitar.
+
 ---
 
 ## 3. Duas armadilhas de caminho

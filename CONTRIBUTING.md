@@ -101,6 +101,15 @@ npx playwright test                  # E2E (precisa do backend rodando)
 Se você tocou em DSP, adicione um invariante de propriedade. Ver
 [`docs/10-TESTES-QUALIDADE.md`](docs/10-TESTES-QUALIDADE.md) §3.
 
+**Teste novo para bug conhecido só entra depois de confirmar que ele falha
+com o bug presente.** Reverta a correção temporariamente, rode o teste, veja
+quebrar, desfaça o revert — prova que o teste pega o que diz pegar, em vez
+de supor que pega. Duas vezes neste projeto um teste "óbvio" não teria pego
+nada sem essa verificação: o par de identidade de T2.2 (`docs/16`, ganho
+constante vs. potência constante) e `instantaneous_freq_checkpoints` no
+manifesto de fixtures (`docs/17` §2.5) — os dois só foram confirmados
+revertendo a correção correspondente e vendo o teste quebrar sozinho.
+
 ---
 
 ## Mudando o contrato de API
