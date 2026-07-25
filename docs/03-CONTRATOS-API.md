@@ -376,7 +376,10 @@ campo (volta a `LLM_INFERRED` ou `DEFAULT`).
 
 ### 3.5 Propostas (Human-in-the-Loop)
 
-**`GET /api/v1/jobs/:job_id/proposals`** — propostas pendentes (útil no reload).
+**`GET /api/v1/jobs/:job_id/proposals`** — propostas pendentes (útil no
+reload). Cada item tem a mesma forma do payload de `agent.proposal` (§5),
+`confidence` incluso — um reload não pode reconstruir um overlay mais pobre
+que o que o SSE já tinha mostrado.
 
 **`POST /api/v1/jobs/:job_id/proposals/:proposal_id/approve`**
 
@@ -625,6 +628,7 @@ contém o texto completo e canônico (usar esse para persistir na UI).
   "tool": "stem_separation",
   "tool_label_ptbr": "Separação de stems",
   "reason": "O pedido enfatiza as viradas de bateria. Separar os stems permite comprimir só a percussão, sem afetar o restante da mixagem.",
+  "confidence": 0.92,
   "parameters_suggestion": {
     "model": "htdemucs",
     "stems": ["drums", "other"]
@@ -634,6 +638,14 @@ contém o texto completo e canônico (usar esse para persistir na UI).
   "expires_in_sec": 120
 }
 ```
+
+`confidence` (number 0–1) é a certeza do agente **na proposta como um todo** —
+usar a ferramenta certa, não só os parâmetros certos. Distinto do `confidence`
+por campo do envelope de parâmetro (§2), que mede certeza de um valor
+individual depois que a proposta já foi aceita. A UI usa este para decidir
+destaque visual da proposta (ex.: menor confiança pede revisão mais atenta
+antes de aprovar), não para decidir se ela é oferecida — o agente já filtra
+isso antes de propor.
 
 **`node.parameters`**
 

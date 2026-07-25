@@ -180,7 +180,7 @@ Duas chamadas para o A/B. **Escala idêntica nas duas** — o protótipo já gar
 isso na renderização, e o contrato precisa garantir na origem: mesma `db_floor`,
 mesmas bordas de banda.
 
-### 2.4 `confidence` na proposta
+### 2.4 `confidence` na proposta — **mesclado em `docs/03-CONTRATOS-API.md`**
 
 Hoje só existe no envelope de parâmetro. Adicionar ao payload de
 `agent.proposal`:
@@ -188,6 +188,14 @@ Hoje só existe no envelope de parâmetro. Adicionar ao payload de
 ```json
 { "proposal_id": "prop_8c1d", "tool": "dynamic_eq", "confidence": 0.92, ... }
 ```
+
+**Feito:** `docs/03-CONTRATOS-API.md` §5 (`agent.proposal`) e §3.5
+(`GET .../proposals`) ganharam o campo, com a distinção explícita entre
+confiança da proposta como um todo e confiança por parâmetro (§2 do mesmo
+documento). Sem código Rust envolvido — não existe ainda `Proposal` nem rota
+de propostas no backend (`react_kernel.rs` deixa a integração com LLM
+explicitamente para a Sprint 2); este item era puramente o contrato que o
+desenho lê, e o contrato agora reflete o campo.
 
 ---
 
@@ -344,7 +352,7 @@ crossfade — o desenho fica bloqueado mesmo com a tela redesenhada.
 | # | Item | Destrava | Estado |
 |---|---|---|---|
 | **0** | **Split dos dois enums de curva** (§0) | Tarefa 1 do designer | **Feito** — domínio, validador e registry; matemática de potência constante em `dsp::stitching::crossfade` continua pendente (`docs/16` T2.2, atrás de T0.0/T0.1) |
-| 1 | `confidence` na proposta (§2.4) | Tarefa 2 | Pendente |
+| 1 | `confidence` na proposta (§2.4) | Tarefa 2 | Feito — contrato em `docs/03-CONTRATOS-API.md`, sem código (proposta ainda não existe em Rust) |
 | 2 | Confirmar aprovar-com-`parameters` gravando `USER_DEFINED` (§3) | Tarefa 2 | Pendente |
 | 3 | `POST .../replan` com as 6 regras (§3) | Tarefa 2 | Pendente |
 | 4 | `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e `duration_target_unreachable`, que vêm do `docs/16` | Tarefa 3 | Pendente |
