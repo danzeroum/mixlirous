@@ -231,6 +231,46 @@ Linux, mesmo custando tempo de execução:
   '\tmp\corrupted_tmp.wav'`). Trocado por `tempfile.mkstemp()`, que resolve
   o diretório temporário certo em qualquer SO.
 
+### 2.5 Fixture com defeito é pior que teste ausente
+
+O bug de `gen_log_sweep` (§2.4) é o mais instrutivo dos encontrados
+construindo esta suíte, por um motivo que não é sobre o bug em si: durante
+quatro dos cinco segundos de duração, a fixture não era uma varredura —
+era ruído numérico. E isso passou despercebido por múltiplas rodadas de
+revisão, incluindo uma que apontou a integração de fase como imprecisa (uma
+observação real, mas que classificou o problema como questão de precisão
+quando na verdade era ausência total de normalização por `duration` —
+destrói o sinal inteiro depois do primeiro segundo, não arredonda mal).
+
+**Um teste ausente é uma lacuna conhecida — algo que se sabe que falta.
+Uma fixture defeituosa produz um verde que ninguém questiona.** Antes do
+harness de fixtures existir (PR #19), nada usava essa varredura para nada;
+depois, o harness verificava sha256 e um pico de amostra que não distingue
+uma varredura de ruído de alta frequência com o mesmo pico — o defeito
+sobreviveu ao próprio processo criado para pegar exatamente esse tipo de
+erro, porque a verificação existente nunca perguntava "este sinal é o que
+diz ser?", só "este arquivo é o mesmo de sempre?" e "o resultado processado
+está dentro da faixa?".
+
+**A correção estrutural, não pontual:** o `manifest.json` agora carrega,
+para as fixtures de varredura, `instantaneous_freq_checkpoints` — pontos
+`(t_sec, freq_hz)` calculados da mesma fórmula analítica usada para
+construir o sinal, verificados pelo harness via pico espectral (§5). Isso
+não depende de nenhum teste específico (aliasing, THD, o que for) ter sido
+escrito antes — é uma propriedade do sinal em si, junto do sha256, não uma
+consequência de alguém ter lembrado de testar. Verificado revertendo a
+correção temporariamente: a asserção falha sozinha, sem precisar do teste
+de aliasing de `docs/17.1` §3.2.
+
+**O princípio generaliza.** Fixtures merecem o mesmo rigor do motor que
+elas testam — sha256 mais um valor de saída esperado prova que o arquivo
+não mudou e que ele produz um número dentro da faixa, não que o sinal
+tem a estrutura que o nome promete. Toda fixture cuja construção tem uma
+propriedade analiticamente verificável (não só um valor de pico ou uma
+contagem) deveria carregá-la no manifesto — é o mesmo raciocínio que já
+motiva o sha256, aplicado um nível abaixo: à validade do sinal, não só à
+sua imutabilidade.
+
 ---
 
 ## 3. Duas armadilhas de caminho

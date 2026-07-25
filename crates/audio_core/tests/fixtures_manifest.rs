@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use audio_core::dsp::analysis::beat_tracking::{estimate_bpm, onset_strength};
+use audio_core::dsp::analysis::fft::magnitude_spectrum;
 use audio_core::dsp::mastering::lufs::{measure_lufs, measure_true_peak};
 use audio_core::dsp::stitching::zero_cross::{count_zero_crossings, zero_crossing_indices};
 use ndarray::Array1;
@@ -66,6 +67,47 @@ struct Expected {
     lufs_i: Option<f64>,
     zero_crossing_count: Option<u64>,
     zero_crossing_indices: Option<Vec<u64>>,
+    /// Propriedade verificável do sinal em si (não só sha256 + valores de
+    /// saída) — hoje só nas fixtures de varredura. Ver `scripts/generate_fixtures.py`
+    /// (`gen_log_sweep`) e docs/17 sobre por que isso existe: uma fixture
+    /// com defeito na própria construção é pior que teste ausente, porque
+    /// produz um verde que ninguém questiona.
+    instantaneous_freq_checkpoints: Option<Vec<FreqCheckpoint>>,
+}
+
+#[derive(Deserialize)]
+struct FreqCheckpoint {
+    t_sec: f64,
+    freq_hz: f64,
+}
+
+/// Pico espectral (Hz) de uma janela Hann centrada em `centro_sec` segundos
+/// — mesma técnica de `aliasing.rs`. Hann para não borrar o pico com
+/// vazamento espectral; `magnitude_spectrum` em si não janela.
+fn pico_espectral_hz(pcm: &Array1<f32>, centro_sec: f64, sample_rate: u32) -> f64 {
+    const WINDOW_LEN: usize = 4096;
+    let centro_idx = (centro_sec * sample_rate as f64) as usize;
+    let half = WINDOW_LEN / 2;
+    let start = centro_idx.saturating_sub(half);
+    let end = (start + WINDOW_LEN).min(pcm.len());
+    let start = end.saturating_sub(WINDOW_LEN);
+
+    let janela: Vec<f32> = (start..end)
+        .enumerate()
+        .map(|(i, idx)| {
+            let hann =
+                0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / (WINDOW_LEN - 1) as f32).cos();
+            pcm[idx] * hann
+        })
+        .collect();
+
+    let espectro = magnitude_spectrum(Array1::from_vec(janela).view());
+    let (bin_pico, _) = espectro
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .unwrap();
+    bin_pico as f64 * sample_rate as f64 / WINDOW_LEN as f64
 }
 
 fn load_manifest() -> Manifest {
@@ -246,6 +288,22 @@ fn fixtures_conformam_ao_manifesto() {
                 .map(|i| i as u64)
                 .collect();
             assert_eq!(&medido, indices, "{caminho}: índices de zero-crossing");
+        }
+
+        // Propriedade verificável do sinal em si, independente de qualquer
+        // teste downstream ter sido escrito — teria pego sozinho o bug de
+        // normalização por `duration` em `gen_log_sweep` (docs/17 §2.4).
+        if let Some(checkpoints) = &spec.expected.instantaneous_freq_checkpoints {
+            for cp in checkpoints {
+                let medido = pico_espectral_hz(&audio.mono, cp.t_sec, audio.sample_rate);
+                let tolerancia_hz = (cp.freq_hz * 0.05) + 20.0;
+                assert!(
+                    (medido - cp.freq_hz).abs() <= tolerancia_hz,
+                    "{caminho}: em t={:.1}s, pico espectral medido {medido:.1} Hz, esperado {:.1} Hz (tolerância {tolerancia_hz:.1} Hz)",
+                    cp.t_sec,
+                    cp.freq_hz
+                );
+            }
         }
     }
 }

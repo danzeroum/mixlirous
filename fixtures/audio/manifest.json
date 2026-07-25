@@ -1,6 +1,6 @@
 {
   "generator_version": "2.0.2",
-  "generated_at": "2026-07-25T16:42:28.713508Z",
+  "generated_at": "2026-07-25T17:17:41.630867Z",
   "files": {
     "click_tracks/click_60bpm_mono.wav": {
       "sample_rate": 44100,
@@ -174,7 +174,29 @@
         "freq_start_hz": 20,
         "freq_end_hz": 20000,
         "sample_peak_db": -1.938200260161128,
-        "true_peak_dbtp": -1.938200260161128
+        "true_peak_dbtp": -1.938200260161128,
+        "instantaneous_freq_checkpoints": [
+          {
+            "t_sec": 0.5,
+            "freq_hz": 39.905246299377595
+          },
+          {
+            "t_sec": 1.5,
+            "freq_hz": 158.86564694485628
+          },
+          {
+            "t_sec": 2.5,
+            "freq_hz": 632.4555320336758
+          },
+          {
+            "t_sec": 3.5,
+            "freq_hz": 2517.8508235883332
+          },
+          {
+            "t_sec": 4.5,
+            "freq_hz": 10023.744672545447
+          }
+        ]
       }
     },
     "sweeps/sweep_200_2k_mono.wav": {
@@ -187,7 +209,29 @@
         "freq_start_hz": 200,
         "freq_end_hz": 2000,
         "sample_peak_db": -1.938200260161128,
-        "true_peak_dbtp": -1.938200260161128
+        "true_peak_dbtp": -1.938200260161128,
+        "instantaneous_freq_checkpoints": [
+          {
+            "t_sec": 0.5,
+            "freq_hz": 251.78508235883345
+          },
+          {
+            "t_sec": 1.5,
+            "freq_hz": 399.052462993776
+          },
+          {
+            "t_sec": 2.5,
+            "freq_hz": 632.4555320336759
+          },
+          {
+            "t_sec": 3.5,
+            "freq_hz": 1002.3744672545446
+          },
+          {
+            "t_sec": 4.5,
+            "freq_hz": 1588.6564694485635
+          }
+        ]
       }
     },
     "rhythm/rhythm_120bpm_mono.wav": {
