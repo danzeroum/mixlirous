@@ -1,4 +1,7 @@
-use crate::limits::{VALID_CURVES, VALID_EQ_FILTER_TYPES, VALID_STEMS, VALID_STEM_MODELS};
+use crate::limits::{
+    VALID_CROSSFADE_CURVES, VALID_EQ_FILTER_TYPES, VALID_FADE_CURVES, VALID_STEMS,
+    VALID_STEM_MODELS,
+};
 use crate::tools::AudioToolDef;
 use serde_json::Value;
 use thiserror::Error;
@@ -97,7 +100,7 @@ impl ValidationLayer {
                     0.0,
                     3000.0,
                 )?;
-                enum_value("crossfade.curve", &params.curve, VALID_CURVES)?;
+                enum_value("crossfade.curve", &params.curve, VALID_CROSSFADE_CURVES)?;
                 Ok(AudioToolDef::Crossfade(params.clone()))
             }
             AudioToolDef::FadeIn(params) => {
@@ -107,7 +110,7 @@ impl ValidationLayer {
                     0.0,
                     10000.0,
                 )?;
-                enum_value("fade_in.curve", &params.curve, VALID_CURVES)?;
+                enum_value("fade_in.curve", &params.curve, VALID_FADE_CURVES)?;
                 Ok(AudioToolDef::FadeIn(params.clone()))
             }
             AudioToolDef::FadeOut(params) => {
@@ -117,7 +120,7 @@ impl ValidationLayer {
                     0.0,
                     10000.0,
                 )?;
-                enum_value("fade_out.curve", &params.curve, VALID_CURVES)?;
+                enum_value("fade_out.curve", &params.curve, VALID_FADE_CURVES)?;
                 Ok(AudioToolDef::FadeOut(params.clone()))
             }
             AudioToolDef::TimeStretch(params) => {
@@ -294,7 +297,7 @@ mod tests {
     fn test_crossfade_duration_over_canonical_max_rejected() {
         let tool = AudioToolDef::Crossfade(CrossfadeParams {
             duration_ms: 3001,
-            curve: "logarithmic".to_string(),
+            curve: "constant_power".to_string(),
         });
         assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
     }
@@ -306,6 +309,54 @@ mod tests {
             curve: "bezier".to_string(),
         });
         assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
+    }
+
+    #[test]
+    fn test_crossfade_rejects_fade_vocabulary() {
+        // Adendo R2 §0: crossfade e fade_in/fade_out não compartilham mais
+        // vocabulário de curva. "logarithmic" descreve fade, não crossfade.
+        let tool = AudioToolDef::Crossfade(CrossfadeParams {
+            duration_ms: 1000,
+            curve: "logarithmic".to_string(),
+        });
+        assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
+    }
+
+    #[test]
+    fn test_fade_in_rejects_crossfade_vocabulary() {
+        let tool = AudioToolDef::FadeIn(FadeParams {
+            duration_ms: 1000,
+            curve: "constant_power".to_string(),
+        });
+        assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
+    }
+
+    #[test]
+    fn test_fade_out_accepts_canonical_curves() {
+        for curve in ["linear", "logarithmic", "exponential"] {
+            let tool = AudioToolDef::FadeOut(FadeParams {
+                duration_ms: 1000,
+                curve: curve.to_string(),
+            });
+            assert!(
+                layer().validate_tool_call(&tool, &Value::Null).is_ok(),
+                "{curve} deveria ser aceito em fade_out"
+            );
+        }
+    }
+
+    #[test]
+    fn test_crossfade_accepts_canonical_curves() {
+        for curve in ["constant_power", "constant_gain"] {
+            let tool = AudioToolDef::Crossfade(CrossfadeParams {
+                duration_ms: 1000,
+                curve: curve.to_string(),
+            });
+            assert!(
+                layer().validate_tool_call(&tool, &Value::Null).is_ok(),
+                "{curve} deveria ser aceito em crossfade"
+            );
+        }
     }
 
     #[test]

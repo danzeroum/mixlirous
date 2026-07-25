@@ -17,11 +17,17 @@ pub struct CrossfadeConfig {
     pub curve: CrossfadeCurve,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Curva de crossfade: dois sinais somando durante a sobreposição.
+/// Distinta de `FadeCurve` (`dsp::stitching::fades`), que rege fade de
+/// entrada/saída — um sinal só, indo de/para o silêncio. Ver
+/// `docs/03-ADENDO-R2-CONTRATOS.md` §0.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CrossfadeCurve {
-    Linear,
-    Logarithmic,
-    Exponential,
+    /// gain_a + gain_b = 1. Material correlacionado.
+    ConstantGain,
+    /// gain_a² + gain_b² = 1. Padrão — blocos de origens diferentes.
+    ConstantPower,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +69,7 @@ impl Default for PipelineConfig {
             crossfade: CrossfadeConfig {
                 enabled: true,
                 max_duration_ms: 3000,
-                curve: CrossfadeCurve::Logarithmic,
+                curve: CrossfadeCurve::ConstantPower,
             },
             mastering: MasteringConfig {
                 lufs_target: -14.0,
