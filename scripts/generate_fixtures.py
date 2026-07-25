@@ -20,7 +20,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import sys
+import tempfile
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -600,11 +602,19 @@ def gen_corrupted_wav(
     rng = build_rng(filename)
     audio = rng.normal(0, 0.5, total_samples).astype(np.float32)
 
-    tmp_path = Path(f"/tmp/{filename}_tmp.wav")
-    sf.write(str(tmp_path), audio, sample_rate, subtype="PCM_16")
-    with open(tmp_path, "rb") as f:
-        full_data = f.read()
-    tmp_path.unlink()
+    # `/tmp` é caminho absoluto só no POSIX — no Windows resolve para
+    # `\tmp` na raiz da unidade atual, que não existe (`LibsndfileError:
+    # Error opening '\\tmp\\corrupted_tmp.wav'`). `tempfile` resolve o
+    # diretório temporário certo em qualquer SO.
+    fd, tmp_name = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        sf.write(str(tmp_path), audio, sample_rate, subtype="PCM_16")
+        with open(tmp_path, "rb") as f:
+            full_data = f.read()
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     header_size = 44
     data_start = header_size
