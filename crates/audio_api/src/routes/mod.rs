@@ -8,6 +8,7 @@ mod health;
 mod jobs;
 mod prompts;
 mod sse;
+mod system;
 mod tenants;
 mod tools;
 
@@ -27,4 +28,9 @@ pub fn api_router() -> Router<AppState> {
         .route("/prompts/{prompt_id}", get(prompts::get_prompt))
         .route("/tools", get(tools::list_tools))
         .route("/tenants/me/quota", get(tenants::get_quota))
+        .route(
+            "/tenants/me/consent",
+            get(tenants::get_consent).post(tenants::post_consent),
+        )
+        .route("/system/info", get(system::get_system_info))
 }

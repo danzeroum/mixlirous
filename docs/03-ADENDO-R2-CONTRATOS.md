@@ -334,7 +334,7 @@ a forma mais direta de furar o isolamento que acabamos de consertar.
 
 ---
 
-## 7. Consentimento de privacidade — requisito, não tela
+## 7. Consentimento de privacidade — requisito, não tela — **feito**
 
 O `docs/08` exige e a ADR-0009 determina: antes do **primeiro uso em modo
 assistido**, o usuário vê o provedor ativo nomeado e o que sai da máquina.
@@ -354,6 +354,20 @@ Com DeepSeek como padrão, há transferência internacional de dados e a LGPD pe
 declaração. Custo baixo, prioridade alta, e é o tipo de item que não dá para
 adicionar depois do lançamento.
 
+**Feito — o primeiro item desta lista que é código de verdade, não contrato.**
+Os três endpoints existem em `crates/audio_api`: `GET /system/info` (novo
+`routes/system.rs`), `GET`/`POST /tenants/me/consent` (`routes/tenants.rs`),
+com persistência em `AudioRepo::get_consent`/`save_consent` (novo em
+`repo_trait.rs`, implementado em `InMemoryRepo`). Uma decisão de design que o
+adendo original não especificava: o `provider` do corpo do `POST` é
+**verificado** contra o provedor ativo no servidor, nunca gravado
+diretamente — mesma regra de `tenant_id` nunca vir do cliente (§6 acima, PR
+#4). Sem essa checagem, um cliente com tela desatualizada gravaria
+consentimento para o provedor errado, exatamente o que "se o provedor mudar,
+o consentimento é pedido de novo" existe para evitar. Novo código de erro
+`409 provider_mismatch` no catálogo, e `422 consent_not_accepted` para
+`accepted: false`.
+
 ---
 
 ## 8. Ordem de implementação
@@ -371,11 +385,11 @@ crossfade — o desenho fica bloqueado mesmo com a tela redesenhada.
 | # | Item | Destrava | Estado |
 |---|---|---|---|
 | **0** | **Split dos dois enums de curva** (§0) | Tarefa 1 do designer | **Feito** — domínio, validador e registry; matemática de potência constante em `dsp::stitching::crossfade` continua pendente (`docs/16` T2.2, atrás de T0.0/T0.1) |
-| 1 | `confidence` na proposta (§2.4) | Tarefa 2 | Feito — contrato em `docs/03-CONTRATOS-API.md`, sem código |
-| 2 | ~~Confirmar aprovar-com-`parameters` gravando `USER_DEFINED`~~ (§3) | — | **Não é mais item de contrato.** Não existe implementação para confirmar contra; vira critério de aceite do teste que aprovar a Sprint 2 escreve, não uma rodada de documentação |
-| 3 | `POST .../replan` com as 6 regras (§3) | Tarefa 2 | Feito — contrato em `docs/03-CONTRATOS-API.md`, sem código |
-| 4 | `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e `duration_target_unreachable`, que vêm do `docs/16` | Tarefa 3 | Feito (parcial) — contrato em `docs/03-CONTRATOS-API.md`; array sempre vazio até o motor DSP de `docs/16` T3.3 executar |
-| 5 | Consentimento nomeando o provedor (§7) | Tarefa 4 | Pendente — primeiro item desta lista que é código de verdade |
+| 1 | `confidence` na proposta (§2.4) | Tarefa 2 | Feito — contrato em `docs/03-CONTRATOS-API.md`, sem código (proposta ainda não existe em Rust) |
+| 2 | Confirmar aprovar-com-`parameters` gravando `USER_DEFINED` (§3) | Tarefa 2 | Pendente |
+| 3 | `POST .../replan` com as 6 regras (§3) | Tarefa 2 | Pendente |
+| 4 | `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e `duration_target_unreachable`, que vêm do `docs/16` | Tarefa 3 | Pendente |
+| 5 | Consentimento nomeando o provedor (§7) | Tarefa 4 | **Feito** — código de verdade em `crates/audio_api` (rotas, repo, testes), não só contrato |
 | ~~6~~ | ~~Limites de `dynamic_eq.bands` e enums (§4)~~ | — | Feito no #6 |
 | ~~7~~ | ~~Decisão sobre `knee_db` (§4)~~ | — | Feito no #6 (real, não pendente) |
 
