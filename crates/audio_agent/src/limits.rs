@@ -208,8 +208,13 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "duration_ms",
                     "integer",
-                    Some(0.0),
-                    Some(3000.0),
+                    // T0.0 (docs/16): estes dois números vêm do newtype
+                    // audio_core::CrossfadeMs, não são redigitados aqui — um
+                    // teste de deriva (fundo deste arquivo) prende os dois
+                    // juntos, então não há como o registry e o tipo
+                    // divergirem silenciosamente.
+                    Some(audio_core::CrossfadeMs::MIN as f64),
+                    Some(audio_core::CrossfadeMs::MAX as f64),
                     Some(1000.0.into()),
                     Some("ms"),
                 ),
@@ -491,6 +496,20 @@ mod tests {
             .iter()
             .find(|p| p.name == name)
             .unwrap_or_else(|| panic!("param {name} não está em {}", tool.name))
+    }
+
+    /// T0.0: o registry não redigita os números de `CrossfadeMs` — lê a
+    /// constante direto (`p(..., Some(audio_core::CrossfadeMs::MIN as f64), ...)`
+    /// acima). Este teste não pega uma cópia divergindo — pega alguém que
+    /// troque a leitura da constante por um literal solto de novo, o que
+    /// reabriria exatamente o "terceiro lugar" que T0.0 fecha.
+    #[test]
+    fn test_crossfade_duration_registry_matches_crossfade_ms_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "crossfade"), "duration_ms");
+
+        assert_eq!(param.min, Some(audio_core::CrossfadeMs::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::CrossfadeMs::MAX as f64));
     }
 
     /// Garante que o teto de `crossfade.duration_ms` no registry é

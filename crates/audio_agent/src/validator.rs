@@ -94,12 +94,13 @@ impl ValidationLayer {
                 Ok(AudioToolDef::DynamicEq(params.clone()))
             }
             AudioToolDef::Crossfade(params) => {
-                bound(
-                    "crossfade.duration_ms",
-                    params.duration_ms as f32,
-                    0.0,
-                    3000.0,
-                )?;
+                // T0.0 (docs/16, I14): o limite não é redigitado aqui — o
+                // newtype é a checagem. `bound()` comparava contra 0.0/3000.0
+                // hardcoded, uma cópia manual do que audio_core::CrossfadeMs
+                // já garante; a checagem duplicada é exatamente o "terceiro
+                // lugar" que divergia sem ninguém perceber.
+                audio_core::CrossfadeMs::try_from(params.duration_ms)
+                    .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 enum_value("crossfade.curve", &params.curve, VALID_CROSSFADE_CURVES)?;
                 Ok(AudioToolDef::Crossfade(params.clone()))
             }

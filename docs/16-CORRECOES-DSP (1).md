@@ -40,6 +40,22 @@ pacote vir antes da §3.
 
 **Faça isto antes de tudo. É o único item deste pacote que muda fundação.**
 
+**Em andamento — `CrossfadeMs` primeiro, de propósito.** Escopo apertado:
+um tipo revisado com cuidado antes de aplicar o padrão aos outros dez, porque
+os erros aqui não aparecem em `git diff` nem quebram teste — ficam quietos
+até alguém construir uma porta dos fundos sem perceber (o resampler linear é
+o precedente: passou porque ninguém leu o diff). `audio_core::CrossfadeMs`
+está feito: `#[serde(try_from = "u32")]`, sem `Default`, sem `From<u32>`
+infalível, sem aritmética, sem construtor de teste que pule `TryFrom`.
+`audio_agent::limits` e `validator.rs` derivam de `CrossfadeMs::MIN`/`MAX` em
+vez de redigitar `0`/`3000` — fecha o terceiro lugar da regra do
+`CONTRIBUTING.md` para este parâmetro. `CrossfadeConfig.max_duration_ms`
+(`domain::pipeline_config`) usa o newtype direto, então um `PipelineConfig`
+recuperado do banco depois de um crash já não consegue reconstruir um
+crossfade fora da faixa. Os outros dez parâmetros do Bloco 0 (ver tabela em
+`05-AGENTE-IA-HITL.md` §3) continuam sem newtype — aplicação mecânica do
+mesmo padrão, ainda não feita.
+
 Hoje os parâmetros são validados apenas na `ValidationLayer`. O `04-DOMINIO-DSP.md`
 prescreve validação **na desserialização do newtype**. A diferença não é
 estilística.
