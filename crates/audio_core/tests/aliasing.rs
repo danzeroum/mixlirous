@@ -4,6 +4,16 @@
 //! única prova de que a migração para sinc está correta é o nome da função —
 //! estes dois testes são a prova real.
 //!
+//! **Escopo exato do segundo teste — leia antes de marcar "aliasing" como
+//! resolvido.** `time_stretch_rejeita_imagem_de_conteudo_irrepresentavel`
+//! cobre **rejeição de imagem por decimação**: conteúdo que passa a exigir
+//! frequência acima do novo Nyquist tem que ser suprimido, não dobrado de
+//! volta como frequência espúria. Isso **não** cobre ondulação em banda
+//! passante (o reamostrador alterar amplitude/fase de conteúdo já
+//! representável) nem pré-eco do filtro sinc (energia vazando para antes de
+//! um transiente) — são falhas de qualidade de reamostragem distintas,
+//! nenhuma testada aqui.
+//!
 //! **Achado ao escrever o primeiro teste, antes mesmo de rodar contra o
 //! reamostrador:** `gen_log_sweep` normalizava o expoente da fase por
 //! segundos, não por `duration` — a frequência instantânea batia o alvo em
@@ -141,8 +151,10 @@ fn time_stretch_preserva_frequencia_no_regime_representavel() {
     }
 }
 
-/// §3.2, parte 2 — a que de fato discrimina. Um tom de 8 kHz, deslocado por
-/// `time_stretch` para além do Nyquist de 22050 Hz (irrepresentável por
+/// §3.2, parte 2 — a que de fato discrimina, e só sobre **rejeição de
+/// imagem por decimação** (ver aviso de escopo no topo do arquivo, não é
+/// aliasing/qualidade de reamostragem em geral). Um tom de 8 kHz, deslocado
+/// por `time_stretch` para além do Nyquist de 22050 Hz (irrepresentável por
 /// construção), tem que ser **suprimido**, não dobrado de volta como
 /// frequência espúria. Verificado experimentalmente antes de escrever este
 /// teste: um reamostrador ingênuo (decimação sem filtro anti-aliasing,
@@ -151,7 +163,7 @@ fn time_stretch_preserva_frequencia_no_regime_representavel() {
 /// supressão, energia dobrada de volta como frequência errada. O `rubato`
 /// sinc suprime a magnitude do pico em ~4 ordens de grandeza.
 #[test]
-fn time_stretch_suprime_conteudo_alem_do_nyquist_em_vez_de_aliasar() {
+fn time_stretch_rejeita_imagem_de_conteudo_irrepresentavel() {
     let pcm = decode_mono(&fixtures_dir().join("tones/sine_8khz_mono.wav"));
     let duration = pcm.len() as f64 / SAMPLE_RATE as f64;
     let window_len = 4096usize;

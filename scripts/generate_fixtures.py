@@ -266,11 +266,28 @@ def gen_log_sweep(
     audio = amplitude * np.sin(phase)
     audio = normalize(audio, amplitude)
 
+    # Propriedade verificável do sinal em si, não só sha256 + valores de
+    # saída — checkpoints de frequência instantânea, calculados da mesma
+    # fórmula analítica usada para construir o sinal (não medidos com o
+    # motor). O harness (fixtures_manifest.rs) mede o pico espectral perto de
+    # cada `t_sec` e confere contra `freq_hz`. Teria pego o bug de
+    # normalização por `duration` (ver docstring da função) sozinho, sem
+    # depender de um teste específico de aliasing ter sido escrito primeiro.
+    checkpoint_fracs = [0.1, 0.3, 0.5, 0.7, 0.9]
+    checkpoints = [
+        {
+            "t_sec": float(duration * f),
+            "freq_hz": float(freq_start * np.exp(f * log_ratio)),
+        }
+        for f in checkpoint_fracs
+    ]
+
     expected = {
         "freq_start_hz": freq_start,
         "freq_end_hz": freq_end,
         "sample_peak_db": float(linear_to_db(np.max(np.abs(audio)))),
         "true_peak_dbtp": float(linear_to_db(np.max(np.abs(audio)))),
+        "instantaneous_freq_checkpoints": checkpoints,
     }
     return audio, expected
 
