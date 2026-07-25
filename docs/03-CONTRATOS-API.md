@@ -80,6 +80,25 @@ novo. A UI mostra isso com um ícone de cadeado.
 | `GET` | `/api/v1/system/resources` | Estado dos workers e da fila. |
 | `POST` | `/api/v1/system/scale` | Ajusta número de workers. |
 
+**`GET /api/v1/system/info`**
+
+```json
+{
+  "version": "0.1.0",
+  "database_backend": "sqlite",
+  "llm_provider": "deepseek",
+  "llm_model": "deepseek-v4-flash",
+  "data_egress": true,
+  "cpu_cores": 8
+}
+```
+
+`data_egress` é `true` quando o provedor ativo é externo — prompt e
+metadados da faixa saem da máquina, nunca o áudio
+(`08-SEGURANCA-MULTITENANCY.md` §8). `false` só para provedor local
+(Ollama). É a fonte que a tela de consentimento (§3.8) lê para nomear o
+provedor antes da primeira execução em modo assistido.
+
 **`GET /api/v1/system/resources`**
 
 ```json
@@ -507,6 +526,37 @@ partir dessa spec, sem hardcode no React.
 }
 ```
 
+**`GET /api/v1/tenants/me/consent`** — consentimento de modo assistido
+(`08-SEGURANCA-MULTITENANCY.md` §8, ADR-0009). Campos `null` quando o tenant
+nunca aceitou.
+
+```json
+{ "assisted_mode_accepted_at": "2026-07-24T18:22:11Z", "provider_at_accept": "deepseek" }
+```
+
+**`POST /api/v1/tenants/me/consent`** — o cliente confirma o provedor que viu
+em `GET /system/info` e aceita. `provider` no corpo é **verificado** contra o
+provedor ativo no servidor, nunca gravado diretamente — se o provedor mudou
+entre a tela mostrar e o aceite chegar, o servidor recusa em vez de gravar
+consentimento para o provedor errado. **Se o provedor mudar depois de um
+consentimento válido, o consentimento anterior fica obsoleto e a UI pede de
+novo** — trocar de provedor muda o que sai da máquina, então o aceite antigo
+não cobre o provedor novo.
+
+```json
+// request
+{ "accepted": true, "provider": "deepseek" }
+```
+
+```json
+// 200 — mesma forma do GET acima
+{ "assisted_mode_accepted_at": "2026-07-24T18:22:11Z", "provider_at_accept": "deepseek" }
+```
+
+Erros: `422 consent_not_accepted` (`accepted: false`), `409 provider_mismatch`
+(o `provider` do corpo não bate com o provedor ativo agora — refazer
+`GET /system/info` e reenviar).
+
 ---
 
 ## 4. Modelo de erro (RFC 7807)
@@ -537,6 +587,8 @@ partir dessa spec, sem hardcode no React.
 | 409 | `job_not_editable` | Edição em job finalizado | Desabilitar controles |
 | 409 | `proposal_expired` | TTL vencido | Remover overlay, toast informativo |
 | 409 | `proposal_already_decided` | Duplo clique | Ignorar silenciosamente |
+| 409 | `provider_mismatch` | Consentimento com provedor que não é mais o ativo | Refazer `GET /system/info`, pedir aceite de novo |
+| 422 | `consent_not_accepted` | `POST .../consent` com `accepted: false` | Não habilitar modo assistido |
 | 409 | `docker_unavailable` | Escala sem Docker | Explicar e sugerir instalar |
 | 413 | `file_too_large` | Upload acima do limite | Mensagem com limite |
 | 415 | `unsupported_media_type` | Formato de áudio não suportado | Listar formatos aceitos |

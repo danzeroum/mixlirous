@@ -315,7 +315,7 @@ a forma mais direta de furar o isolamento que acabamos de consertar.
 
 ---
 
-## 7. Consentimento de privacidade — requisito, não tela
+## 7. Consentimento de privacidade — requisito, não tela — **feito**
 
 O `docs/08` exige e a ADR-0009 determina: antes do **primeiro uso em modo
 assistido**, o usuário vê o provedor ativo nomeado e o que sai da máquina.
@@ -334,6 +334,20 @@ pedido de novo — consentir com IA local não é consentir com serviço externo
 Com DeepSeek como padrão, há transferência internacional de dados e a LGPD pede
 declaração. Custo baixo, prioridade alta, e é o tipo de item que não dá para
 adicionar depois do lançamento.
+
+**Feito — o primeiro item desta lista que é código de verdade, não contrato.**
+Os três endpoints existem em `crates/audio_api`: `GET /system/info` (novo
+`routes/system.rs`), `GET`/`POST /tenants/me/consent` (`routes/tenants.rs`),
+com persistência em `AudioRepo::get_consent`/`save_consent` (novo em
+`repo_trait.rs`, implementado em `InMemoryRepo`). Uma decisão de design que o
+adendo original não especificava: o `provider` do corpo do `POST` é
+**verificado** contra o provedor ativo no servidor, nunca gravado
+diretamente — mesma regra de `tenant_id` nunca vir do cliente (§6 acima, PR
+#4). Sem essa checagem, um cliente com tela desatualizada gravaria
+consentimento para o provedor errado, exatamente o que "se o provedor mudar,
+o consentimento é pedido de novo" existe para evitar. Novo código de erro
+`409 provider_mismatch` no catálogo, e `422 consent_not_accepted` para
+`accepted: false`.
 
 ---
 
@@ -356,7 +370,7 @@ crossfade — o desenho fica bloqueado mesmo com a tela redesenhada.
 | 2 | Confirmar aprovar-com-`parameters` gravando `USER_DEFINED` (§3) | Tarefa 2 | Pendente |
 | 3 | `POST .../replan` com as 6 regras (§3) | Tarefa 2 | Pendente |
 | 4 | `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e `duration_target_unreachable`, que vêm do `docs/16` | Tarefa 3 | Pendente |
-| 5 | Consentimento nomeando o provedor (§7) | Tarefa 4 | Pendente |
+| 5 | Consentimento nomeando o provedor (§7) | Tarefa 4 | **Feito** — código de verdade em `crates/audio_api` (rotas, repo, testes), não só contrato |
 | ~~6~~ | ~~Limites de `dynamic_eq.bands` e enums (§4)~~ | — | Feito no #6 |
 | ~~7~~ | ~~Decisão sobre `knee_db` (§4)~~ | — | Feito no #6 (real, não pendente) |
 

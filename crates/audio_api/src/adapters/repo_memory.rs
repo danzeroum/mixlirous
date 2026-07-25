@@ -1,4 +1,6 @@
-use audio_core::ports::repo_trait::{AudioRepo, AuditRecord, JobRecord, JobStatus, RepoError};
+use audio_core::ports::repo_trait::{
+    AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError,
+};
 use audio_core::{AudioFingerprint, BeatBlock, PipelineConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,6 +11,7 @@ use uuid::Uuid;
 struct InMemoryState {
     jobs: HashMap<Uuid, JobRecord>,
     audit: Vec<AuditRecord>,
+    consent: HashMap<Uuid, ConsentRecord>,
 }
 
 /// Implementação em memória do `AudioRepo`, usada como padrão local/MVP
@@ -119,6 +122,26 @@ impl AudioRepo for InMemoryRepo {
             .filter(|r| r.job_id == job_id)
             .cloned()
             .collect())
+    }
+
+    async fn get_consent(&self, tenant_id: Uuid) -> Result<Option<ConsentRecord>, RepoError> {
+        let state = self.state.read().await;
+        Ok(state.consent.get(&tenant_id).cloned())
+    }
+
+    async fn save_consent(
+        &self,
+        tenant_id: Uuid,
+        provider: String,
+    ) -> Result<ConsentRecord, RepoError> {
+        let mut state = self.state.write().await;
+        let record = ConsentRecord {
+            tenant_id,
+            assisted_mode_accepted_at: chrono::Utc::now(),
+            provider_at_accept: provider,
+        };
+        state.consent.insert(tenant_id, record.clone());
+        Ok(record)
     }
 }
 
@@ -287,5 +310,59 @@ mod tests {
         // Metade da atomicidade que importa: se o status não mudou, o evento
         // de auditoria correspondente também não pode existir.
         assert!(repo.list_audit_records(job_id).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_consent_returns_none_before_any_acceptance() {
+        let repo = InMemoryRepo::new();
+        assert!(repo.get_consent(Uuid::new_v4()).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_save_then_get_consent_roundtrip() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+
+        repo.save_consent(tenant_id, "deepseek".to_string())
+            .await
+            .unwrap();
+
+        let consent = repo.get_consent(tenant_id).await.unwrap().unwrap();
+        assert_eq!(consent.tenant_id, tenant_id);
+        assert_eq!(consent.provider_at_accept, "deepseek");
+    }
+
+    #[tokio::test]
+    async fn test_consent_scoped_by_tenant() {
+        let repo = InMemoryRepo::new();
+        let tenant_a = Uuid::new_v4();
+        let tenant_b = Uuid::new_v4();
+
+        repo.save_consent(tenant_a, "deepseek".to_string())
+            .await
+            .unwrap();
+
+        assert!(repo.get_consent(tenant_a).await.unwrap().is_some());
+        // Tenant B nunca aceitou — não pode herdar o consentimento de A.
+        assert!(repo.get_consent(tenant_b).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_save_consent_overwrites_previous_record() {
+        // Aceitar de novo depois de o provedor mudar substitui o registro
+        // velho, não acumula histórico — só a decisão mais recente importa
+        // para o gate de modo assistido.
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+
+        repo.save_consent(tenant_id, "ollama".to_string())
+            .await
+            .unwrap();
+        repo.save_consent(tenant_id, "deepseek".to_string())
+            .await
+            .unwrap();
+
+        let consent = repo.get_consent(tenant_id).await.unwrap().unwrap();
+        assert_eq!(consent.provider_at_accept, "deepseek");
     }
 }
