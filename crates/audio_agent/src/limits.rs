@@ -213,7 +213,11 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                     Some(1000.0.into()),
                     Some("ms"),
                 ),
-                e("curve", VALID_CURVES, Some("logarithmic".into())),
+                e(
+                    "curve",
+                    VALID_CROSSFADE_CURVES,
+                    Some("constant_power".into()),
+                ),
             ],
         },
         ToolLimits {
@@ -231,7 +235,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                     Some(1000.0.into()),
                     Some("ms"),
                 ),
-                e("curve", VALID_CURVES, Some("logarithmic".into())),
+                e("curve", VALID_FADE_CURVES, Some("logarithmic".into())),
             ],
         },
         ToolLimits {
@@ -249,7 +253,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                     Some(1000.0.into()),
                     Some("ms"),
                 ),
-                e("curve", VALID_CURVES, Some("logarithmic".into())),
+                e("curve", VALID_FADE_CURVES, Some("logarithmic".into())),
             ],
         },
         ToolLimits {
@@ -317,14 +321,17 @@ pub fn tool_registry() -> Vec<ToolLimits> {
     ]
 }
 
-// TODO(docs/16 T2.1 + adendo R2 §0): crossfade e fade_in/fade_out precisam de
-// enums distintos (CrossfadeCurve: constant_gain/constant_power vs FadeCurve:
-// linear/logarithmic/exponential) — hoje os dois compartilham VALID_CURVES,
-// e o DSP em dsp::stitching::crossfade também usa o modelo antigo (conferido
-// diretamente: crossfade_buffers() ainda opera sobre FadeCurve, não um
-// CrossfadeCurve separado). Não é só rótulo de doc — o código de verdade
-// também precisa mudar. Fica para o pacote docs/16, atrás de T0.0/T0.1.
-pub const VALID_CURVES: &[&str] = &["linear", "logarithmic", "exponential"];
+// Adendo R2 §0: crossfade (dois sinais somando) e fade_in/fade_out (um sinal
+// de/para o silêncio) são conceitos diferentes e agora têm enums distintos —
+// contrato, validador e registry, os três. `crossfade` nunca aceitou
+// "linear"/"exponential" de verdade (a implementação em
+// dsp::stitching::crossfade::crossfade_buffers() ainda opera sobre o
+// FadeCurve antigo por baixo, e a matemática de potência/ganho constante real
+// fica para o pacote docs/16 T2.2, atrás de T0.0/T0.1) — mas o contrato
+// exposto por GET /tools precisa nomear o vocabulário certo agora, porque a
+// tela FERR do desenho já lê daqui.
+pub const VALID_CROSSFADE_CURVES: &[&str] = &["constant_power", "constant_gain"];
+pub const VALID_FADE_CURVES: &[&str] = &["linear", "logarithmic", "exponential"];
 pub const VALID_STEM_MODELS: &[&str] = &["htdemucs", "htdemucs_ft"];
 pub const VALID_STEMS: &[&str] = &["drums", "bass", "vocals", "other"];
 pub const VALID_EQ_FILTER_TYPES: &[&str] = &["peak", "shelf", "highpass", "lowpass"];
@@ -497,11 +504,11 @@ mod tests {
         let layer = ValidationLayer::new();
         let at_max = AudioToolDef::Crossfade(CrossfadeParams {
             duration_ms: max,
-            curve: "linear".to_string(),
+            curve: "constant_power".to_string(),
         });
         let over_max = AudioToolDef::Crossfade(CrossfadeParams {
             duration_ms: max + 1,
-            curve: "linear".to_string(),
+            curve: "constant_power".to_string(),
         });
 
         assert!(layer.validate_tool_call(&at_max, &Value::Null).is_ok());
@@ -652,6 +659,71 @@ mod tests {
             assert!(
                 layer.validate_tool_call(&tool, &Value::Null).is_ok(),
                 "{valid} deveria ser aceito"
+            );
+        }
+    }
+
+    /// Adendo R2 §0: crossfade (dois sinais somando) e fade_in/fade_out (um
+    /// sinal de/para o silêncio) são conceitos diferentes — cada um expõe seu
+    /// próprio enum no registry, e os dois vocabulários não se sobrepõem. Sem
+    /// este teste, a UI (que lê só daqui) voltaria a oferecer "logarítmica"
+    /// como opção de crossfade.
+    #[test]
+    fn test_crossfade_and_fade_curve_enums_are_distinct_in_registry() {
+        let reg = tool_registry();
+        let crossfade_curve = param(find(&reg, "crossfade"), "curve");
+        let fade_in_curve = param(find(&reg, "fade_in"), "curve");
+        let fade_out_curve = param(find(&reg, "fade_out"), "curve");
+
+        assert_eq!(crossfade_curve.enum_values, Some(VALID_CROSSFADE_CURVES));
+        assert_eq!(fade_in_curve.enum_values, Some(VALID_FADE_CURVES));
+        assert_eq!(fade_out_curve.enum_values, Some(VALID_FADE_CURVES));
+
+        for shared in VALID_CROSSFADE_CURVES {
+            assert!(
+                !VALID_FADE_CURVES.contains(shared),
+                "{shared} não deveria valer para os dois vocabulários"
+            );
+        }
+
+        assert_eq!(
+            crossfade_curve.default,
+            Some(serde_json::json!("constant_power"))
+        );
+        assert_eq!(
+            fade_in_curve.default,
+            Some(serde_json::json!("logarithmic"))
+        );
+        assert_eq!(
+            fade_out_curve.default,
+            Some(serde_json::json!("logarithmic"))
+        );
+    }
+
+    /// Espelha `test_crossfade_duration_registry_matches_validator`: o
+    /// registry e o validador precisam concordar nos dois vocabulários, não
+    /// só num deles.
+    #[test]
+    fn test_crossfade_curve_registry_matches_validator() {
+        let layer = ValidationLayer::new();
+        for valid in VALID_CROSSFADE_CURVES {
+            let tool = AudioToolDef::Crossfade(CrossfadeParams {
+                duration_ms: 1000,
+                curve: valid.to_string(),
+            });
+            assert!(
+                layer.validate_tool_call(&tool, &Value::Null).is_ok(),
+                "{valid} deveria ser aceito em crossfade"
+            );
+        }
+        for invalid in VALID_FADE_CURVES {
+            let tool = AudioToolDef::Crossfade(CrossfadeParams {
+                duration_ms: 1000,
+                curve: invalid.to_string(),
+            });
+            assert!(
+                layer.validate_tool_call(&tool, &Value::Null).is_err(),
+                "{invalid} não deveria ser aceito em crossfade"
             );
         }
     }

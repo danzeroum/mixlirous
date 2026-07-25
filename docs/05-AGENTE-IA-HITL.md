@@ -109,7 +109,7 @@ deve impedir alguém de renderizar áudio.
 |  |  | `bands[].type_filter` | enum | — | — | "peak" | peak \| shelf \| highpass \| lowpass |
 |  |  | `bands` | array | 1 | 8 | — | — |
 | `crossfade` | sim | `duration_ms` | integer | 0 | 3000 | 1000.0 | ms |
-|  |  | `curve` | enum | — | — | "logarithmic" | linear \| logarithmic \| exponential |
+|  |  | `curve` | enum | — | — | "constant_power" | constant_power \| constant_gain |
 | `fade_in` | sim | `duration_ms` | integer | 0 | 10000 | 1000.0 | ms |
 |  |  | `curve` | enum | — | — | "logarithmic" | linear \| logarithmic \| exponential |
 | `fade_out` | sim | `duration_ms` | integer | 0 | 10000 | 1000.0 | ms |
@@ -121,13 +121,14 @@ deve impedir alguém de renderizar áudio.
 |  |  | `stems` | array_enum | 1 | 4 | ["drums","other"] | drums \| bass \| vocals \| other |
 <!-- END GENERATED TOOLS TABLE -->
 
-**`curve` de `crossfade` está com o vocabulário errado hoje** —
-`linear`/`logarithmic`/`exponential` é o modelo de fade de entrada/saída, não
-de crossfade (dois sinais somando pedem potência-constante/ganho-constante,
-não uma curva de percepção de volume). Ver adendo R2 §0 — a correção
-(`CrossfadeCurve` distinto de `FadeCurve`) é trabalho do pacote `docs/16`,
-atrás de T0.0/T0.1; a tabela acima reflete o registry **como ele é hoje**,
-não como vai ficar.
+**`curve` de `crossfade` e de `fade_in`/`fade_out` agora são vocabulários
+distintos** (adendo R2 §0) — `crossfade` (dois sinais somando) usa
+`constant_power`/`constant_gain`; `fade_in`/`fade_out` (um sinal de/para o
+silêncio) usam `linear`/`logarithmic`/`exponential`. Contrato, validador
+(`validator.rs`) e registry (`limits.rs`) concordam. **A matemática de
+potência constante em `dsp::stitching::crossfade` continua pendente** — isso é
+trabalho do pacote `docs/16` T2.2, atrás de T0.0/T0.1; o que muda aqui é só o
+vocabulário exposto por `GET /tools`, que é o que a tela `FERR` do desenho lê.
 
 **`stem_separation.model` é lista fixa** (`htdemucs` \| `htdemucs_ft`) —
 deveria vir do binário externo detectado (ADR-0010), não do código. Prioridade

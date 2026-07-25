@@ -60,7 +60,10 @@ pub struct EqBand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrossfadeParams {
     pub duration_ms: u32,
-    pub curve: String, // "linear" | "log" | "exponential"
+    /// "constant_power" | "constant_gain" — ver `docs/03-ADENDO-R2-CONTRATOS.md`
+    /// §0. Vocabulário distinto de `FadeParams.curve`: aqui dois sinais somam,
+    /// lá um sinal vai de/para o silêncio.
+    pub curve: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,5 +80,7 @@ pub struct LufsNormalizationParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FadeParams {
     pub duration_ms: u32,
+    /// "linear" | "logarithmic" | "exponential" — percepção de volume, não
+    /// soma de dois sinais. Ver `docs/03-ADENDO-R2-CONTRATOS.md` §0.
     pub curve: String,
 }

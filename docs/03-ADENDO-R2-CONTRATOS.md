@@ -335,14 +335,25 @@ Alinhada com o backlog do handoff:
 
 **S1 — destrava o desenho**
 
-1. `confidence` na proposta (§2.4)
-2. Ajustar-ao-aprovar já existe no contrato — só precisa da UI
-3. `POST .../replan` com as 6 regras (§3)
-4. `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e
-   `duration_target_unreachable`, que vêm do `docs/16`
-5. Consentimento nomeando o provedor (§7)
-6. Limites de `dynamic_eq.bands` e enums (§4)
-7. Decisão sobre `knee_db` (§4)
+**Errata a esta ordem:** faltava o item 0. A divisão dos enums de curva
+(`CrossfadeCurve` vs `FadeCurve`, §0) nunca tinha sido derivada como tarefa de
+contrato, embora a errata já estivesse escrita. Sem ela, a tela `FERR` (tarefa
+1 do desenho) lê `GET /tools` e recebe o vocabulário de curva errado para
+crossfade — o desenho fica bloqueado mesmo com a tela redesenhada.
+
+| # | Item | Destrava | Estado |
+|---|---|---|---|
+| **0** | **Split dos dois enums de curva** (§0) | Tarefa 1 do designer | **Feito** — domínio, validador e registry; matemática de potência constante em `dsp::stitching::crossfade` continua pendente (`docs/16` T2.2, atrás de T0.0/T0.1) |
+| 1 | `confidence` na proposta (§2.4) | Tarefa 2 | Pendente |
+| 2 | Confirmar aprovar-com-`parameters` gravando `USER_DEFINED` (§3) | Tarefa 2 | Pendente |
+| 3 | `POST .../replan` com as 6 regras (§3) | Tarefa 2 | Pendente |
+| 4 | `warnings[]` + evento `job.warning` (§1) — só `loudness_target_conflict` e `duration_target_unreachable`, que vêm do `docs/16` | Tarefa 3 | Pendente |
+| 5 | Consentimento nomeando o provedor (§7) | Tarefa 4 | Pendente |
+| ~~6~~ | ~~Limites de `dynamic_eq.bands` e enums (§4)~~ | — | Feito no #6 |
+| ~~7~~ | ~~Decisão sobre `knee_db` (§4)~~ | — | Feito no #6 (real, não pendente) |
+
+**Um PR por área a partir daqui** — o item 0 sozinho é um PR; o `replan` com as
+seis regras é outro. É a lição do #2: PR grande demais para revisar direito.
 
 **S2 — a tela de resultado deixa de mentir**
 
