@@ -40,8 +40,22 @@ pub fn measure_true_peak(pcm: &[f32], channels: u32, sample_rate: u32) -> f32 {
 /// Aplica ganho para atingir target LUFS
 pub fn apply_lufs_gain(pcm: &mut [f32], sample_rate: u32, target_lufs: f32) {
     let current = measure_lufs(&Array1::from_vec(pcm.to_vec()), sample_rate);
+    // `measure_lufs` devolve -inf (não um erro) para buffers curtos/silenciosos
+    // demais para formar um bloco de gating da BS.1770 — não é sentinela, é
+    // um retorno válido de `loudness_global()`. `target - (-inf) = +inf`, e
+    // multiplicar por ganho infinito produz +-inf e, em qualquer amostra
+    // exatamente 0.0, `0.0 * inf = NaN` — contaminando o buffer inteiro
+    // (achado pelo teste de offset DC de docs/17.1 §7, não hipotético).
+    // Sem loudness mensurável não há ganho coerente a aplicar; deixa como está.
+    if !current.is_finite() {
+        return;
+    }
+
     let gain_db = target_lufs - current;
     let gain_linear = 10f32.powf(gain_db / 20.0);
+    if !gain_linear.is_finite() {
+        return;
+    }
 
     for sample in pcm.iter_mut() {
         *sample *= gain_linear;
@@ -57,6 +71,26 @@ mod tests {
         let pcm = Array1::from_vec(vec![0.0f32; 44100]);
         let lufs = measure_lufs(&pcm, 44100);
         assert!(lufs < -60.0);
+    }
+
+    /// Regressão: um buffer curto o bastante para não formar um bloco de
+    /// gating da BS.1770 mede -inf LUFS (retorno válido de `loudness_global`,
+    /// não sentinela). `target - (-inf) = +inf`; sem a guarda de
+    /// `is_finite()`, multiplicar por ganho infinito produzia +-inf e, em
+    /// qualquer amostra exatamente 0.0, NaN — contaminando o buffer inteiro.
+    /// Achado pelo teste de offset DC de docs/17.1 §7 (`dc_offset.rs`), com
+    /// um caso de 17 amostras.
+    #[test]
+    fn test_apply_lufs_gain_does_not_corrupt_buffer_with_unmeasurable_loudness() {
+        let mut pcm = vec![-0.2f32, 0.3, -0.1, 0.15, 0.0];
+        assert!(!measure_lufs(&Array1::from_vec(pcm.clone()), 44100).is_finite());
+
+        apply_lufs_gain(&mut pcm, 44100, -14.0);
+
+        assert!(
+            pcm.iter().all(|s| s.is_finite()),
+            "buffer contaminado com NaN/Inf: {pcm:?}"
+        );
     }
 
     /// I11 (docs/10-TESTES-QUALIDADE.md §3): após normalização, |lufs-alvo| <= 0.5 LU.
