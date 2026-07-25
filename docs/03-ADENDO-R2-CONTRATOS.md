@@ -72,11 +72,21 @@ pub enum FadeCurve {
 
 ---
 
-## 1. `warnings[]` — um array servindo a todos os avisos
+## 1. `warnings[]` — um array servindo a todos os avisos — **parcialmente mesclado em `docs/03-CONTRATOS-API.md`**
 
 Descoberta do desenho: a UI precisa de *"emenda brusca aos 0:18"*. O `docs/16`
 T3.3 precisa de *"não foi possível atingir os dois alvos"*. **É o mesmo
 mecanismo.** Dois sistemas paralelos divergiriam.
+
+**Feito (parcial):** `docs/03-CONTRATOS-API.md` §3.3 (`GET /jobs/:job_id`) e
+§5 (`job.warning`) ganharam o campo e o evento, escopados a
+`loudness_target_conflict` e `duration_target_unreachable` — os dois que
+`docs/16` T3.3 produz. `abrupt_splice` e `splice_power_dip` (que dependem de
+`splice_markers[]`, item 9 de §8, ainda não escrito) ficam para quando esse
+item entrar. **O array vem sempre vazio hoje** — os dois códigos ativos
+dependem da cadeia de masterização de `docs/16` T3.3, que não executa
+enquanto `DefaultMixer` for placeholder (§4.1). Plumbing real, produtor
+ainda não existe.
 
 Adicionar a `GET /jobs/:id`:
 
@@ -199,7 +209,7 @@ desenho lê, e o contrato agora reflete o campo.
 
 ---
 
-## 3. Replanejar — endpoint e regras
+## 3. Replanejar — endpoint e regras — **mesclado em `docs/03-CONTRATOS-API.md`**
 
 ```
 POST /jobs/:id/proposals/:proposal_id/replan
@@ -229,11 +239,20 @@ POST /jobs/:id/proposals/:proposal_id/replan
 6. **Uma decisão por proposta.** Segunda chamada devolve
    **409 `proposal_already_decided`**, como aprovar e recusar já fazem.
 
+**Feito:** endpoint, payloads e as seis regras mesclados em
+`docs/03-CONTRATOS-API.md` §3.5, com `budget_exhausted` adicionado ao
+catálogo de erros (§4). Sem código Rust — o mesmo motivo do item 1: a rota
+não existe, o orçamento do ReAct (`max_tools`) existe só como campo de
+`ReActOrchestrator`, sem loop rodando por trás (`react_kernel.rs`, Sprint 2).
+
 **Ajustar valor não passa por aqui.** Ajustar antes de aprovar é
-`POST .../approve` com `parameters` no corpo — o campo já existe no contrato. É o
-caminho mais importante dos quatro, porque é onde a trava manual vive dentro do
-fluxo de proposta: o valor aprovado com ajuste entra como `USER_DEFINED`, não
-como `LLM_INFERRED`.
+`POST .../approve` com `parameters` no corpo — o campo já existe no contrato,
+e o exemplo em §3.5 já mostra `"source": "USER_DEFINED"` no parâmetro
+ajustado. **Isto não é mais um item de contrato** — não há o que confirmar
+sem uma implementação para confirmar contra. Vira **critério de aceite** para
+quando o fluxo de aprovação for construído (Sprint 2): o teste que afirma que
+`approve` com `parameters` grava `USER_DEFINED`, não `LLM_INFERRED`, pertence
+ao código daquela hora, não a uma rodada de documentação desta.
 
 ---
 
@@ -374,8 +393,22 @@ crossfade — o desenho fica bloqueado mesmo com a tela redesenhada.
 | ~~6~~ | ~~Limites de `dynamic_eq.bands` e enums (§4)~~ | — | Feito no #6 |
 | ~~7~~ | ~~Decisão sobre `knee_db` (§4)~~ | — | Feito no #6 (real, não pendente) |
 
-**Um PR por área a partir daqui** — o item 0 sozinho é um PR; o `replan` com as
-seis regras é outro. É a lição do #2: PR grande demais para revisar direito.
+**Por que 1, 2, 3 e 4 viraram texto:** o fluxo de proposta (`approve`,
+`reject`, `replan`, `warnings[]`) não existe em Rust — confirmado por grep,
+zero ocorrências de `Proposal`/`replan`/`approve`/`USER_DEFINED` em `crates/`.
+`react_kernel.rs` deixa a integração com LLM e execução de ferramentas
+explicitamente para a Sprint 2. Os itens 1, 3 e 4 eram sempre sobre o
+contrato que o desenho lê, não sobre uma feature rodando — por isso viraram
+edições em `docs/03-CONTRATOS-API.md`, não PRs de `crates/`. O item 2 nem
+isso: o contrato já estava certo (o exemplo de `approve` já mostrava
+`USER_DEFINED`), então não sobrou nada para mudar.
+
+**Um PR por área, não um PR por parágrafo.** Item 0 (domínio Rust) é PR
+próprio porque é uma área diferente de 1+3+4 (mesma seção do mesmo documento
+de contrato — juntar não mistura nada). Item 5 (consentimento) é o primeiro
+código de verdade da lista e leva PR próprio quando chegar. "Um PR por área"
+era para não misturar backend com frontend com infra (a lição do #2) — não
+para atomizar cada edição de texto no mesmo arquivo.
 
 **S2 — a tela de resultado deixa de mentir**
 
