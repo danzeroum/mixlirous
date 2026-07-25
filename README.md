@@ -163,6 +163,7 @@ mixlirous/
 | [**Design brief**](docs/12-DESIGN-BRIEF.md) | Design + FE |
 | [Roadmap e sprints](docs/13-ROADMAP-SPRINTS.md) | Todos |
 | [Auditoria do kit](docs/14-AUDITORIA-KIT.md) | Dev |
+| [**Guia de testes**](docs/17-GUIA-DE-TESTES.md) | Dev |
 | [ADRs](docs/adr/README.md) | Dev |
 
 ---

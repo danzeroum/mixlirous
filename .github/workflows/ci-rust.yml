@@ -2,10 +2,10 @@ name: Rust CI
 
 on:
   pull_request:
-    paths: ["crates/**", "Cargo.*", "config/**"]
+    paths: ["crates/**", "Cargo.*", "config/**", "fixtures/**", "scripts/**"]
   push:
     branches: [main]
-    paths: ["crates/**", "Cargo.*", "config/**"]
+    paths: ["crates/**", "Cargo.*", "config/**", "fixtures/**", "scripts/**"]
 
 jobs:
   lint:
@@ -44,6 +44,17 @@ jobs:
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Install Python toolchain
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install fixture generator dependencies
+        run: pip install -r scripts/requirements-fixtures.txt
+
+      - name: Generate audio fixtures
+        run: python scripts/generate_fixtures.py --duration 5.0
 
       - name: Build workspace
         run: cargo build --workspace
