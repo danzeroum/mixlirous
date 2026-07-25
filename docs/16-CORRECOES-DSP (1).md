@@ -275,11 +275,16 @@ ele **nunca erre calado**. É a asserção que codifica a tese do produto.
 qualquer curva e entrada — incluindo os degenerados de T1.1, sorteados com
 peso alto) e a identidade de ganho constante (`crossfade(x, x, _,
 ConstantGain) ≈ x`) através do espaço de entrada, não só no exemplo fixo.
-**Não fazem parte ainda:** `descontinuidade_max`/I4.1 e
-`queda_rms_db`/I4.2 em janela deslizante (dependem de infraestrutura de
-análise que não existe) e o detector de correlação/fase do pseudocódigo
-abaixo. Ficam para quando o Bloco 2/3 completo entrar — não são necessários
-para a fatia vertical, que é o que motivou adiantar T2.2.
+**Não fazem parte ainda:** `descontinuidade_max`/I4.1 e o detector de
+correlação/fase do pseudocódigo abaixo — ficam para quando o Bloco 2/3
+completo entrar, não são necessários para a fatia vertical.
+
+**`queda_rms_db`/I4.2 tem issue própria, não é só lacuna de escopo:** issue
+[#16](https://github.com/danzeroum/mixlirous/issues/16) — é o único guarda
+automático contra a queda de ~3 dB que T2.2 existe para corrigir, e
+`dsp::analysis::rms::sliding_rms()` já existe (a justificativa de
+"infraestrutura que não existe" era fraca). Sem ela, uma regressão futura em
+`compute_gains()` só é pega por ouvido humano, disponível uma vez, na fatia.
 
 ```rust
 proptest! {

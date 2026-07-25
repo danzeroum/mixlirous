@@ -112,6 +112,25 @@ mod tests {
         }
     }
 
+    /// Par do teste acima, e o que fecha a semântica dos dois curvas: para
+    /// sinal correlacionado consigo mesmo, potência constante **soma**
+    /// amplitude no meio — `cos(45°) + sin(45°) = 0,707 + 0,707 ≈ 1,414`,
+    /// um bump de +3 dB. Não é bug: é a razão de `ConstantGain` existir para
+    /// este caso. Os dois testes juntos travam a escolha contra alguém
+    /// "consertar" o bump daqui a seis meses.
+    #[test]
+    fn test_constant_power_crossfade_of_signal_with_itself_produces_3db_bump_at_midpoint() {
+        let x = vec![1.0f32; 101];
+        let mut out = x.clone();
+        crossfade_buffers(&mut out, 0, &x, 0, 101, CrossfadeCurve::ConstantPower);
+
+        assert!(
+            (out[50] - std::f32::consts::SQRT_2).abs() < 1e-3,
+            "potência constante em sinal correlacionado deveria somar a ~1.414 (+3 dB) no meio, obtido {}",
+            out[50]
+        );
+    }
+
     #[test]
     fn test_constant_gain_gains_sum_to_one() {
         for i in 0..=10 {
