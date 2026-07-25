@@ -326,11 +326,36 @@ Campos obrigatórios: `track_id`, `mode`. Tudo mais tem padrão do servidor.
     "true_peak_db": -1.0,
     "fingerprint": { "mfcc": [ ], "spectral_centroid": 2418.7, "rms_energy": 0.191 }
   },
+  "warnings": [
+    {
+      "code": "loudness_target_conflict",
+      "severity": "warning",
+      "at_sec": null,
+      "message_ptbr": "Saiu em −16,8 LUFS. O teto de pico de −1 dBTP foi respeitado.",
+      "hint_ptbr": "Material muito dinâmico para −14 LUFS sem limitação audível.",
+      "measured": { "lufs": -16.8, "target_lufs": -14.0, "true_peak_db": -1.0 }
+    }
+  ],
   "error": null,
   "trace_id": "4bf92f...",
   "created_at": "...", "updated_at": "...", "completed_at": "..."
 }
 ```
+
+`warnings[]` é um único array servindo a todos os avisos não-bloqueantes do
+job — a UI trata aviso de emenda e aviso de masterização pelo mesmo mecanismo.
+`severity` é `info` ou `warning`; **aviso nunca muda o estado do job nem
+impede o download**. `at_sec` é `null` quando o aviso é do artefato inteiro.
+`hint_ptbr` é obrigatório — aviso sem caminho de saída é ruído. Todo aviso
+também é emitido por SSE (`job.warning`, §5), para aparecer antes de o render
+terminar.
+
+**Hoje o array sempre vem vazio.** Os dois códigos ativos nesta versão
+(`loudness_target_conflict`, `duration_target_unreachable`) dependem da
+cadeia de masterização de `docs/16-CORRECOES-DSP` (T3.3), que ainda não
+executa — `DefaultMixer` é um placeholder (ver `docs/03-ADENDO-R2-CONTRATOS.md`
+§4.1). O campo existe no contrato porque a tela de resultado precisa ser
+escrita contra ele agora; o valor populado chega junto do motor DSP.
 
 **`POST /api/v1/jobs/:job_id/cancel`** → `200` com job em `cancelled`.
 Só válido em `queued`, `running`, `awaiting_approval`.
@@ -415,6 +440,40 @@ que o que o SSE já tinha mostrado.
 ```
 
 Erros: `409 proposal_expired` (TTL de 120 s vencido), `409 proposal_already_decided`.
+
+**`POST /api/v1/jobs/:job_id/proposals/:proposal_id/replan`** — pede uma
+alternativa à mesma proposta, sem decidir aprovar ou recusar ainda. Distinto
+de ajustar valor: ajuste é `approve` com `parameters` no corpo (o campo já
+existe acima); replanejar troca a sugestão inteira, não só um número.
+
+```json
+// request
+{ "reason_ptbr": "gosto da ideia, mas 250 Hz está muito largo" }
+```
+
+```json
+// 200
+{ "status": "replanning", "budget_remaining": 2, "supersedes": "prop_8c1d" }
+```
+
+Regras:
+
+1. **Replanejar consome orçamento** — é um passo do ReAct como qualquer
+   outro. Com `budget_remaining == 0`, `409 budget_exhausted`; a UI passa a
+   oferecer só aprovar, recusar ou ajustar.
+2. A proposta substituída é encerrada como **`replanned`**, não `rejected` —
+   são intenções diferentes e o histórico precisa distingui-las.
+3. A alternativa não pode repetir a sugestão substituída: a tupla
+   (ferramenta, parâmetros, posição) entra na lista de bloqueio da sessão,
+   igual à regra já existente para proposta recusada.
+4. `reason_ptbr` é opcional, mas vai ao agente quando presente — é o que
+   diferencia replanejar de "tente outra coisa qualquer".
+5. O TTL reinicia na proposta nova, com os mesmos 120 s.
+6. **Uma decisão por proposta.** Segunda chamada devolve
+   `409 proposal_already_decided`, como `approve`/`reject` já fazem.
+
+Erros: `409 proposal_expired`, `409 proposal_already_decided`,
+`409 budget_exhausted`.
 
 ---
 
@@ -537,6 +596,7 @@ partir dessa spec, sem hardcode no React.
 | 409 | `job_not_editable` | Edição em job finalizado | Desabilitar controles |
 | 409 | `proposal_expired` | TTL vencido | Remover overlay, toast informativo |
 | 409 | `proposal_already_decided` | Duplo clique | Ignorar silenciosamente |
+| 409 | `budget_exhausted` | Replan sem orçamento restante | Oferecer só aprovar/recusar/ajustar |
 | 409 | `docker_unavailable` | Escala sem Docker | Explicar e sugerir instalar |
 | 413 | `file_too_large` | Upload acima do limite | Mensagem com limite |
 | 415 | `unsupported_media_type` | Formato de áudio não suportado | Listar formatos aceitos |
@@ -596,6 +656,7 @@ Regras:
 | `agent.finished` | `{ node_id, tools_used, budget_left }` | Fecha painel de raciocínio |
 | `proposal.expired` | `{ proposal_id }` | Fecha overlay, toast |
 | `proposal.decided` | `{ proposal_id, decision, node_id? }` | Sincroniza outras abas |
+| `job.warning` | ver abaixo | Insere em `warnings[]` sem esperar o job terminar |
 | `node.state` | `{ node_id, status, error? }` | Cor/borda do nó |
 | `node.parameters` | `{ node_id, parameters }` | Preenche sliders (respeitando travas) |
 | `node.created` | `{ node, edges }` | Anima novo nó no canvas |
@@ -646,6 +707,24 @@ individual depois que a proposta já foi aceita. A UI usa este para decidir
 destaque visual da proposta (ex.: menor confiança pede revisão mais atenta
 antes de aprovar), não para decidir se ela é oferecida — o agente já filtra
 isso antes de propor.
+
+**`job.warning`** — mesma forma de um item de `warnings[]` (§3.3), emitido
+assim que o aviso existe, sem esperar o job terminar:
+
+```json
+{
+  "job_id": "uuid",
+  "code": "loudness_target_conflict",
+  "severity": "warning",
+  "at_sec": null,
+  "message_ptbr": "Saiu em −16,8 LUFS. O teto de pico de −1 dBTP foi respeitado.",
+  "hint_ptbr": "Material muito dinâmico para −14 LUFS sem limitação audível.",
+  "measured": { "lufs": -16.8, "target_lufs": -14.0, "true_peak_db": -1.0 }
+}
+```
+
+Aviso **nunca** é erro — não dispara `job.failed`, não muda `status`. É por
+isso que é um evento à parte, não um campo de `job.state`.
 
 **`node.parameters`**
 
