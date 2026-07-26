@@ -40,11 +40,11 @@ pacote vir antes da §3.
 
 **Faça isto antes de tudo. É o único item deste pacote que muda fundação.**
 
-**Em andamento — `CrossfadeMs` primeiro, de propósito.** Escopo apertado:
-um tipo revisado com cuidado antes de aplicar o padrão aos outros dez, porque
-os erros aqui não aparecem em `git diff` nem quebram teste — ficam quietos
-até alguém construir uma porta dos fundos sem perceber (o resampler linear é
-o precedente: passou porque ninguém leu o diff). `audio_core::CrossfadeMs`
+**Concluído.** `CrossfadeMs` foi o primeiro, de propósito: um tipo revisado
+com cuidado antes de aplicar o padrão aos outros nove, porque os erros aqui
+não aparecem em `git diff` nem quebram teste — ficam quietos até alguém
+construir uma porta dos fundos sem perceber (o resampler linear é o
+precedente: passou porque ninguém leu o diff). `audio_core::CrossfadeMs`
 está feito: `#[serde(try_from = "u32")]`, sem `Default`, sem `From<u32>`
 infalível, sem aritmética, sem construtor de teste que pule `TryFrom`.
 `audio_agent::limits` e `validator.rs` derivam de `CrossfadeMs::MIN`/`MAX` em
@@ -52,9 +52,22 @@ vez de redigitar `0`/`3000` — fecha o terceiro lugar da regra do
 `CONTRIBUTING.md` para este parâmetro. `CrossfadeConfig.max_duration_ms`
 (`domain::pipeline_config`) usa o newtype direto, então um `PipelineConfig`
 recuperado do banco depois de um crash já não consegue reconstruir um
-crossfade fora da faixa. Os outros dez parâmetros do Bloco 0 (ver tabela em
-`05-AGENTE-IA-HITL.md` §3) continuam sem newtype — aplicação mecânica do
-mesmo padrão, ainda não feita.
+crossfade fora da faixa.
+
+Os outros nove parâmetros do Bloco 0 (ver tabela em `05-AGENTE-IA-HITL.md`
+§3) seguiram o mesmo padrão, num PR só, mecânico: `CompressionRatio`,
+`ThresholdDb`, `AttackMs`, `ReleaseMs`, `EqGainDb`, `TimeStretchFactor`,
+`LufsTarget`, `BlockSizeBeats`, `Percentile`. Cada um com seu teste de
+"valor fora da faixa não desserializa" e um teste de deriva em
+`audio_agent::limits` prendendo o registry ao `MIN`/`MAX` do tipo. Duas
+exceções de escopo, não de execução: `BlockSizeBeats` e `Percentile` não têm
+entrada no registry nem no validador — são campos de
+`domain::SelectionConfig`, não parâmetro de tool call do agente
+(`05-AGENTE-IA-HITL.md` §3 já excluía `block_selection` do escopo desse
+mecanismo). E `BlockSizeBeats::MIN`/`MAX` (1 e 64) não vêm de nenhum
+documento — `docs/04` só dá exemplos de uso (4, 8, 16), sem limite formal;
+a faixa escolhida está justificada no comentário do próprio tipo
+(`domain/block_size_beats.rs`), não em número canônico preexistente.
 
 **Correção de direção em relação ao parágrafo "Fonte dos limites" abaixo:**
 aquele parágrafo diz que o newtype deriva do registry (`audio_agent::limits`).
@@ -66,18 +79,15 @@ ia precisar de qualquer forma na Sprint 2). O efeito prático é o mesmo — um
 número, todo o resto projeta ou é testado contra ele — só a direção da seta
 mudou.
 
-**Estado final da migração, para não parar no meio sem ninguém notar:**
-quando os dez parâmetros restantes tiverem newtype, `limits.rs` não guarda
-**nenhum** limite numérico literal — cada `p(...)` do registry lê
-`audio_core::<Tipo>::MIN`/`MAX`, e a tabela de `05-AGENTE-IA-HITL.md` §3
-vira projeção de uma projeção (registry projeta o tipo, a tabela projeta o
-registry). Até lá, durante a migração, existem propositalmente **duas casas**
-para limite: os parâmetros já migrados (hoje só `crossfade.duration_ms`) leem
-do tipo; os outros nove continuam com o literal em `limits.rs`, como sempre
-estiveram. Isso é esperado — não é o mesmo bug de duas fontes divergentes,
-porque não há cópia, só migração incompleta. Mas é o tipo de coisa que para
-no meio do caminho sem ninguém perceber se não estiver escrito em algum
-lugar qual é o estado final: **zero literais em `limits.rs`.**
+**Estado final da migração, alcançado:** `limits.rs` não guarda mais
+**nenhum** limite numérico literal para os parâmetros que são tool call do
+agente — cada `p(...)` do registry lê `audio_core::<Tipo>::MIN`/`MAX`, e a
+tabela de `05-AGENTE-IA-HITL.md` §3 continua projeção do registry (o teste
+de deriva que compara os dois não mudou de forma, só ganhou mais entradas
+prendendo tipo). `makeup_gain_db`, `knee_db` e `max_true_peak_db` são as
+exceções conhecidas — não estão na lista de 9 parâmetros de `docs/04`,
+continuam com literal em `limits.rs`/`validator.rs` via `bound()`, sem
+newtype. Se algum dia entrarem no escopo, é o mesmo padrão mecânico de novo.
 
 Hoje os parâmetros são validados apenas na `ValidationLayer`. O `04-DOMINIO-DSP.md`
 prescreve validação **na desserialização do newtype**. A diferença não é
@@ -632,7 +642,7 @@ listados para você não perder tempo reavaliando:
 ## 9. Definição de pronto
 
 - [ ] ADR-0011 aceito, com dono, e toda citação de fonte verificada contra exemplar
-- [ ] T0.0 concluído: limites garantidos no newtype, derivados do registry; nenhum construtor alternativo público
+- [x] T0.0 concluído: limites garantidos no newtype, derivados do registry; nenhum construtor alternativo público
 - [ ] Teste de divergência do registry cobrindo os **três** lugares (validador, API, tabela de `docs/05` §3)
 - [ ] Propriedades do Bloco 1 escritas **antes** das correções e falhando na primeira execução
 - [ ] Cada falha minimizada pelo `proptest` congelada como caso fixo, nomeada com a issue

@@ -110,32 +110,35 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "ratio",
                     "float",
-                    Some(1.0),
-                    Some(10.0),
+                    // T0.0 (docs/16): estes dois números vêm do newtype
+                    // audio_core::CompressionRatio — ver o comentário em
+                    // crossfade.duration_ms mais abaixo para o racional.
+                    Some(audio_core::CompressionRatio::MIN as f64),
+                    Some(audio_core::CompressionRatio::MAX as f64),
                     Some(2.0.into()),
                     Some(":1"),
                 ),
                 p(
                     "threshold_db",
                     "float",
-                    Some(-60.0),
-                    Some(0.0),
+                    Some(audio_core::ThresholdDb::MIN as f64),
+                    Some(audio_core::ThresholdDb::MAX as f64),
                     Some((-18.0).into()),
                     Some("dB"),
                 ),
                 p(
                     "attack_ms",
                     "integer",
-                    Some(0.0),
-                    Some(500.0),
+                    Some(audio_core::AttackMs::MIN as f64),
+                    Some(audio_core::AttackMs::MAX as f64),
                     Some(30.0.into()),
                     Some("ms"),
                 ),
                 p(
                     "release_ms",
                     "integer",
-                    Some(10.0),
-                    Some(5000.0),
+                    Some(audio_core::ReleaseMs::MIN as f64),
+                    Some(audio_core::ReleaseMs::MAX as f64),
                     Some(250.0.into()),
                     Some("ms"),
                 ),
@@ -177,8 +180,8 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "bands[].gain_db",
                     "float",
-                    Some(-24.0),
-                    Some(24.0),
+                    Some(audio_core::EqGainDb::MIN as f64),
+                    Some(audio_core::EqGainDb::MAX as f64),
                     Some(0.0.into()),
                     Some("dB"),
                 ),
@@ -270,8 +273,8 @@ pub fn tool_registry() -> Vec<ToolLimits> {
             parameters: vec![p(
                 "factor",
                 "float",
-                Some(0.90),
-                Some(1.10),
+                Some(audio_core::TimeStretchFactor::MIN as f64),
+                Some(audio_core::TimeStretchFactor::MAX as f64),
                 Some(1.0.into()),
                 Some("×"),
             )],
@@ -286,8 +289,8 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "target_lufs",
                     "float",
-                    Some(-30.0),
-                    Some(-6.0),
+                    Some(audio_core::LufsTarget::MIN as f64),
+                    Some(audio_core::LufsTarget::MAX as f64),
                     Some((-14.0).into()),
                     Some("LUFS"),
                 ),
@@ -410,10 +413,20 @@ pub fn render_markdown_table() -> String {
 }
 
 fn format_number(v: f64) -> String {
-    if v.fract() == 0.0 {
-        format!("{v:.0}")
+    // Bounds de origem `f32` (a maioria dos newtypes T0.0) carregam ruído de
+    // arredondamento invisível até o cast para f64: `TimeStretchFactor::MIN`
+    // (0.90_f32) as f64 é 0.8999999761581421, não 0.9 — a mesma fração não
+    // representa igual nos dois formatos. Arredonda antes de formatar para
+    // não vazar esse ruído pra tabela gerada; 6 casas cobre toda a precisão
+    // que qualquer parâmetro deste registry usa de propósito.
+    let arredondado = (v * 1e6).round() / 1e6;
+    if arredondado.fract() == 0.0 {
+        format!("{arredondado:.0}")
     } else {
-        format!("{v}")
+        format!("{arredondado:.6}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }
 
@@ -483,6 +496,22 @@ mod tests {
         assert_eq!(unix_block, "linha 1\nlinha 2");
     }
 
+    /// Achado ao migrar `time_stretch.factor` para `TimeStretchFactor`
+    /// (T0.0): `0.90_f32 as f64` é `0.8999999761581421`, não `0.9` — o
+    /// mesmo valor não representa igual nos dois formatos, e sem
+    /// arredondar antes de formatar a tabela gerada carrega esse ruído.
+    #[test]
+    fn test_format_number_rounds_away_f32_cast_noise() {
+        assert_eq!(
+            format_number(audio_core::TimeStretchFactor::MIN as f64),
+            "0.9"
+        );
+        assert_eq!(
+            format_number(audio_core::TimeStretchFactor::MAX as f64),
+            "1.1"
+        );
+    }
+
     fn find<'a>(reg: &'a [ToolLimits], tool: &str) -> &'a ToolLimits {
         reg.iter()
             .find(|t| t.name == tool)
@@ -508,6 +537,66 @@ mod tests {
 
         assert_eq!(param.min, Some(audio_core::CrossfadeMs::MIN as f64));
         assert_eq!(param.max, Some(audio_core::CrossfadeMs::MAX as f64));
+    }
+
+    /// T0.0: mesma checagem de deriva de `test_crossfade_duration_registry_matches_crossfade_ms_newtype`,
+    /// aplicada aos 7 newtypes restantes que têm entrada no registry
+    /// (`BlockSizeBeats` e `Percentile` ficam de fora — não são parâmetro de
+    /// tool call, ver `docs/05-AGENTE-IA-HITL.md` §3).
+    #[test]
+    fn test_compression_ratio_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "compression"), "ratio");
+        assert_eq!(param.min, Some(audio_core::CompressionRatio::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::CompressionRatio::MAX as f64));
+    }
+
+    #[test]
+    fn test_threshold_db_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "compression"), "threshold_db");
+        assert_eq!(param.min, Some(audio_core::ThresholdDb::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::ThresholdDb::MAX as f64));
+    }
+
+    #[test]
+    fn test_attack_ms_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "compression"), "attack_ms");
+        assert_eq!(param.min, Some(audio_core::AttackMs::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::AttackMs::MAX as f64));
+    }
+
+    #[test]
+    fn test_release_ms_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "compression"), "release_ms");
+        assert_eq!(param.min, Some(audio_core::ReleaseMs::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::ReleaseMs::MAX as f64));
+    }
+
+    #[test]
+    fn test_eq_gain_db_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "dynamic_eq"), "bands[].gain_db");
+        assert_eq!(param.min, Some(audio_core::EqGainDb::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::EqGainDb::MAX as f64));
+    }
+
+    #[test]
+    fn test_time_stretch_factor_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "time_stretch"), "factor");
+        assert_eq!(param.min, Some(audio_core::TimeStretchFactor::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::TimeStretchFactor::MAX as f64));
+    }
+
+    #[test]
+    fn test_lufs_target_registry_matches_newtype() {
+        let reg = tool_registry();
+        let param = param(find(&reg, "lufs_normalization"), "target_lufs");
+        assert_eq!(param.min, Some(audio_core::LufsTarget::MIN as f64));
+        assert_eq!(param.max, Some(audio_core::LufsTarget::MAX as f64));
     }
 
     /// Garante que o teto de `crossfade.duration_ms` no registry é

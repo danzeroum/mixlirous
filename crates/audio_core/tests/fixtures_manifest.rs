@@ -67,6 +67,12 @@ struct Expected {
     lufs_i: Option<f64>,
     zero_crossing_count: Option<u64>,
     zero_crossing_indices: Option<Vec<u64>>,
+    /// Frequência exata dos tons puros (`tones/*`, `time_stretch/pure_tone_440hz.wav`)
+    /// — presente no manifesto desde o início, nunca antes verificada pelo
+    /// harness (achado revisando a extensão de `instantaneous_freq_checkpoints`
+    /// a outras fixtures com propriedade analítica, docs/17 §2.5).
+    freq_hz: Option<f64>,
+    freq_tolerance_hz: Option<f64>,
     /// Propriedade verificável do sinal em si (não só sha256 + valores de
     /// saída) — hoje só nas fixtures de varredura. Ver `scripts/generate_fixtures.py`
     /// (`gen_log_sweep`) e docs/17 sobre por que isso existe: uma fixture
@@ -81,22 +87,36 @@ struct FreqCheckpoint {
     freq_hz: f64,
 }
 
-/// Pico espectral (Hz) de uma janela Hann centrada em `centro_sec` segundos
-/// — mesma técnica de `aliasing.rs`. Hann para não borrar o pico com
-/// vazamento espectral; `magnitude_spectrum` em si não janela.
-fn pico_espectral_hz(pcm: &Array1<f32>, centro_sec: f64, sample_rate: u32) -> f64 {
-    const WINDOW_LEN: usize = 4096;
+/// Pico espectral (Hz) de uma janela Hann de `window_len` amostras centrada
+/// em `centro_sec` segundos — mesma técnica de `aliasing.rs`. Hann para não
+/// borrar o pico com vazamento espectral; `magnitude_spectrum` em si não
+/// janela.
+///
+/// `window_len` importa: resolução de bin é `sample_rate / window_len`. Uma
+/// varredura precisa de janela curta (a frequência muda dentro dela — janela
+/// longa borra); um tom estacionário precisa de janela longa para bater
+/// tolerância apertada (`freq_tolerance_hz: 2.0` em `gen_sine` exige melhor
+/// que ~2 Hz/bin, e 4096 amostras a 44100 Hz só dão ~10,8 Hz/bin — usar esse
+/// valor para tom estacionário reprovaria por quantização de bin, não por
+/// erro de sinal).
+fn pico_espectral_hz(
+    pcm: &Array1<f32>,
+    centro_sec: f64,
+    sample_rate: u32,
+    window_len: usize,
+) -> f64 {
     let centro_idx = (centro_sec * sample_rate as f64) as usize;
-    let half = WINDOW_LEN / 2;
+    let half = window_len / 2;
     let start = centro_idx.saturating_sub(half);
-    let end = (start + WINDOW_LEN).min(pcm.len());
-    let start = end.saturating_sub(WINDOW_LEN);
+    let end = (start + window_len).min(pcm.len());
+    let start = end.saturating_sub(window_len);
+    let window_len = end - start;
 
     let janela: Vec<f32> = (start..end)
         .enumerate()
         .map(|(i, idx)| {
             let hann =
-                0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / (WINDOW_LEN - 1) as f32).cos();
+                0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / (window_len - 1) as f32).cos();
             pcm[idx] * hann
         })
         .collect();
@@ -107,7 +127,7 @@ fn pico_espectral_hz(pcm: &Array1<f32>, centro_sec: f64, sample_rate: u32) -> f6
         .enumerate()
         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
         .unwrap();
-    bin_pico as f64 * sample_rate as f64 / WINDOW_LEN as f64
+    bin_pico as f64 * sample_rate as f64 / window_len as f64
 }
 
 fn load_manifest() -> Manifest {
@@ -290,12 +310,32 @@ fn fixtures_conformam_ao_manifesto() {
             assert_eq!(&medido, indices, "{caminho}: índices de zero-crossing");
         }
 
+        if let (Some(freq), Some(tolerancia_hz)) =
+            (spec.expected.freq_hz, spec.expected.freq_tolerance_hz)
+        {
+            let duracao_sec = audio.mono.len() as f64 / audio.sample_rate as f64;
+            // Janela = buffer inteiro: tom estacionário, sem risco de borrar
+            // frequência mudando dentro da janela (diferente do sweep).
+            // Necessário para bater `freq_tolerance_hz: 2.0` — 4096 amostras
+            // só dariam ~10,8 Hz/bin.
+            let medido = pico_espectral_hz(
+                &audio.mono,
+                duracao_sec / 2.0,
+                audio.sample_rate,
+                audio.mono.len(),
+            );
+            assert!(
+                (medido - freq).abs() <= tolerancia_hz,
+                "{caminho}: pico espectral medido {medido:.1} Hz, esperado {freq:.1} Hz (tolerância {tolerancia_hz} Hz)"
+            );
+        }
+
         // Propriedade verificável do sinal em si, independente de qualquer
         // teste downstream ter sido escrito — teria pego sozinho o bug de
         // normalização por `duration` em `gen_log_sweep` (docs/17 §2.4).
         if let Some(checkpoints) = &spec.expected.instantaneous_freq_checkpoints {
             for cp in checkpoints {
-                let medido = pico_espectral_hz(&audio.mono, cp.t_sec, audio.sample_rate);
+                let medido = pico_espectral_hz(&audio.mono, cp.t_sec, audio.sample_rate, 4096);
                 let tolerancia_hz = (cp.freq_hz * 0.05) + 20.0;
                 assert!(
                     (medido - cp.freq_hz).abs() <= tolerancia_hz,
