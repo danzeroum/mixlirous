@@ -204,27 +204,42 @@ fn main() -> ExitCode {
         &FadeCurve::Logarithmic,
     );
 
-    // Fator dentro da faixa validada pelo agente (T0.0, docs/16) — 1.05 é um
-    // ajuste de tempo plausível, não um estiramento artificial só para
-    // exercitar a função.
-    let fator = TimeStretchFactor::try_from(1.05)
-        .expect("1.05 está dentro de TimeStretchFactor::MIN..=MAX por construção");
-    let duracao_atual = montado.len() as f32 / sample_rate as f32;
-    let duracao_alvo = duracao_atual * fator.get();
-    let esticado = time_stretch(
-        &Array1::from_vec(montado.clone()),
-        sample_rate,
-        duracao_alvo,
-    )
-    .unwrap_or_else(|| {
-        eprintln!("time_stretch não pôde esticar (buffer vazio?) — seguindo sem esticar");
+    // Fator 1.0 — sem estiramento. A versão anterior usava 1.05 com o
+    // comentário "um ajuste de tempo plausível, não um estiramento artificial
+    // só para exercitar a função". Esse comentário afirmava o oposto do que o
+    // código faz: `time_stretch` reamostra sem correção de tom, ou seja, é
+    // varispeed. A 1.05 o material sai 5% mais longo E cerca de 0,84 semitom
+    // mais grave — não é ajuste de tempo, é transposição. Medido e confirmado
+    // de ouvido a 0.90 (issue #36: +1,82 semitom).
+    //
+    // Enquanto o #36 não decide o rumo (estiramento de verdade, renomear para
+    // velocidade, ou tirar do MVP), o exemplo não aplica transposição sem
+    // pedir: a saída fica comparável com a entrada, que é o que permite julgar
+    // emenda e masterização de ouvido.
+    let fator = TimeStretchFactor::try_from(1.0)
+        .expect("1.0 está dentro de TimeStretchFactor::MIN..=MAX por construção");
+    let esticado = if (fator.get() - 1.0).abs() < f32::EPSILON {
+        println!("estiramento: nenhum (fator 1.00x) — ver issue #36");
         Array1::from_vec(montado)
-    });
-    println!(
-        "duração após ajuste (fator {:.2}x): {:.3}s",
-        fator.get(),
-        esticado.len() as f32 / sample_rate as f32
-    );
+    } else {
+        let duracao_atual = montado.len() as f32 / sample_rate as f32;
+        let duracao_alvo = duracao_atual * fator.get();
+        let esticado = time_stretch(
+            &Array1::from_vec(montado.clone()),
+            sample_rate,
+            duracao_alvo,
+        )
+        .unwrap_or_else(|| {
+            eprintln!("time_stretch não pôde esticar (buffer vazio?) — seguindo sem esticar");
+            Array1::from_vec(montado)
+        });
+        println!(
+            "duração após ajuste (fator {:.2}x, TRANSPÕE o tom — #36): {:.3}s",
+            fator.get(),
+            esticado.len() as f32 / sample_rate as f32
+        );
+        esticado
+    };
 
     println!("\n== 7. Masterização ==");
     let mut pcm_final = esticado.to_vec();

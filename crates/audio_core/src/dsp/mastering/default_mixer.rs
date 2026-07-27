@@ -74,11 +74,22 @@ impl DefaultMixer {
         let mut writer = hound::WavWriter::new(writer, spec).map_err(io_err)?;
 
         for &sample in pcm.iter() {
-            let clamped = sample.clamp(-1.0, 1.0);
             let write_result = match bits_per_sample {
-                16 => writer.write_sample((clamped * i16::MAX as f32) as i16),
-                24 => writer.write_sample((clamped * 8_388_607.0) as i32),
-                32 => writer.write_sample(clamped),
+                // PCM inteiro não tem representação acima de fundo de escala,
+                // então limitar aqui é obrigatório — o problema é fazê-lo em
+                // silêncio, e isso continua aberto (issue #37): o certo é
+                // contar as amostras limitadas e devolver o número, para
+                // virar aviso. Enquanto a assinatura não carrega isso, ao
+                // menos o limite fica explícito e não confundido com o caso
+                // do float.
+                16 => writer.write_sample((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16),
+                24 => writer.write_sample((sample.clamp(-1.0, 1.0) * 8_388_607.0) as i32),
+                // WAV float de 32 bits representa acima de ±1,0 sem problema
+                // — é justamente para isso que se usa float como formato
+                // intermediário. Limitar aqui era perda pura de informação, e
+                // ironicamente fazia do único formato que preserva margem o
+                // único onde ela era descartada calada.
+                32 => writer.write_sample(sample),
                 _ => unreachable!("bits_per_sample já validado acima"),
             };
             write_result.map_err(io_err)?;
@@ -278,6 +289,54 @@ mod tests {
             .export_wav(&Array1::from_vec(vec![0.0f32]), &path, &config)
             .unwrap_err();
         assert!(err.to_string().contains("mono"));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Float de 32 bits preserva margem acima de ±1,0 — é o motivo de existir
+    /// como formato intermediário. O `clamp` que havia aqui destruía isso em
+    /// silêncio (ver a discussão no #37).
+    #[test]
+    fn export_wav_float32_preserva_amostras_acima_de_fundo_de_escala() {
+        let dir = std::env::temp_dir().join(format!("mixlirous_test_{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("saida.wav");
+
+        // 6.5 é a ordem de grandeza real medida no buffer intermediário do
+        // pipeline depois de `apply_lufs_gain` em material percussivo (#37).
+        let pcm = Array1::from_vec(vec![6.5f32, -6.5, 1.0, -1.0, 0.0]);
+        DefaultMixer
+            .export_wav(&pcm, &path, &mono_wav_config(44100, 32))
+            .unwrap();
+
+        let lido = ler_wav_mono_f32(&path);
+        assert_eq!(lido, pcm.to_vec(), "float de 32 bits não pode limitar");
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// PCM inteiro não tem representação acima de fundo de escala: limitar é
+    /// obrigatório. O que falta é contar e reportar (#37), não deixar de
+    /// limitar.
+    #[test]
+    fn export_wav_inteiro_ainda_limita_por_falta_de_representacao() {
+        let dir = std::env::temp_dir().join(format!("mixlirous_test_{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("saida.wav");
+
+        let pcm = Array1::from_vec(vec![6.5f32, -6.5, 0.5]);
+        DefaultMixer
+            .export_wav(&pcm, &path, &mono_wav_config(44100, 16))
+            .unwrap();
+
+        let lido = ler_wav_mono_f32(&path);
+        assert!(lido[0] > 0.99 && lido[0] <= 1.0, "saturou em {}", lido[0]);
+        assert!(lido[1] < -0.99 && lido[1] >= -1.0, "saturou em {}", lido[1]);
+        assert!(
+            (lido[2] - 0.5).abs() < 1e-3,
+            "não deveria tocar: {}",
+            lido[2]
+        );
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
