@@ -1,0 +1,272 @@
+<!-- Página de diagnóstico da fatia vertical. HTML puro, sem build, sem
+     dependência externa — servida por include_str! a partir de dev_slice.rs.
+     Descartável junto com a rota. Ver docs/18-DEPLOY-PUBLICO-NGINX.md. -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mixlirous — escuta A/B da fatia vertical</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #17190f; --mut: #6b6f5e;
+    --line: #dcdfd0; --card: #f6f7f0; --acc: #3a6b3f; --warn: #8a5a12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14150f; --fg: #e9ebe0; --mut: #9aa08a;
+            --line: #2c2e24; --card: #1c1e16; --acc: #8fc194; --warn: #d9a441; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--fg);
+         font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  .sub { color: var(--mut); margin: 0 0 1.75rem; font-size: .92rem; }
+  .aviso-topo { border-left: 3px solid var(--warn); background: var(--card);
+                padding: .7rem .9rem; margin: 0 0 1.75rem; font-size: .88rem; color: var(--mut); }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem 1.2rem;
+             margin: 0 0 1.5rem; }
+  legend { padding: 0 .4rem; font-weight: 600; font-size: .82rem;
+           text-transform: uppercase; letter-spacing: .06em; color: var(--mut); }
+  label { display: block; font-size: .85rem; color: var(--mut); margin-bottom: .35rem; }
+  input[type=file] { width: 100%; }
+  input[type=number] { width: 7rem; padding: .35rem .5rem; border: 1px solid var(--line);
+                       border-radius: 5px; background: var(--bg); color: var(--fg); font: inherit; }
+  .linha { display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; }
+  button { margin-top: 1rem; padding: .6rem 1.3rem; border: 0; border-radius: 6px;
+           background: var(--acc); color: var(--bg); font: 600 .95rem/1 inherit; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: progress; }
+  .par { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1.25rem; }
+  .faixa { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; }
+  .faixa h3 { margin: 0 0 .1rem; font-size: .95rem; }
+  .faixa p { margin: 0 0 .7rem; color: var(--mut); font-size: .8rem; }
+  audio { width: 100%; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .3rem 1.1rem; margin: 0; font-size: .88rem; }
+  dt { color: var(--mut); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .rolagem { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .84rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: .35rem .6rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--mut); font-weight: 600; }
+  .badge { display: inline-block; background: var(--card); border: 1px solid var(--warn);
+           color: var(--warn); border-radius: 5px; padding: .15rem .5rem; margin: 0 .4rem .4rem 0;
+           font-size: .8rem; }
+  .erro { border-left: 3px solid #b4402f; background: var(--card); padding: .8rem 1rem;
+          white-space: pre-wrap; font-size: .87rem; }
+  .oculto { display: none; }
+  code { background: var(--card); padding: .1rem .3rem; border-radius: 3px; font-size: .85em; }
+  footer { margin-top: 2.5rem; color: var(--mut); font-size: .82rem; border-top: 1px solid var(--line);
+           padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Escuta A/B da fatia vertical</h1>
+  <p class="sub">Sobe uma faixa, roda o pipeline de DSP de forma síncrona e devolve o resultado para comparar aqui mesmo.</p>
+
+  <div class="aviso-topo">
+    Ferramenta de diagnóstico, não o produto. Sem fila, sem persistência, sem job e sem agente —
+    o áudio é processado dentro da requisição e o resultado fica guardado por 10 minutos.
+    A rota só existe quando <code>MIXLIROUS_DEV_SLICE=1</code>.
+  </div>
+
+  <form id="form">
+    <fieldset>
+      <legend>Entrada</legend>
+      <label for="file">Arquivo — WAV, FLAC, AIFF, MP3, AAC ou M4A (máx. 100 MB, 4 min)</label>
+      <input type="file" id="file" name="file" accept="audio/*,.wav,.flac,.aiff,.aif,.mp3,.m4a,.aac" required>
+      <div class="linha">
+        <div>
+          <label for="stretch" style="margin-top:1rem">Estiramento (opcional, 0.90–1.10)</label>
+          <input type="number" id="stretch" step="0.01" min="0.90" max="1.10" placeholder="sem estiramento">
+        </div>
+      </div>
+      <button type="submit" id="botao">Processar</button>
+    </fieldset>
+  </form>
+
+  <div id="erro" class="erro oculto"></div>
+
+  <section id="saida" class="oculto">
+    <div class="par">
+      <div class="faixa">
+        <h3>Original</h3>
+        <p>O arquivo como você enviou, direto do navegador.</p>
+        <audio id="audio-original" controls preload="metadata"></audio>
+      </div>
+      <div class="faixa">
+        <h3>Processado</h3>
+        <p>Depois de emenda, fades e masterização.</p>
+        <audio id="audio-resultado" controls preload="metadata"></audio>
+        <p style="margin:.6rem 0 0"><a id="baixar" download="mixlirous-resultado.wav">Baixar WAV</a></p>
+      </div>
+    </div>
+
+    <fieldset style="margin-top:1.5rem">
+      <legend>Medidas</legend>
+      <div id="avisos"></div>
+      <dl id="medidas"></dl>
+    </fieldset>
+
+    <fieldset>
+      <legend>Emendas</legend>
+      <div id="sem-emendas" class="oculto" style="color:var(--mut);font-size:.88rem">
+        Nenhuma emenda — o pipeline não montou blocos e usou o PCM bruto.
+        Só a masterização agiu sobre o áudio.
+      </div>
+      <div class="rolagem">
+        <table id="tabela" class="oculto">
+          <thead><tr>
+            <th>#</th><th>Bloco (s)</th><th>Amostra alvo</th>
+            <th>Zero-crossing</th><th>Posição na saída (s)</th><th>Sobreposição</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </fieldset>
+  </section>
+
+  <footer>
+    Sem beat detectado, o pipeline cai no PCM bruto e o aviso
+    <code>no_beats_detected</code> aparece — isso é conhecido
+    (<code>onset &gt; 0.1</code> não é cruzado por material sintético de baixo transiente).
+  </footer>
+</main>
+
+<script>
+const form = document.getElementById('form');
+const botao = document.getElementById('botao');
+const divErro = document.getElementById('erro');
+const saida = document.getElementById('saida');
+let urlOriginal = null;
+let urlResultado = null;
+
+const ROTULOS = {
+  no_beats_detected: 'Nenhuma batida detectada — usou o PCM bruto, sem emendar',
+  unmeasurable_loudness: 'Loudness não mensurável — ganho de LUFS não aplicado',
+  time_stretch_skipped: 'Estiramento não pôde ser aplicado',
+};
+
+function mostrarErro(texto) {
+  divErro.textContent = texto;
+  divErro.classList.remove('oculto');
+  saida.classList.add('oculto');
+}
+
+form.addEventListener('submit', async (evento) => {
+  evento.preventDefault();
+  const arquivo = document.getElementById('file').files[0];
+  if (!arquivo) return;
+
+  divErro.classList.add('oculto');
+  botao.disabled = true;
+  botao.textContent = 'Processando…';
+
+  try {
+    const corpo = new FormData();
+    corpo.append('file', arquivo);
+
+    const stretch = document.getElementById('stretch').value;
+    const url = '/api/v1/dev/slice' + (stretch ? '?stretch=' + encodeURIComponent(stretch) : '');
+
+    const resposta = await fetch(url, { method: 'POST', body: corpo });
+    if (!resposta.ok) {
+      mostrarErro('HTTP ' + resposta.status + '\n\n' + (await resposta.text()));
+      return;
+    }
+    const dados = await resposta.json();
+
+    // O áudio vem em requisição separada, como blob — nada de base64 em
+    // JSON: uma faixa de 4 min viraria dezenas de MB de string.
+    const respAudio = await fetch(dados.audio_url);
+    if (!respAudio.ok) {
+      mostrarErro('Falha ao buscar o áudio: HTTP ' + respAudio.status
+                  + '\n\n' + (await respAudio.text()));
+      return;
+    }
+
+    if (urlOriginal) URL.revokeObjectURL(urlOriginal);
+    if (urlResultado) URL.revokeObjectURL(urlResultado);
+    urlOriginal = URL.createObjectURL(arquivo);
+    urlResultado = URL.createObjectURL(await respAudio.blob());
+
+    document.getElementById('audio-original').src = urlOriginal;
+    document.getElementById('audio-resultado').src = urlResultado;
+    document.getElementById('baixar').href = urlResultado;
+
+    renderizar(dados);
+    saida.classList.remove('oculto');
+  } catch (e) {
+    mostrarErro('Falha na requisição: ' + e);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = 'Processar';
+  }
+});
+
+function renderizar(dados) {
+  const avisos = document.getElementById('avisos');
+  avisos.innerHTML = '';
+  for (const aviso of dados.avisos) {
+    const span = document.createElement('span');
+    span.className = 'badge';
+    span.textContent = ROTULOS[aviso] || aviso;
+    avisos.appendChild(span);
+  }
+
+  const medidas = [
+    ['Duração da entrada', dados.duracao_entrada_seg.toFixed(3) + ' s'],
+    ['Duração da saída', dados.duracao_saida_seg.toFixed(3) + ' s'],
+    ['Estiramento aplicado', dados.estiramento === 1 ? 'nenhum' : dados.estiramento.toFixed(2) + '×'],
+    ['Canais na entrada', String(dados.canais_entrada)],
+    ['Sample rate', dados.sample_rate + ' Hz'],
+    ['BPM estimado', dados.bpm_estimado.toFixed(1)],
+    ['Batidas detectadas', String(dados.batidas_detectadas)],
+    ['Blocos montados', String(dados.blocos)],
+  ];
+  const dl = document.getElementById('medidas');
+  dl.innerHTML = '';
+  for (const [rotulo, valor] of medidas) {
+    const dt = document.createElement('dt');
+    dt.textContent = rotulo;
+    const dd = document.createElement('dd');
+    dd.textContent = valor;
+    dl.append(dt, dd);
+  }
+
+  const tabela = document.getElementById('tabela');
+  const semEmendas = document.getElementById('sem-emendas');
+  const corpo = tabela.querySelector('tbody');
+  corpo.innerHTML = '';
+
+  if (dados.emendas.length === 0) {
+    tabela.classList.add('oculto');
+    semEmendas.classList.remove('oculto');
+    return;
+  }
+  tabela.classList.remove('oculto');
+  semEmendas.classList.add('oculto');
+
+  for (const emenda of dados.emendas) {
+    const tr = document.createElement('tr');
+    const celulas = [
+      emenda.indice,
+      emenda.bloco_inicio_seg.toFixed(3) + '–' + emenda.bloco_fim_seg.toFixed(3),
+      emenda.amostra_alvo,
+      emenda.zero_crossing_mais_proximo,
+      emenda.posicao_na_saida_seg.toFixed(3),
+      emenda.sobreposicao_amostras,
+    ];
+    for (const valor of celulas) {
+      const td = document.createElement('td');
+      td.textContent = String(valor);
+      tr.appendChild(td);
+    }
+    corpo.appendChild(tr);
+  }
+}
+</script>
+</body>
+</html>
