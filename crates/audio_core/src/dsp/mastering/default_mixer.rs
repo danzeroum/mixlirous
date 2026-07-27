@@ -1,7 +1,7 @@
 use crate::domain::{AudioCodec, AudioFingerprint, BeatBlock, PipelineConfig};
 use crate::ports::AudioMixer;
 use ndarray::{s, Array1};
-use std::io;
+use std::io::{self, Seek, Write};
 use std::path::Path;
 
 fn io_err(e: impl std::fmt::Display) -> crate::Error {
@@ -9,6 +9,96 @@ fn io_err(e: impl std::fmt::Display) -> crate::Error {
 }
 
 pub struct DefaultMixer;
+
+impl DefaultMixer {
+    /// Mesma coisa que `export_wav`, mas para qualquer `Write + Seek` em vez
+    /// de um caminho no disco — é aqui que as validações e a conversão de
+    /// amostras moram de fato; `export_wav` só abre o arquivo e delega.
+    ///
+    /// Existe porque quem serve WAV por HTTP precisa dos bytes em memória
+    /// (`Cursor<Vec<u8>>`), e escrever num arquivo temporário só para lê-lo
+    /// de volta seria I/O inventado. Método inerente, não do trait: um
+    /// método genérico quebraria a object safety de `dyn AudioMixer`.
+    ///
+    /// As duas restrições deliberadas continuam valendo, cada uma retornando
+    /// erro em vez de escrever algo diferente do pedido silenciosamente (a
+    /// mesma regra de `apply_lufs_gain`/`LufsGainOutcome`: nunca falha calado):
+    ///
+    /// - **Só `AudioCodec::WAV`.** MP3/AAC/FLAC declarados em
+    ///   `AudioFormat::codec` não têm encoder em lugar nenhum do crate.
+    /// - **Só `channels == 1`.** Nenhum estágio do pipeline (crossfade,
+    ///   time_stretch, mastering) opera em áudio estéreo hoje — todos
+    ///   recebem `Array1<f32>`/`&[f32]` mono. Escrever um cabeçalho de 2
+    ///   canais para dados mono seria um WAV tecnicamente válido e
+    ///   semanticamente errado (canais trocados/duplicados sem ninguém
+    ///   pedir). `PipelineConfig::default()` declara `channels: 2` — quem
+    ///   chamar com o default precisa sobrescrever para 1 explicitamente.
+    pub fn encode_wav<W: Write + Seek>(
+        &self,
+        pcm: &Array1<f32>,
+        writer: W,
+        config: &PipelineConfig,
+    ) -> Result<(), crate::Error> {
+        if !matches!(config.format.codec, AudioCodec::WAV) {
+            return Err(crate::Error::Validation(format!(
+                "encode_wav só escreve WAV; codec pedido foi {:?}",
+                config.format.codec
+            )));
+        }
+        if config.format.channels != 1 {
+            return Err(crate::Error::Validation(format!(
+                "encode_wav só escreve mono hoje — nenhum estágio do pipeline \
+                 processa estéreo; channels pedido foi {}",
+                config.format.channels
+            )));
+        }
+
+        let (bits_per_sample, sample_format) = match config.format.bit_depth {
+            16 => (16, hound::SampleFormat::Int),
+            24 => (24, hound::SampleFormat::Int),
+            32 => (32, hound::SampleFormat::Float),
+            other => {
+                return Err(crate::Error::Validation(format!(
+                    "encode_wav só suporta bit_depth 16, 24 ou 32; pedido foi {other}"
+                )))
+            }
+        };
+
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: config.format.sample_rate,
+            bits_per_sample,
+            sample_format,
+        };
+
+        let mut writer = hound::WavWriter::new(writer, spec).map_err(io_err)?;
+
+        for &sample in pcm.iter() {
+            let clamped = sample.clamp(-1.0, 1.0);
+            let write_result = match bits_per_sample {
+                16 => writer.write_sample((clamped * i16::MAX as f32) as i16),
+                24 => writer.write_sample((clamped * 8_388_607.0) as i32),
+                32 => writer.write_sample(clamped),
+                _ => unreachable!("bits_per_sample já validado acima"),
+            };
+            write_result.map_err(io_err)?;
+        }
+
+        writer.finalize().map_err(io_err)
+    }
+
+    /// Conveniência para quem quer os bytes de um WAV em memória sem montar
+    /// o `Cursor` na mão — o caso da rota de diagnóstico.
+    pub fn encode_wav_to_vec(
+        &self,
+        pcm: &Array1<f32>,
+        config: &PipelineConfig,
+    ) -> Result<Vec<u8>, crate::Error> {
+        let mut buf = io::Cursor::new(Vec::new());
+        self.encode_wav(pcm, &mut buf, config)?;
+        Ok(buf.into_inner())
+    }
+}
 
 impl AudioMixer for DefaultMixer {
     fn render_stitched(
@@ -29,72 +119,19 @@ impl AudioMixer for DefaultMixer {
         Array1::from_vec(output)
     }
 
-    /// Escreve `pcm` (mono) como WAV em `path`, via `hound`. Duas restrições
-    /// deliberadas, cada uma retornando erro em vez de escrever algo
-    /// diferente do pedido silenciosamente (a mesma regra de
-    /// `apply_lufs_gain`/`LufsGainOutcome`: nunca falha calado):
-    ///
-    /// - **Só `AudioCodec::WAV`.** MP3/AAC/FLAC declarados em
-    ///   `AudioFormat::codec` não têm encoder em lugar nenhum do crate.
-    /// - **Só `channels == 1`.** Nenhum estágio do pipeline (crossfade,
-    ///   time_stretch, mastering) opera em áudio estéreo hoje — todos
-    ///   recebem `Array1<f32>`/`&[f32]` mono. Escrever um cabeçalho de 2
-    ///   canais para dados mono seria um WAV tecnicamente válido e
-    ///   semanticamente errado (canais trocados/duplicados sem ninguém
-    ///   pedir). `PipelineConfig::default()` declara `channels: 2` — quem
-    ///   chamar com o default precisa sobrescrever para 1 explicitamente.
+    /// Escreve `pcm` (mono) como WAV em `path`. Abre o arquivo e delega para
+    /// [`DefaultMixer::encode_wav`], onde ficam as validações e a conversão
+    /// de amostras — as mensagens de erro citam `encode_wav` por isso.
     fn export_wav(
         &self,
         pcm: &Array1<f32>,
         path: &Path,
         config: &PipelineConfig,
     ) -> Result<(), crate::Error> {
-        if !matches!(config.format.codec, AudioCodec::WAV) {
-            return Err(crate::Error::Validation(format!(
-                "export_wav só escreve WAV; codec pedido foi {:?}",
-                config.format.codec
-            )));
-        }
-        if config.format.channels != 1 {
-            return Err(crate::Error::Validation(format!(
-                "export_wav só escreve mono hoje — nenhum estágio do pipeline \
-                 processa estéreo; channels pedido foi {}",
-                config.format.channels
-            )));
-        }
-
-        let (bits_per_sample, sample_format) = match config.format.bit_depth {
-            16 => (16, hound::SampleFormat::Int),
-            24 => (24, hound::SampleFormat::Int),
-            32 => (32, hound::SampleFormat::Float),
-            other => {
-                return Err(crate::Error::Validation(format!(
-                    "export_wav só suporta bit_depth 16, 24 ou 32; pedido foi {other}"
-                )))
-            }
-        };
-
-        let spec = hound::WavSpec {
-            channels: 1,
-            sample_rate: config.format.sample_rate,
-            bits_per_sample,
-            sample_format,
-        };
-
-        let mut writer = hound::WavWriter::create(path, spec).map_err(io_err)?;
-
-        for &sample in pcm.iter() {
-            let clamped = sample.clamp(-1.0, 1.0);
-            let write_result = match bits_per_sample {
-                16 => writer.write_sample((clamped * i16::MAX as f32) as i16),
-                24 => writer.write_sample((clamped * 8_388_607.0) as i32),
-                32 => writer.write_sample(clamped),
-                _ => unreachable!("bits_per_sample já validado acima"),
-            };
-            write_result.map_err(io_err)?;
-        }
-
-        writer.finalize().map_err(io_err)
+        // `BufWriter` porque `encode_wav` escreve amostra a amostra; sem ele
+        // uma faixa de minutos vira milhões de `write` de 4 bytes no disco.
+        let file = io::BufWriter::new(std::fs::File::create(path)?);
+        self.encode_wav(pcm, file, config)
     }
 
     fn measure_similarity(
