@@ -14,6 +14,12 @@ volumes:
   minio_data:
 
 services:
+  # Postgres e MinIO só falam com remix_api pela rede interna do compose
+  # (`networks: [mixlirous]`) — não têm por que aceitar conexão de fora do
+  # host. Publicar em 0.0.0.0 (a forma antiga, sem endereço explícito) deixa
+  # as duas portas alcançáveis pela internet inteira se o firewall da VPS
+  # não bloquear, com credenciais padrão de exemplo por trás. Achado real,
+  # numa VPS de verdade, não hipotético — ver issue aberta sobre isto.
   postgres:
     image: postgres:16-alpine
     networks: [mixlirous]
@@ -21,10 +27,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: remix
-      POSTGRES_PASSWORD: remix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env antes de subir em modo VPS}
       POSTGRES_DB: remix_ai
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
 
   minio:
@@ -33,11 +39,11 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000" # API
-      - "9001:9001" # Console
+      - "127.0.0.1:9000:9000" # API
+      - "127.0.0.1:9001:9001" # Console
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER no .env antes de subir em modo VPS}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD no .env antes de subir em modo VPS}
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
@@ -56,10 +62,10 @@ services:
       # `docker compose up` com uma mensagem clara em vez de deixar o
       # container crash-loopar.
       - JWT_SECRET=${JWT_SECRET:?defina JWT_SECRET no .env antes de subir em modo VPS}
-      - DATABASE_URL=postgres://remix:remix@postgres:5432/remix_ai
+      - DATABASE_URL=postgres://remix:${POSTGRES_PASSWORD}@postgres:5432/remix_ai
       - REMIX__STORAGE__ENDPOINT=minio:9000
-      - REMIX__STORAGE__ACCESS_KEY=minioadmin
-      - REMIX__STORAGE__SECRET_KEY=minioadmin
+      - REMIX__STORAGE__ACCESS_KEY=${MINIO_ROOT_USER}
+      - REMIX__STORAGE__SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
       - "8080:8080"
     depends_on:
