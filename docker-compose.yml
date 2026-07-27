@@ -7,6 +7,17 @@
 # (audio_api::adapters::InMemoryRepo) — o Postgres já sobe aqui e o
 # DATABASE_URL já é injetado, mas o binário ainda não fala com ele; o
 # adapter real de Postgres é trabalho de Sprint 1+ (ADR-0003).
+#
+# Portas: os três serviços publicam apenas em 127.0.0.1. Este arquivo é o
+# modo VPS — uma máquina com IP público —, e as credenciais aqui são as de
+# desenvolvimento (remix:remix, minioadmin:minioadmin). Publicar em
+# 0.0.0.0 deixaria banco e storage alcançáveis da internet com senha
+# conhecida. Os serviços conversam entre si pela rede `mixlirous`, por nome
+# de container, sem depender de porta publicada; a publicação em loopback
+# existe só para diagnóstico local (`curl localhost:8080/healthz`, `psql -h
+# 127.0.0.1`). Expor qualquer uma delas para fora é decisão explícita de
+# quem opera — o caminho suportado é um proxy reverso à frente
+# (docs/18-DEPLOY-PUBLICO-NGINX.md), não trocar o binding aqui.
 networks:
   mixlirous:
     name: mixlirous
@@ -26,7 +37,7 @@ services:
       POSTGRES_PASSWORD: remix
       POSTGRES_DB: remix_ai
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
 
   minio:
@@ -35,8 +46,8 @@ services:
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000" # API
-      - "9001:9001" # Console
+      - "127.0.0.1:9000:9000" # API
+      - "127.0.0.1:9001:9001" # Console
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -63,7 +74,7 @@ services:
       - REMIX__STORAGE__ACCESS_KEY=minioadmin
       - REMIX__STORAGE__SECRET_KEY=minioadmin
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgres
       - minio

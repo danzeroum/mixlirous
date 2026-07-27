@@ -30,17 +30,18 @@ services:
     # listas tem nuance entre versões, e o custo de ser explícito é uma linha.
     networks: [mixlirous, btv-prod-net]
 
-    # O arquivo base publica 8080 em todas as interfaces. Com o nginx
-    # terminando TLS e aplicando auth_basic, quem alcançasse o IP público
-    # direto na 8080 contornaria os dois — e a rota de diagnóstico aceita
-    # upload sem autenticação de aplicação. Fica só no loopback; a
-    # verificação local (`curl localhost:8080/healthz`) continua funcionando.
+    # Redundante com o arquivo base, que já publica em 127.0.0.1 — e
+    # deliberadamente redundante. Com o nginx terminando TLS e aplicando
+    # auth_basic, quem alcançasse o IP público direto na 8080 contornaria os
+    # dois, e a rota de diagnóstico aceita upload sem autenticação de
+    # aplicação. Este overlay garante o loopback independentemente do que o
+    # base faça hoje ou venha a fazer.
     #
-    # `!override` é obrigatório aqui, não estilo: o merge de `ports` do
-    # Compose é **aditivo**. Sem ele, o `8080:8080` do arquivo base
-    # permaneceria publicado ao lado deste, e a porta continuaria aberta para
-    # a internet — silenciosamente, porque `docker compose config` mostraria
-    # as duas entradas e tudo pareceria certo.
+    # `!override` é obrigatório, não estilo: o merge de `ports` do Compose é
+    # **aditivo**. Sem a tag, um binding público no base sobreviveria ao lado
+    # deste e a porta continuaria aberta — silenciosamente, porque
+    # `docker compose config` mostraria as duas entradas e tudo pareceria
+    # certo.
     ports: !override ["127.0.0.1:8080:8080"]
 
     environment:
