@@ -138,10 +138,13 @@ bash backlog/import-issues.sh   # cria labels, milestones e issues
 
 ## 5. Três avisos honestos
 
-**1. O kit não compila.** São ~15 erros reais (imports faltando, variante de
-enum inexistente, macro `s!` não importada, string não fechada, versões de
-crates incompatíveis). Isso é normal para um scaffold gerado, mas precisa estar
-claro: a Sprint 0 existe só para isso. Detalhes em `docs/14-AUDITORIA-KIT.md`.
+**1. O kit não compilava — e isso já foi resolvido.** Eram ~15 erros reais
+(imports faltando, variante de enum inexistente, macro `s!` não importada,
+string não fechada, versões de crates incompatíveis), todos corrigidos:
+`cargo build --workspace`, `clippy -D warnings` e `fmt --check` passam hoje. O
+`docs/14-AUDITORIA-KIT.md` descreve o estado anterior e precisa de revisão. O
+que continua verdadeiro é o aviso 2: existe esqueleto compilando, não produto
+funcionando.
 
 **2. O escopo é grande para 4 semanas.** O plano original de 4 sprints entrega a
 V1 completa (DAG visual + ReAct + SSE + persistência dual + MLOps +
