@@ -1,5 +1,14 @@
 # Handoff — Mixlirous
 
+> **Arquivado.** Este documento descreve o handoff do kit original para este
+> repositório — já aconteceu. `docs/`, `backlog/`, `README.md` e
+> `CONTRIBUTING.md` citados abaixo já estão no lugar; a Sprint 0 (workspace
+> Rust compilando/testando/passando clippy, `ui/` buildando) está concluída.
+> Para o estado atual do projeto, ver [`README.md`](README.md). Mantido aqui
+> por valor histórico (a lista de erros originais do kit, as decisões de
+> ADR-0009/0010), não como instrução pendente — o restante deste arquivo
+> descreve um estado passado do repositório.
+
 > Pacote de entrega da arquitetura para **desenvolvimento** e **design**.
 > Repositório destino: <https://github.com/danzeroum/mixlirous>
 

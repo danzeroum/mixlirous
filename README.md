@@ -4,8 +4,16 @@ Motor de remixagem algorítmica de áudio guiado por IA. Descreva a intenção e
 linguagem natural; o sistema traduz em parâmetros determinísticos de DSP, corta
 a faixa em blocos alinhados às batidas, remonta e masteriza.
 
-> **Status:** pré-alpha. O código em `crates/` e `ui/` é um esqueleto de
-> referência e **ainda não compila**. Ver [`docs/14-AUDITORIA-KIT.md`](docs/14-AUDITORIA-KIT.md).
+> **Status:** pré-alpha, em desenvolvimento ativo. O workspace Rust
+> (`crates/`) compila, testa e passa `clippy -- -D warnings`; CI verde em
+> `main` (5 workflows). O motor de DSP tem testes acústicos reais sobre
+> fixtures sintéticas, e os bugs que eles encontram ficam abertos como
+> issues, não escondidos — ver o [rastreador de
+> issues](https://github.com/danzeroum/mixlirous/issues). A UI (`ui/`) tem
+> canvas, overlay de proposta e hook de SSE já implementados, mas ainda sem
+> fluxo de upload/criação de job — não há como chegar a um remix de ponta a
+> ponta pela interface hoje. `docs/14-AUDITORIA-KIT.md` é o registro
+> histórico da auditoria do kit original (Sprint 0), não o estado atual.
 
 ---
 
@@ -128,18 +136,23 @@ Para rodar só a API sem nenhuma dependência externa via Docker, use
 ```
 mixlirous/
 ├── crates/
-│   ├── audio_core/       Domínio + DSP (biblioteca, zero I/O de rede)
-│   │   ├── domain/       BeatBlock, EnergyProfile, PipelineConfig, Fingerprint
-│   │   ├── dsp/          analysis · stitching · mastering
-│   │   └── ports/        Traits: AudioRepo, AudioAnalyzer, AudioMixer, Storage
-│   ├── audio_agent/      Loop ReAct, registry de ferramentas, Validation Layer
-│   └── audio_api/        Axum: rotas, SSE, middleware, config
-├── ui/                   React Flow canvas
-├── prompts/              Prompts versionados como código (.prompt)
-├── config/               default.yaml · local.yaml · production.yaml
-├── migrations/           SQL (SQLite e PostgreSQL)
-├── tests/                Fixtures e Golden Masters
-└── docs/                 Arquitetura, contratos, design brief, roadmap
+│   ├── audio_core/         Domínio + DSP (biblioteca, zero I/O de rede)
+│   │   ├── domain/         BeatBlock, EnergyProfile, PipelineConfig, Fingerprint
+│   │   ├── dsp/            analysis · stitching · mastering
+│   │   ├── ports/          Traits: AudioRepo, AudioAnalyzer, AudioMixer, Storage
+│   │   ├── examples/       fatia_vertical — pipeline ponta a ponta sobre fixture sintética
+│   │   └── tests/          Testes acústicos e o harness dirigido pelo manifesto de fixtures
+│   ├── audio_agent/        Loop ReAct, registry de ferramentas, Validation Layer
+│   └── audio_api/          Axum: rotas, SSE, middleware, config
+├── ui/                     React Flow canvas, overlay de proposta, hook de SSE — sem fluxo de upload/job ainda
+├── prompts/                Prompts versionados como código (.prompt)
+├── config/                 default.yaml · local.yaml · production.yaml
+├── fixtures/               Áudio sintético gerado por scripts/generate_fixtures.py (gitignored, não comitado)
+├── scripts/                Geração de fixtures, lint de prompt, checagem de links de doc
+├── backlog/                issues.csv + import-issues.sh (usados uma vez, no handoff inicial)
+├── observability/          Config de Grafana/Tempo/Loki/Prometheus
+├── .github/workflows/      ci-rust, ci-frontend, docker-build, docs-check, prompt-lint
+└── docs/                   Arquitetura, contratos, design brief, roadmap
 ```
 
 ---
@@ -152,6 +165,7 @@ mixlirous/
 | [Glossário](docs/01-GLOSSARIO.md) | Todos |
 | [Arquitetura](docs/02-ARQUITETURA.md) | Dev |
 | [**Contratos de API + SSE**](docs/03-CONTRATOS-API.md) | Dev BE + FE |
+| [Adendo R2 aos contratos](docs/03-ADENDO-R2-CONTRATOS.md) | Dev BE + FE |
 | [Domínio e DSP](docs/04-DOMINIO-DSP.md) | Dev BE |
 | [Agente IA e HITL](docs/05-AGENTE-IA-HITL.md) | Dev BE + FE |
 | [Persistência e resiliência](docs/06-PERSISTENCIA-RESILIENCIA.md) | Dev BE |
@@ -162,8 +176,10 @@ mixlirous/
 | [Infra e deploy](docs/11-INFRA-DEPLOY.md) | Dev BE |
 | [**Design brief**](docs/12-DESIGN-BRIEF.md) | Design + FE |
 | [Roadmap e sprints](docs/13-ROADMAP-SPRINTS.md) | Todos |
-| [Auditoria do kit](docs/14-AUDITORIA-KIT.md) | Dev |
+| [Auditoria do kit](docs/14-AUDITORIA-KIT.md) — histórico, Sprint 0 | Dev |
+| [Correções de DSP](docs/16-CORRECOES-DSP.md) | Dev BE |
 | [**Guia de testes**](docs/17-GUIA-DE-TESTES.md) | Dev |
+| [Testes acústicos](docs/17.1-TESTES-ACUSTICOS.md) | Dev BE |
 | [ADRs](docs/adr/README.md) | Dev |
 
 ---
@@ -176,4 +192,6 @@ Conventional Commits, PR com checklist verde, `cargo clippy -- -D warnings` e
 
 ## Licença
 
-A definir antes do primeiro release público.
+MIT OR Apache-2.0, sua escolha — o mesmo padrão dual que a maior parte das
+dependências do projeto (`serde`, `ndarray`, `symphonia`, `tokio`, etc.) já
+usa. Ver [`LICENSE-MIT`](LICENSE-MIT) e [`LICENSE-APACHE`](LICENSE-APACHE).
