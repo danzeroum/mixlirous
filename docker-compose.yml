@@ -1,5 +1,7 @@
 # Modo VPS (docs/11-INFRA-DEPLOY.md §3): Postgres + MinIO + API. Para juntar
 # observabilidade: `docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d`
+# Para expor publicamente pelo nginx compartilhado do VPS (docs/18-DEPLOY-PUBLICO-NGINX.md):
+# `docker compose -f docker-compose.yml -f docker-compose.ingress.yml up -d`
 #
 # Nota: a Sprint 0 só entrega o adapter de repositório em memória
 # (audio_api::adapters::InMemoryRepo) — o Postgres já sobe aqui e o
