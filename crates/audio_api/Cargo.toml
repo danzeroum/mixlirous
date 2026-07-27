@@ -13,7 +13,9 @@ async-trait.workspace = true
 audio_core = { path = "../audio_core" }
 audio_agent = { path = "../audio_agent" }
 
-axum = "0.8.9"
+# `multipart` não é feature default e é o que a rota de diagnóstico usa para
+# receber o upload de áudio (routes/dev_slice.rs).
+axum = { version = "0.8.9", features = ["multipart"] }
 tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3.23"

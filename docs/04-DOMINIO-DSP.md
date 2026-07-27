@@ -573,5 +573,32 @@ Faixa de 5 minutos, 44,1 kHz estéreo, laptop de 4 vCPU:
 A análise (etapas B) é **cacheada por faixa**. O segundo remix da mesma faixa
 custa < 6 s no total. Isso é o que torna viável processar as 200 faixas.
 
+### Primeira medição real (2026-07-27)
+
+A fatia vertical ponta a ponta, medida pela rota de diagnóstico
+(`docs/18-DEPLOY-PUBLICO-NGINX.md` §8), sobre **180 s** de áudio mono a
+44,1 kHz, build `--release`:
+
+| Caminho | Medido |
+| --- | --- |
+| decode → onset → blocos → emenda → fades → masterização → encode | **0,35 s** |
+| o mesmo, com `time_stretch` | **1,97 s** |
+
+Duas ordens de grandeza abaixo do orçamento de 20 s. Três ressalvas honestas,
+porque o número é bom demais para ser aceito sem elas:
+
+1. **A emenda não rodou.** Nenhuma fixture produz blocos hoje (issue #27), então
+   o laço de crossfade não foi exercitado. É a etapa "Stitching" da tabela, e
+   ela está fora deste número.
+2. **Faltam chroma e seleção**, que a tabela orça em < 6 s e < 100 ms — nenhuma
+   das duas está implementada e chamada no caminho.
+3. Mono, não estéreo; e a máquina de medição não é o laptop de 4 vCPU do alvo.
+
+Mesmo com as três, o resampling (1,6 s dos 1,97 s) é o único estágio que
+aparece no orçamento — e ainda assim sobra folga. **A consequência de projeto
+é que preview quase em tempo real deixa de ser fantasia**, o que muda o que a
+UI pode assumir. Vale confirmar com `criterion` antes de alguém desenhar em
+cima disso.
+
 Benchmarks com `criterion` na Sprint 2, com regressão de performance no CI:
 falha se p95 piorar mais de 20% em relação à baseline.

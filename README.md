@@ -4,16 +4,12 @@ Motor de remixagem algorítmica de áudio guiado por IA. Descreva a intenção e
 linguagem natural; o sistema traduz em parâmetros determinísticos de DSP, corta
 a faixa em blocos alinhados às batidas, remonta e masteriza.
 
-> **Status:** pré-alpha, em desenvolvimento ativo. O workspace Rust
-> (`crates/`) compila, testa e passa `clippy -- -D warnings`; CI verde em
-> `main` (5 workflows). O motor de DSP tem testes acústicos reais sobre
-> fixtures sintéticas, e os bugs que eles encontram ficam abertos como
-> issues, não escondidos — ver o [rastreador de
-> issues](https://github.com/danzeroum/mixlirous/issues). A UI (`ui/`) tem
-> canvas, overlay de proposta e hook de SSE já implementados, mas ainda sem
-> fluxo de upload/criação de job — não há como chegar a um remix de ponta a
-> ponta pela interface hoje. `docs/14-AUDITORIA-KIT.md` é o registro
-> histórico da auditoria do kit original (Sprint 0), não o estado atual.
+> **Status:** pré-alpha. O workspace **compila** e os testes passam
+> (`cargo build --workspace`, `clippy -D warnings`, `fmt --check`), mas o
+> produto ainda não existe: não há fila, worker nem execução de pipeline
+> ligada à API, e o loop ReAct é `unimplemented!()`. Os erros catalogados em
+> [`docs/14-AUDITORIA-KIT.md`](docs/14-AUDITORIA-KIT.md) foram corrigidos — o
+> documento descreve um estado passado e precisa de revisão.
 
 ---
 
@@ -179,7 +175,7 @@ mixlirous/
 | [Auditoria do kit](docs/14-AUDITORIA-KIT.md) — histórico, Sprint 0 | Dev |
 | [Correções de DSP](docs/16-CORRECOES-DSP.md) | Dev BE |
 | [**Guia de testes**](docs/17-GUIA-DE-TESTES.md) | Dev |
-| [Testes acústicos](docs/17.1-TESTES-ACUSTICOS.md) | Dev BE |
+| [Deploy público (nginx compartilhado)](docs/18-DEPLOY-PUBLICO-NGINX.md) | Dev BE |
 | [ADRs](docs/adr/README.md) | Dev |
 
 ---

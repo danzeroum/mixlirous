@@ -154,7 +154,9 @@ cp .env.example .env && $EDITOR .env      # senhas e chave do LLM
 docker compose up -d
 ```
 
-Adicionar: Caddy ou Traefik na frente para TLS automático via Let's Encrypt.
+TLS e roteamento por domínio ficam num nginx compartilhado que já roda no VPS,
+fora deste repositório — não Caddy nem Traefik, como esta seção dizia antes.
+Runbook de publicação: [`18-DEPLOY-PUBLICO-NGINX.md`](18-DEPLOY-PUBLICO-NGINX.md).
 Backup diário do Postgres (`pg_dump`) e do diretório de storage.
 
 A UI precisa avisar quando o disco passar de 80% — em VPS pequena, WAV enche

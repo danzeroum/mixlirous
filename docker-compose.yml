@@ -1,10 +1,23 @@
 # Modo VPS (docs/11-INFRA-DEPLOY.md §3): Postgres + MinIO + API. Para juntar
 # observabilidade: `docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d`
+# Para expor publicamente pelo nginx compartilhado do VPS (docs/18-DEPLOY-PUBLICO-NGINX.md):
+# `docker compose -f docker-compose.yml -f docker-compose.ingress.yml up -d`
 #
 # Nota: a Sprint 0 só entrega o adapter de repositório em memória
 # (audio_api::adapters::InMemoryRepo) — o Postgres já sobe aqui e o
 # DATABASE_URL já é injetado, mas o binário ainda não fala com ele; o
 # adapter real de Postgres é trabalho de Sprint 1+ (ADR-0003).
+#
+# Portas: os três serviços publicam apenas em 127.0.0.1. Este arquivo é o
+# modo VPS — uma máquina com IP público —, e as credenciais aqui são as de
+# desenvolvimento (remix:remix, minioadmin:minioadmin). Publicar em
+# 0.0.0.0 deixaria banco e storage alcançáveis da internet com senha
+# conhecida. Os serviços conversam entre si pela rede `mixlirous`, por nome
+# de container, sem depender de porta publicada; a publicação em loopback
+# existe só para diagnóstico local (`curl localhost:8080/healthz`, `psql -h
+# 127.0.0.1`). Expor qualquer uma delas para fora é decisão explícita de
+# quem opera — o caminho suportado é um proxy reverso à frente
+# (docs/18-DEPLOY-PUBLICO-NGINX.md), não trocar o binding aqui.
 networks:
   mixlirous:
     name: mixlirous
@@ -67,7 +80,7 @@ services:
       - REMIX__STORAGE__ACCESS_KEY=${MINIO_ROOT_USER}
       - REMIX__STORAGE__SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgres
       - minio

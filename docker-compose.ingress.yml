@@ -1,0 +1,51 @@
+# Overlay de exposição pública (docs/18-DEPLOY-PUBLICO-NGINX.md): anexa o
+# remix_api à rede Docker do nginx compartilhado do VPS — um projeto Compose
+# separado, fora deste repositório (/opt/btv/ingress, projeto `global-ingress`,
+# container `btv-nginx-prod`). Rodar junto do compose principal:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ingress.yml up -d
+#
+# Esquecer o segundo `-f` num `up -d` futuro recria o remix_api sem a rede do
+# ingress: sem erro nenhum, só 502 depois. Para não depender de lembrar, o
+# .env do VPS pode fixar
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ingress.yml
+# e aí `docker compose up -d` sozinho já inclui os dois.
+networks:
+  # Criada e possuída pelo projeto `global-ingress`, não por este. Se não
+  # existir, o `up` falha dizendo isso — melhor que subir isolado e servir 502.
+  btv-prod-net:
+    external: true
+
+services:
+  remix_api:
+    # Único serviço do repositório com container_name fixo. O nginx externo
+    # faz `proxy_pass` para um nome de host Docker estável; sem isto o nome
+    # sairia do nome do projeto Compose, que por sua vez sai do nome do
+    # diretório do clone — nada disso está fixado aqui, então um clone em
+    # outro caminho quebraria o proxy sem aviso.
+    container_name: mixlirous-api
+
+    # As duas redes listadas explicitamente, em vez de contar com o merge do
+    # Compose sobre o `networks: [mixlirous]` do arquivo base: o merge de
+    # listas tem nuance entre versões, e o custo de ser explícito é uma linha.
+    networks: [mixlirous, btv-prod-net]
+
+    # Redundante com o arquivo base, que já publica em 127.0.0.1 — e
+    # deliberadamente redundante. Com o nginx terminando TLS e aplicando
+    # auth_basic, quem alcançasse o IP público direto na 8080 contornaria os
+    # dois, e a rota de diagnóstico aceita upload sem autenticação de
+    # aplicação. Este overlay garante o loopback independentemente do que o
+    # base faça hoje ou venha a fazer.
+    #
+    # `!override` é obrigatório, não estilo: o merge de `ports` do Compose é
+    # **aditivo**. Sem a tag, um binding público no base sobreviveria ao lado
+    # deste e a porta continuaria aberta — silenciosamente, porque
+    # `docker compose config` mostraria as duas entradas e tudo pareceria
+    # certo.
+    ports: !override ["127.0.0.1:8080:8080"]
+
+    environment:
+      # Liga POST /api/v1/dev/slice e a página de escuta A/B. Fail-closed por
+      # padrão: sem esta variável a rota não existe (404). Ver
+      # crates/audio_api/src/main.rs e docs/18.
+      - MIXLIROUS_DEV_SLICE=1

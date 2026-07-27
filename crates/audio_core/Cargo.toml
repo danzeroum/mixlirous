@@ -10,7 +10,20 @@ uuid.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
-symphonia = { version = "0.6.0", features = ["mp3", "aac", "isomp4"] }
+# Formatos aceitos na entrada (docs/14-AUDITORIA-KIT.md C-symphonia). `wav`,
+# `flac` e `pcm` já vêm nas features default da 0.6 — ficam listados mesmo
+# assim porque são requisito de produto, não conveniência: sem isso, alguém
+# que adicionasse `default-features = false` derrubaria formatos aceitos sem
+# perceber. `aiff` não é default e precisa ser pedido: está na especificação
+# de entrada junto com WAV, FLAC e MP3.
+symphonia = { version = "0.6.0", features = [
+    "wav",
+    "flac",
+    "aiff",
+    "mp3",
+    "aac",
+    "isomp4",
+] }
 ndarray = "0.17.2"
 # Fixadas em versão exata (docs/16 T1.1): estas quatro implementam a
 # matemática de DSP em si (FFT, loudness, resampling), não infraestrutura de

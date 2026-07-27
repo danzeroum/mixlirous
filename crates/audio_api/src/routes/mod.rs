@@ -1,9 +1,11 @@
 use crate::state::AppState;
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post},
     Router,
 };
 
+mod dev_slice;
 mod health;
 mod jobs;
 mod prompts;
@@ -33,4 +35,21 @@ pub fn api_router() -> Router<AppState> {
             get(tenants::get_consent).post(tenants::post_consent),
         )
         .route("/system/info", get(system::get_system_info))
+}
+
+/// Rotas de diagnóstico. **Só entram no router se `MIXLIROUS_DEV_SLICE=1`**
+/// (ver `main.rs`) — não existem por padrão.
+///
+/// Ficam sem `AuthContext` de propósito: quem protege é o `auth_basic` do
+/// nginx à frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). Não exponha o vhost
+/// sem ele.
+pub fn dev_router() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/dev/slice",
+            get(dev_slice::pagina).post(dev_slice::processar),
+        )
+        .route("/dev/slice/{id}", get(dev_slice::audio))
+        // O default do axum é 2 MB — uma faixa real em WAV passa de 50 MB.
+        .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
 }
