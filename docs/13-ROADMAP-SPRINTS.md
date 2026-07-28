@@ -33,6 +33,34 @@ A tentação é começar pela interface, porque é visível. Não funciona aqui:
 motor, a interface só tem dados falsos para mostrar, e todo o trabalho de estado
 (progresso, erro, recuperação) precisa ser refeito quando o backend chega.
 
+### Critério de aceite transversal: a saída tem que ser observável
+
+**Nenhuma sprint fecha sem que uma pessoa consiga perceber o resultado do que a
+sprint entregou, pelo caminho que o usuário usaria.** Não é observação de método
+— é condição de pronto, e vale para todas.
+
+Concretamente, por sprint: "o job processa" não fecha a S1; **alguém conseguir
+ouvir o resultado de um job**, sim. "O pipeline roda" não fecha a S2; ouvir a
+saída e comparar com a entrada, sim. "O agente propõe" não fecha a S3; ver a
+proposta, aceitar, e ouvir o que mudou, sim.
+
+**Por que isso virou critério.** Em 2026-07-27, três defeitos que afetam o áudio
+entregue apareceram nos primeiros minutos em que alguém ouviu um arquivo: o
+detector de onset não dispara em material nenhum ([#27](https://github.com/danzeroum/mixlirous/issues/27)),
+a masterização entrega até 17 LU abaixo do alvo sem avisar ([#37](https://github.com/danzeroum/mixlirous/issues/37)),
+e o `time_stretch` transpõe em vez de esticar ([#36](https://github.com/danzeroum/mixlirous/issues/36)).
+Nenhum aparecia em 255 testes verdes, porque cada teste verificava uma etapa e os
+três moram na costura entre etapas.
+
+E o detalhe que dá a régua: **o caminho de ponta a ponta já existia** —
+`crates/audio_core/examples/fatia_vertical.rs` rodava a cadeia inteira havia dias.
+O que faltava era ouvir: ele escrevia num arquivo que ninguém alcançava. Os
+defeitos apareceram quando a última milha até a percepção existiu, não quando a
+cadeia passou a rodar.
+
+Então "magro mas completo" **inclui observar a saída**. Um caminho que atravessa
+tudo e deposita o resultado onde ninguém olha ainda não atravessou.
+
 ---
 
 ## Sprint 0 — Fundação (3–5 dias)
