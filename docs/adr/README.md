@@ -300,6 +300,104 @@ se a demanda justificar o projeto de embutir ONNX.
 
 ---
 
+## ADR-0011 — Propriedade intelectual: implementar de literatura, nunca traduzir código copyleft
+
+**Status:** proposto — **não vale enquanto não tiver dono**
+**Data:** 2026-07-27
+**Dono:** `<preencher>`
+
+> Esta ADR foi redigida a partir do texto já especificado em
+> [`../16-CORRECOES-DSP.md`](../16-CORRECOES-DSP.md) §T0.1, que a exige com dono
+> nomeado. **Enquanto o campo acima estiver em branco, ela não está aceita** — o
+> ato que falta é uma pessoa assumir, não escrever. Ao preencher, trocar o status
+> para `aceito`.
+
+**Contexto.** O Mixlirous implementa DSP de áudio — limiters, crossfade,
+medição de loudness, detecção de onset — para o qual existe implementação de
+referência madura e legível no Audacity. A tentação de consultá-la é grande e o
+custo de ceder é o projeto inteiro.
+
+O Audacity é **GPL**: GPLv3 no projeto, GPLv2-or-later na maioria dos arquivos.
+Copiar **ou traduzir** qualquer arquivo de `au3/` para Rust cria obra derivada e
+propaga o copyleft para o Mixlirous inteiro, **incluindo o binário distribuído**.
+Não é risco de processo distante: é a licença do produto mudando por causa de um
+arquivo.
+
+**Decisão.** Implementar DSP a partir de literatura publicada e de crates com
+licença permissiva. Nunca a partir de código copyleft, nem por cópia nem por
+tradução.
+
+**Regras.**
+
+- **Proibido:** abrir o repositório do Audacity — ou qualquer base copyleft —
+  durante a implementação de um módulo de DSP equivalente. Ler e reescrever "com
+  as próprias palavras" logo em seguida **conta como reprodução**. A separação
+  precisa ser de fonte, não de redação.
+- **Permitido:** implementar a partir de literatura publicada (DAFX/Zölzer, EBU
+  TECH 3341/3342, ITU-R BS.1770, papers revisados) e usar crates com licença
+  permissiva — MIT, BSD, Apache-2.0.
+- **Obrigatório:** todo módulo de DSP novo cita a fonte no cabeçalho.
+
+**Sobre as citações — a parte que mais falha.** A política inteira depende de as
+referências serem verdadeiras. Um cabeçalho apontando para uma fonte que não diz
+aquilo é **pior que cabeçalho nenhum**: é documentação falsa de proveniência, e
+ela sobrevive anos porque parece rigor. **Confira cada citação contra um exemplar
+antes do commit.**
+
+Estado das citações que já circularam neste projeto:
+
+| Referência | Estado | Nota |
+|---|---|---|
+| DAFX 2ª ed. §4.2 "Dynamic Range Control" | **conferida** | Cobre limiters e compressores com a arquitetura envelope follower → curva estática → filtro de suavização → multiplicador. É a referência correta para o T3.2. |
+| "DAFX 2ª ed., Equal Power Crossfade, p. 46" | **não confirmada** | Não parece existir — a p. 46 cai no capítulo de filtros. Crossfade de potência constante é resultado elementar e pode ser citado de qualquer texto de processamento de sinais. **Não copie essa citação sem verificar.** |
+
+A segunda linha é o exemplo de por que esta seção existe: a referência circulou
+em documentos externos com aparência de verificada.
+
+**Adoção de biblioteca externa.** Antes de avaliar qualquer biblioteca por
+qualidade técnica, verifique a licença — a ordem inversa leva a escolher e
+descobrir depois, quando já há código em cima. Isto vale imediatamente para a
+[#36](https://github.com/danzeroum/mixlirous/issues/36) (estiramento temporal com
+preservação de tom), onde as implementações mais maduras são copyleft ou de
+licença dupla. **Nenhuma licença de biblioteca específica foi conferida contra a
+fonte oficial nesta redação** — conferir é parte do trabalho da #36, sob a mesma
+regra do quadro acima.
+
+**Alternativas consideradas.**
+
+- *Consultar o Audacity só para entender, sem copiar.* Descartada: é exatamente
+  o caso que a regra do "com as próprias palavras" cobre, e a linha entre
+  entender e reproduzir não é defensável depois do fato.
+- *Licenciar o Mixlirous como GPL e resolver o problema por adesão.* Descartada
+  aqui por ser decisão de produto, não de arquitetura — e ainda não tomada
+  (`README.md`: licença a definir antes do primeiro release público). Se um dia
+  for tomada, esta ADR é substituída, não contornada.
+
+**Consequências.**
+
+- Implementar de literatura é mais lento que traduzir código pronto. É custo
+  aceito, não descuido de planejamento.
+- Todo módulo novo carrega uma citação que alguém precisa ter conferido. O
+  checklist de PR precisa cobrir isso.
+- Ferramentas cujo estado da arte é copyleft — separação de stems, estiramento
+  com preservação de tom — ou entram por binário externo invocado como
+  subprocesso (ver ADR-0010), ou saem do escopo. Vincular como biblioteca é a
+  opção que a licença fecha.
+
+**Sobre a lacuna do `docs/15`.** A numeração dos documentos salta de 14 para 16.
+Um `docs/15-AUDACITY-TRIAGEM.md` foi referido em conversa mas **nunca foi
+commitado** — `git log --all --diff-filter=A` não retorna nada, em ref nenhuma.
+Vale registrar que isso pode ser deliberado: um documento que **triage o
+código-fonte do Audacity** é precisamente o tipo de artefato que esta política
+proíbe produzir durante a implementação de módulo equivalente. A lacuna fica
+explicada aqui em vez de ficar como vão sem motivo.
+
+**Quando revisar.** Se a licença do Mixlirous for definida como copyleft, ou se
+surgir implementação permissiva para alguma capacidade hoje bloqueada por
+licença.
+
+---
+
 ## Modelo para novas ADRs
 
 ```markdown
