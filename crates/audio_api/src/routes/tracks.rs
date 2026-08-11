@@ -163,8 +163,7 @@ mod tests {
 
     #[test]
     fn test_create_track_request_deserializes() {
-        let json =
-            concat!(r#"{ "object_key": "tenant-123/raw/test.wav", "display_name": "Test Track" }"#);
+        let json = r#"{ "object_key": "tenant-123/raw/test.wav", "display_name": "Test Track" }"#;
         let req: CreateTrackRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.object_key, "tenant-123/raw/test.wav");
         assert_eq!(req.display_name, "Test Track");
@@ -173,11 +172,7 @@ mod tests {
 
     #[test]
     fn test_create_track_request_with_project() {
-        let json = concat!(
-            r#"{ "object_key": "tenant-123/raw/test.wav", "#,
-            r#""display_name": "Test Track", "#,
-            r#""project_id": "550e8400-e29b-41d4-a716-446655440000" }"#
-        );
+        let json = r#"{ "object_key": "tenant-123/raw/test.wav", "display_name": "Test Track", "project_id": "550e8400-e29b-41d4-a716-446655440000" }"#;
         let req: CreateTrackRequest = serde_json::from_str(json).unwrap();
         assert!(req.project_id.is_some());
     }
