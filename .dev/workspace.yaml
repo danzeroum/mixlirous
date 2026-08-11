@@ -2,43 +2,41 @@
 
 root: .
 crate_root: crates/audio_api
-toolchain: stable-rust + {gcc | msvc}
-encoding: UTF-8 sem BOM → usar Write-RustFile sempre
+toolchain: stable-rust {gcc|msvc}
+encoding: UTF-8 sem BOM (Write-RustFile sempre)
 
-# ⚠ traps (lições aprendidas — não repetir)
+# RED PRE-PUSH CHECKLIST (roda antes de git push!)
+prepush:
+  shortcut: . .dev/DevHelper.ps1; Test-CI
+  steps: fmt --check, clippy -D warnings, build, test
+
+# TRAPS (learned the hard way)
 traps:
-  - Set-Content adiciona BOM UTF-8: usar Write-RustFile ou [System.IO.File]::WriteAllText(f, c, UTF8Encoding(false))
-  - Borrow checker get_mut + push: clonar antes de mutar, ou reordenar
-  - DSP edges: sample==0, buffer vazio, NaN — sempre testar bordas
-  - Testes em sub-módulos de rota: usar arquivos separados em tests/ para proptest
-  - Encoding bug preexistente: test_docs_05_table_matches_registry falha UTF-8 vs ASCII
+  - CI fmt --check fails: run cargo fmt --all before commit
+  - CI clippy -D warnings: run cargo clippy --workspace -- -D warnings
+  - Set-Content adds BOM: use Write-RustFile always
+  - DSP edges (0, NaN, empty): test borders always
+  - dead_code in infra modules: add #![allow(dead_code)] until integrated
 
-# 🗺 paths
+# PATHS
 paths:
   dsp: crates/audio_core/src/dsp
-    mastering: compressor, limiter, lufs, stretch, default_mixer
-    selection: knapsack (DP, continuous)
-    stitching: crossfade, fades, zero_cross
-    analysis: beat_tracking, chroma, fft, rms
   domain: crates/audio_core/src/domain
   agent: crates/audio_agent/src
   api: crates/audio_api/src
   ui: ui/src
 
-# 🚀 shortcuts
+# SHORTCUTS
 shortcuts:
-  build: cargo build -p audio_api
+  ci: Test-CI
+  fmt: cargo fmt --all
+  clippy: cargo clippy --workspace -- -D warnings
+  build: cargo build --workspace
   test: cargo test -p audio_api
-  full: cargo test --workspace
-  proptest: $env:PROPTEST_CASES=100; cargo test --test NAME
-  bomb: .dev/DevHelper.ps1; Test-NoBom @("file1","file2")
-  write: .dev/DevHelper.ps1; Write-RustFile -Path "crates/..." -Content $content
 
-# 📖 doc refs (com seção exata)
+# DOCS
 docs:
-  dsp: docs/04-DOMINIO-DSP.md (§8.1 compressor, §6.1 knapsack, §4.5 chroma, §9 MFCC)
-  contracts: docs/03-CONTRATOS-API.md (§3 endpoints, §5 SSE events)
-  agent: docs/05-AGENTE-IA-HITL.md (§2 ReAct, §6 LlmProvider, §7 prompt_guard)
-  tests: docs/10-TESTES-QUALIDADE.md (§3 invariantes, §4 recovery)
-  corrections: docs/16-CORRECOES-DSP.md
-  roadmap: docs/13-ROADMAP-SPRINTS.md
+  dsp: docs/04-DOMINIO-DSP.md
+  agent: docs/05-AGENTE-IA-HITL.md
+  contracts: docs/03-CONTRATOS-API.md
+  tests: docs/10-TESTES-QUALIDADE.md

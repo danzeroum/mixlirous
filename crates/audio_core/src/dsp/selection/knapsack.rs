@@ -45,8 +45,7 @@ pub fn select_blocks(
     let target = config.target_duration_sec;
     let tolerance = config.duration_tolerance_sec;
 
-    let preservation_sec =
-        (config.preserve_intro_ms + config.preserve_outro_ms) as f32 / 1000.0;
+    let preservation_sec = (config.preserve_intro_ms + config.preserve_outro_ms) as f32 / 1000.0;
     let available_target = target - preservation_sec;
 
     if available_target <= 0.0 {
@@ -168,8 +167,8 @@ pub fn select_continuous_window(
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
     use super::*;
+    use uuid::Uuid;
 
     fn make_block(id: usize, duration: f32, score: f32, beat_index: usize) -> BeatBlock {
         BeatBlock {
