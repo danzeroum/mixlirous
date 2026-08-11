@@ -1,7 +1,8 @@
-#![allow(dead_code)]
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct RateLimiter {
@@ -23,8 +24,8 @@ impl RateLimiter {
         }
     }
 
-    pub fn check(&self, key: &str) -> bool {
-        let mut state = self.state.lock().unwrap();
+    pub async fn check(&self, key: &str) -> bool {
+        let mut state = self.state.lock().await;
         let now = Instant::now();
 
         let (count, window_start) = state.counters.entry(key.to_string()).or_insert((0, now));
@@ -44,26 +45,58 @@ impl RateLimiter {
     }
 }
 
+/// Builds an axum middleware function that uses the given RateLimiter.
+pub fn rate_limit_middleware(
+    limiter: Arc<RateLimiter>,
+) -> impl Fn(Request, Next) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response> + Send>>
+       + Clone
+       + Send
+       + 'static {
+    move |req: Request, next: Next| {
+        let limiter = limiter.clone();
+        Box::pin(async move {
+            let key = req
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("unknown")
+                .split(',')
+                .next()
+                .unwrap_or("unknown")
+                .trim();
+
+            if !limiter.check(key).await {
+                return Response::builder()
+                    .status(StatusCode::TOO_MANY_REQUESTS)
+                    .body("rate limit exceeded".into())
+                    .unwrap();
+            }
+
+            next.run(req).await
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_rate_limit_allows_within_limit() {
+    #[tokio::test]
+    async fn test_rate_limit_allows_within_limit() {
         let rl = RateLimiter::new(3);
-        assert!(rl.check("test"));
-        assert!(rl.check("test"));
-        assert!(rl.check("test"));
-        assert!(!rl.check("test")); // blocked
+        assert!(rl.check("test").await);
+        assert!(rl.check("test").await);
+        assert!(rl.check("test").await);
+        assert!(!rl.check("test").await);
     }
 
-    #[test]
-    fn test_rate_limit_separate_keys() {
+    #[tokio::test]
+    async fn test_rate_limit_separate_keys() {
         let rl = RateLimiter::new(2);
-        assert!(rl.check("key_a"));
-        assert!(rl.check("key_b"));
-        assert!(rl.check("key_a"));
-        assert!(!rl.check("key_a")); // blocked for a
-        assert!(rl.check("key_b")); // still ok for b
+        assert!(rl.check("key_a").await);
+        assert!(rl.check("key_b").await);
+        assert!(rl.check("key_a").await);
+        assert!(!rl.check("key_a").await);
+        assert!(rl.check("key_b").await);
     }
 }

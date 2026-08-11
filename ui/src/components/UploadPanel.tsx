@@ -9,6 +9,7 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
   const [prompt, setPrompt] = useState('')
   const [status, setStatus] = useState<'idle' | 'uploading' | 'registered' | 'error'>('idle')
   const [message, setMessage] = useState('')
+  const [trackId, setTrackId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = async () => {
@@ -19,7 +20,7 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
     setMessage(`Enviando ${file.name}...`)
 
     try {
-      // For local mode, use presign route
+      // Step 1: Get presigned URL
       const presignResp = await fetch('/api/v1/uploads/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,22 +30,30 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
           content_type: file.type || 'audio/wav',
         }),
       })
-
       if (!presignResp.ok) throw new Error('Failed to get upload URL')
+      const { object_key, upload_url } = await presignResp.json()
 
-      // Register track
+      // Step 2: PUT the file bytes to the upload URL
+      const uploadResp = await fetch(upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'audio/wav' },
+        body: file,
+      })
+      if (!uploadResp.ok) throw new Error('Failed to upload file')
+
+      // Step 3: Register the track (once)
       const trackResp = await fetch('/api/v1/tracks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          object_key: `raw/${file.name}`,
+          object_key,
           display_name: file.name.replace(/\.[^.]+$/, ''),
         }),
       })
-
       if (!trackResp.ok) throw new Error('Failed to register track')
       const track: { track_id: string } = await trackResp.json()
 
+      setTrackId(track.track_id)
       setStatus('registered')
       setMessage('Faixa registrada!')
       onUploadComplete(track.track_id)
@@ -55,19 +64,8 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
   }
 
   const handleCreateJob = async () => {
-    const file = fileRef.current?.files?.[0]
-    if (!file || !prompt) return
-
-    const trackResp = await fetch('/api/v1/tracks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        object_key: `raw/${file.name}`,
-        display_name: file.name.replace(/\.[^.]+$/, ''),
-      }),
-    })
-    const track: { track_id: string } = await trackResp.json()
-    await onCreateJob(track.track_id, prompt)
+    if (!trackId || !prompt) return
+    await onCreateJob(trackId, prompt)
   }
 
   return (
@@ -75,7 +73,7 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
       <h2 className="text-lg font-bold text-white mb-4">Upload de faixa</h2>
 
       <div className="mb-4">
-        <label className="block text-sm text-gray-300 mb-2">Árquivo de áudio</label>
+        <label className="block text-sm text-gray-300 mb-2">Arquivo de audio</label>
         <input
           ref={fileRef}
           type="file"
@@ -85,11 +83,11 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm text-gray-300 mb-2">Descrição do remix</label>
+        <label className="block text-sm text-gray-300 mb-2">Descricao do remix</label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="ex: versão de 30s para Reels, agressiva, foco na bateria"
+          placeholder="ex: versao de 30s para Reels, agressiva, foco na bateria"
           className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 resize-none h-20"
           maxLength={4096}
         />
@@ -103,7 +101,7 @@ function UploadPanel({ onUploadComplete, onCreateJob }: Props) {
         >
           {status === 'uploading' ? 'Enviando...' : 'Upload'}
         </button>
-        {prompt && (
+        {prompt && trackId && (
           <button
             onClick={handleCreateJob}
             disabled={status === 'uploading'}

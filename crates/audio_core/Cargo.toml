@@ -10,6 +10,7 @@ uuid.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+bytes = "1"
 # Formatos aceitos na entrada (docs/14-AUDITORIA-KIT.md C-symphonia). `wav`,
 # `flac` e `pcm` j├í v├¬m nas features default da 0.6 ÔÇö ficam listados mesmo
 # assim porque s├úo requisito de produto, n├úo conveni├¬ncia: sem isso, algu├®m
