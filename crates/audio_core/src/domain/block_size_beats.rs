@@ -1,28 +1,28 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Tamanho da janela de agrupamento de batidas em blocos, em número de
-/// batidas — validado na desserialização, não numa camada por cima
-/// (`docs/16-CORRECOES-DSP` T0.0, I14). Mesmo padrão de [`crate::CrossfadeMs`]
-/// (ver o comentário lá para o racional completo).
+/// Tamanho da janela de agrupamento de batidas em blocos, em n├║mero de
+/// batidas ÔÇö validado na desserializa├º├úo, n├úo numa camada por cima
+/// (`docs/16-CORRECOES-DSP` T0.0, I14). Mesmo padr├úo de [`crate::CrossfadeMs`]
+/// (ver o coment├írio l├í para o racional completo).
 ///
-/// **`MIN`/`MAX` aqui são uma escolha minha, não um número de `docs/04` ou
-/// `docs/05`.** `docs/04-DOMINIO-DSP.md` §5 só dá exemplos de uso (`4, 8 ou
-/// 16`), sem declarar limite formal — diferente dos outros 8 newtypes deste
-/// lote, que têm faixa documentada em algum lugar do repositório. `MIN = 1`
-/// evita o caso degenerado de janela zero (`build_beat_blocks` já trata
-/// `block_size_beats == 0` como entrada inválida, retornando vazio — o
-/// newtype fecha isso um passo antes). `MAX = 64` dá bastante margem acima
+/// **`MIN`/`MAX` aqui s├úo uma escolha minha, n├úo um n├║mero de `docs/04` ou
+/// `docs/05`.** `docs/04-DOMINIO-DSP.md` ┬º5 s├│ d├í exemplos de uso (`4, 8 ou
+/// 16`), sem declarar limite formal ÔÇö diferente dos outros 8 newtypes deste
+/// lote, que t├¬m faixa documentada em algum lugar do reposit├│rio. `MIN = 1`
+/// evita o caso degenerado de janela zero (`build_beat_blocks` j├í trata
+/// `block_size_beats == 0` como entrada inv├ílida, retornando vazio ÔÇö o
+/// newtype fecha isso um passo antes). `MAX = 64` d├í bastante margem acima
 /// dos exemplos documentados sem abrir a porta para um valor absurdo (ex.:
-/// milhões) que faria sentido rejeitar mas que nenhum documento hoje proíbe
-/// explicitamente. Se esse teto se mostrar errado em uso real, é só ajustar
-/// a constante — o ponto do newtype é ter *um* lugar para isso, não acertar
-/// o número de primeira.
+/// milh├Áes) que faria sentido rejeitar mas que nenhum documento hoje pro├¡be
+/// explicitamente. Se esse teto se mostrar errado em uso real, ├® s├│ ajustar
+/// a constante ÔÇö o ponto do newtype ├® ter *um* lugar para isso, n├úo acertar
+/// o n├║mero de primeira.
 ///
-/// Sem entrada em `audio_agent::limits`/`validator`: `block_size_beats` é
-/// campo de [`crate::SelectionConfig`], não parâmetro de tool call do agente
-/// — `docs/05-AGENTE-IA-HITL.md` §3 exclui `block_selection` do escopo do
-/// registry de propósito (ainda não tem representação própria lá).
+/// Sem entrada em `audio_agent::limits`/`validator`: `block_size_beats` ├®
+/// campo de [`crate::SelectionConfig`], n├úo par├ómetro de tool call do agente
+/// ÔÇö `docs/05-AGENTE-IA-HITL.md` ┬º3 exclui `block_selection` do escopo do
+/// registry de prop├│sito (ainda n├úo tem representa├º├úo pr├│pria l├í).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "usize")]
 pub struct BlockSizeBeats(usize);

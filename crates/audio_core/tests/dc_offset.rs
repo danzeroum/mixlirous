@@ -1,18 +1,18 @@
-//! Offset DC — docs/17.1 §7. Entrada com média zero não pode virar saída com
-//! média diferente de zero. Barato, e pega assimetria em curva de ganho,
-//! clipping unilateral e erro de sinal em coeficiente de filtro — DC não se
+//! Offset DC ÔÇö docs/17.1 ┬º7. Entrada com m├®dia zero n├úo pode virar sa├¡da com
+//! m├®dia diferente de zero. Barato, e pega assimetria em curva de ganho,
+//! clipping unilateral e erro de sinal em coeficiente de filtro ÔÇö DC n├úo se
 //! ouve, consome margem de pico e faz o medidor de true peak reportar errado.
 //!
-//! **Só para os estágios onde a propriedade é garantida, não onde é
-//! plausível.** `brickwall_limiter` e `apply_lufs_gain` aplicam um único
-//! ganho linear uniforme ao buffer inteiro — `média(g·x) = g·média(x)`, então
-//! média zero na entrada implica média zero na saída por linearidade, sempre.
-//! `fade_in`/`fade_out`/`crossfade` aplicam ganho **variável no tempo**: isso
-//! NÃO preserva média zero em geral (reponderar amostras de forma desigual
-//! pode empurrar a média para qualquer lado, dependendo de onde as amostras
-//! positivas e negativas caem dentro da janela) — não é bug testável aqui,
-//! é a curva fazendo o que se espera dela. Incluir esses estágios neste
-//! teste seria afirmar uma propriedade que não é verdadeira em geral.
+//! **S├│ para os est├ígios onde a propriedade ├® garantida, n├úo onde ├®
+//! plaus├¡vel.** `brickwall_limiter` e `apply_lufs_gain` aplicam um ├║nico
+//! ganho linear uniforme ao buffer inteiro ÔÇö `m├®dia(g┬Àx) = g┬Àm├®dia(x)`, ent├úo
+//! m├®dia zero na entrada implica m├®dia zero na sa├¡da por linearidade, sempre.
+//! `fade_in`/`fade_out`/`crossfade` aplicam ganho **vari├ível no tempo**: isso
+//! N├âO preserva m├®dia zero em geral (reponderar amostras de forma desigual
+//! pode empurrar a m├®dia para qualquer lado, dependendo de onde as amostras
+//! positivas e negativas caem dentro da janela) ÔÇö n├úo ├® bug test├ível aqui,
+//! ├® a curva fazendo o que se espera dela. Incluir esses est├ígios neste
+//! teste seria afirmar uma propriedade que n├úo ├® verdadeira em geral.
 
 mod generators;
 
@@ -51,8 +51,8 @@ proptest! {
         prop_assume!(!x.is_empty());
         de_media(&mut x);
         let mut y = x.clone();
-        // Aplicado ou não (buffer curto demais para medir loudness), a
-        // propriedade tem que valer nos dois casos — não afirmamos qual.
+        // Aplicado ou n├úo (buffer curto demais para medir loudness), a
+        // propriedade tem que valer nos dois casos ÔÇö n├úo afirmamos qual.
         let _ = apply_lufs_gain(&mut y, 44_100, -14.0);
         prop_assert!(media(&y).abs() < 1e-4, "ganho LUFS introduziu DC: {}", media(&y));
     }

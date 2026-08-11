@@ -1,4 +1,4 @@
-/// Aplica brickwall limiting para garantir pico máximo
+/// Aplica brickwall limiting para garantir pico m├íximo
 pub fn brickwall_limiter(pcm: &mut [f32], max_peak_db: f32) {
     let max_peak_linear = 10f32.powf(max_peak_db / 20.0);
     let mut current_peak = 0.0f32;

@@ -1,12 +1,12 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Tempo de ataque do compressor, em milissegundos — validado na
-/// desserialização, não numa camada por cima (`docs/16-CORRECOES-DSP` T0.0,
+/// Tempo de ataque do compressor, em milissegundos ÔÇö validado na
+/// desserializa├º├úo, n├úo numa camada por cima (`docs/16-CORRECOES-DSP` T0.0,
 /// I14).
 ///
-/// Mesmo padrão de [`crate::CrossfadeMs`] (ver o comentário lá para o
-/// racional completo). `MIN`/`MAX` são a fonte canônica: `audio_agent::limits`
+/// Mesmo padr├úo de [`crate::CrossfadeMs`] (ver o coment├írio l├í para o
+/// racional completo). `MIN`/`MAX` s├úo a fonte can├┤nica: `audio_agent::limits`
 /// e `audio_agent::validator` leem daqui em vez de redigitar `0`/`500`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "u32")]

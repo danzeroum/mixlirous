@@ -2,7 +2,7 @@ use ndarray::{s, Array1};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Um bloco atômico de áudio alinhado a batidas
+/// Um bloco at├┤mico de ├íudio alinhado a batidas
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BeatBlock {
     pub id: Uuid,
@@ -14,11 +14,11 @@ pub struct BeatBlock {
     pub rms_energy: f32,
     pub spectral_centroid: f32,
     pub chroma_vector: Option<Vec<f32>>, // 12 classes de pitch
-    pub beat_index: usize,               // Posição na grade de batidas
-    pub score: f32,                      // Score de seleção (energia × prioridade)
+    pub beat_index: usize,               // Posi├º├úo na grade de batidas
+    pub score: f32,                      // Score de sele├º├úo (energia ├ù prioridade)
 }
 
-/// Perfil de energia para decisão heurística de seleção
+/// Perfil de energia para decis├úo heur├¡stica de sele├º├úo
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnergyProfile {
     pub rms_mean: f32,
@@ -36,7 +36,7 @@ pub struct BlockEnergy {
     pub percentile: f32, // P80, P90, etc.
 }
 
-/// Constrói a grade de BeatBlocks a partir de candidatos de batida
+/// Constr├│i a grade de BeatBlocks a partir de candidatos de batida
 pub fn build_beat_blocks(
     pcm: &Array1<f32>,
     beat_candidates: &[crate::domain::beat::BeatCandidate],
@@ -76,9 +76,9 @@ pub fn build_beat_blocks(
             duration: end_cand.time_sec - start_cand.time_sec,
             rms_energy: rms,
             spectral_centroid,
-            chroma_vector: None, // Será preenchido depois via AudioAnalyzer::extract_chroma
+            chroma_vector: None, // Ser├í preenchido depois via AudioAnalyzer::extract_chroma
             beat_index: i / window,
-            score: rms, // Pode ser refinado com heurísticas
+            score: rms, // Pode ser refinado com heur├¡sticas
         });
     }
 

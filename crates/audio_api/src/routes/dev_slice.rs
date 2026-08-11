@@ -1,18 +1,18 @@
-//! Rota de diagnóstico: expõe a fatia vertical do pipeline de forma síncrona,
-//! mais uma página de escuta A/B servida pela própria API.
+//! Rota de diagn├│stico: exp├Áe a fatia vertical do pipeline de forma s├¡ncrona,
+//! mais uma p├ígina de escuta A/B servida pela pr├│pria API.
 //!
-//! **Descartável de propósito.** Existe para resolver um problema concreto e
-//! temporário: o motor DSP funciona (ver
-//! `crates/audio_core/examples/fatia_vertical.rs`), mas não há fila, worker,
-//! nem execução de pipeline ligada à API — e o React em `ui/` foi desenhado
-//! para o produto (canvas de nós, propostas do agente, painel de raciocínio),
+//! **Descart├ível de prop├│sito.** Existe para resolver um problema concreto e
+//! tempor├írio: o motor DSP funciona (ver
+//! `crates/audio_core/examples/fatia_vertical.rs`), mas n├úo h├í fila, worker,
+//! nem execu├º├úo de pipeline ligada ├á API ÔÇö e o React em `ui/` foi desenhado
+//! para o produto (canvas de n├│s, propostas do agente, painel de racioc├¡nio),
 //! nada do que existe no backend hoje. Sem isto, julgar o resultado exige
 //! `docker cp` e um player de sistema. Com isto, sobe a faixa pelo navegador e
-//! compara. Quando o produto existir, este módulo sai inteiro — e o estado
-//! dele sai junto, porque mora aqui dentro e não no `AppState`.
+//! compara. Quando o produto existir, este m├│dulo sai inteiro ÔÇö e o estado
+//! dele sai junto, porque mora aqui dentro e n├úo no `AppState`.
 //!
-//! **Não é o pipeline de produção.** Sem fila, sem persistência, sem job, sem
-//! agente. O `react_kernel` é `unimplemented!()` e não é chamado daqui.
+//! **N├úo ├® o pipeline de produ├º├úo.** Sem fila, sem persist├¬ncia, sem job, sem
+//! agente. O `react_kernel` ├® `unimplemented!()` e n├úo ├® chamado daqui.
 
 use audio_core::domain::{AudioCodec, PipelineConfig};
 use audio_core::dsp::analysis::beat_tracking::{estimate_bpm, onset_strength};
@@ -36,29 +36,29 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 /// Teto de corpo do upload. Casa com o `client_max_body_size` do nginx
-/// (`docs/18-DEPLOY-PUBLICO-NGINX.md`) — descasar os dois faz o upload morrer
-/// com 413 do proxy, sem mensagem da aplicação.
+/// (`docs/18-DEPLOY-PUBLICO-NGINX.md`) ÔÇö descasar os dois faz o upload morrer
+/// com 413 do proxy, sem mensagem da aplica├º├úo.
 pub const LIMITE_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
 
-/// Teto de duração, conferido depois do decode e antes do DSP.
+/// Teto de dura├º├úo, conferido depois do decode e antes do DSP.
 ///
-/// A VPS não é dedicada: hospeda o nginx de ~15 domínios de produção, mais
-/// Postgres e MinIO. A saída é mono `f32`, então 4 min a 48 kHz são ~46 MB
-/// **por cópia** — e o pipeline segura várias vivas ao mesmo tempo (`pcm`,
+/// A VPS n├úo ├® dedicada: hospeda o nginx de ~15 dom├¡nios de produ├º├úo, mais
+/// Postgres e MinIO. A sa├¡da ├® mono `f32`, ent├úo 4 min a 48 kHz s├úo ~46 MB
+/// **por c├│pia** ÔÇö e o pipeline segura v├írias vivas ao mesmo tempo (`pcm`,
 /// `montado`, `esticado`, `pcm_final`, mais o resultado guardado). O pico
-/// transitório fica na casa dos 200 MB. Recusar na entrada é melhor que
+/// transit├│rio fica na casa dos 200 MB. Recusar na entrada ├® melhor que
 /// estourar o `proxy_read_timeout` no meio: o nginx cortaria com 504 e o
-/// usuário não receberia nem erro da aplicação nem resultado parcial.
+/// usu├írio n├úo receberia nem erro da aplica├º├úo nem resultado parcial.
 pub const LIMITE_DURACAO_SEG: f32 = 240.0;
 
-/// Por quanto tempo o resultado fica disponível para o `GET`.
+/// Por quanto tempo o resultado fica dispon├¡vel para o `GET`.
 const TTL_RESULTADO: Duration = Duration::from_secs(600);
 
-/// Slot único, não fila: para uma página de escuta de um usuário só, guardar
-/// mais de um resultado não serve para nada — e capacidade medida em
-/// *contagem*, com itens de tamanho ilimitado, não é limite nenhum.
+/// Slot ├║nico, n├úo fila: para uma p├ígina de escuta de um usu├írio s├│, guardar
+/// mais de um resultado n├úo serve para nada ÔÇö e capacidade medida em
+/// *contagem*, com itens de tamanho ilimitado, n├úo ├® limite nenhum.
 ///
-/// Mora no módulo, não no `AppState`: apagar este arquivo apaga o estado.
+/// Mora no m├│dulo, n├úo no `AppState`: apagar este arquivo apaga o estado.
 static ULTIMO_RESULTADO: OnceLock<Mutex<Option<ResultadoGuardado>>> = OnceLock::new();
 
 struct ResultadoGuardado {
@@ -73,7 +73,7 @@ fn slot() -> &'static Mutex<Option<ResultadoGuardado>> {
 
 #[derive(Debug, Deserialize)]
 pub struct SliceParams {
-    /// `wav` devolve os bytes direto, sem o segundo request — para `curl`.
+    /// `wav` devolve os bytes direto, sem o segundo request ÔÇö para `curl`.
     format: Option<String>,
     /// Fator de estiramento. Ausente = **sem estiramento**.
     stretch: Option<f32>,
@@ -112,16 +112,16 @@ fn erro(status: StatusCode, codigo: &str) -> Erro {
     (status, codigo.to_string())
 }
 
-/// `GET /api/v1/dev/slice` — a página de escuta.
+/// `GET /api/v1/dev/slice` ÔÇö a p├ígina de escuta.
 ///
-/// `include_str!` em vez de `ServeDir`/`rust-embed`: zero dependência nova,
+/// `include_str!` em vez de `ServeDir`/`rust-embed`: zero depend├¬ncia nova,
 /// nada a acrescentar no `COPY` do Dockerfile, e sem a fragilidade de caminho
-/// relativo ao CWD que `prompts.rs` já carrega.
+/// relativo ao CWD que `prompts.rs` j├í carrega.
 pub async fn pagina() -> Html<&'static str> {
     Html(include_str!("dev_slice.html"))
 }
 
-/// `GET /api/v1/dev/slice/{id}.wav` — o áudio do último resultado.
+/// `GET /api/v1/dev/slice/{id}.wav` ÔÇö o ├íudio do ├║ltimo resultado.
 pub async fn audio(Path(id_com_extensao): Path<String>) -> Result<Response, Erro> {
     let id_str = id_com_extensao
         .strip_suffix(".wav")
@@ -142,18 +142,18 @@ pub async fn audio(Path(id_com_extensao): Path<String>) -> Result<Response, Erro
             r.wav.clone(),
         )
             .into_response()),
-        // 410 e não 404 de propósito: 404 pareceria rota inexistente e
-        // mandaria alguém depurar a coisa errada. O recurso existiu.
+        // 410 e n├úo 404 de prop├│sito: 404 pareceria rota inexistente e
+        // mandaria algu├®m depurar a coisa errada. O recurso existiu.
         _ => Err((
             StatusCode::GONE,
-            "resultado_expirado: o slot guarda só o último render, por 10 min. \
+            "resultado_expirado: o slot guarda s├│ o ├║ltimo render, por 10 min. \
              Reenvie o arquivo em POST /api/v1/dev/slice."
                 .to_string(),
         )),
     }
 }
 
-/// `POST /api/v1/dev/slice` — roda a fatia vertical sobre o arquivo enviado.
+/// `POST /api/v1/dev/slice` ÔÇö roda a fatia vertical sobre o arquivo enviado.
 pub async fn processar(
     Query(params): Query<SliceParams>,
     multipart: Multipart,
@@ -161,11 +161,11 @@ pub async fn processar(
     let bytes = extrair_arquivo(multipart).await?;
 
     let estiramento = match params.stretch {
-        // Ausente = 1.0. O example usa 1.05 fixo, e o comentário dele diz o
-        // que é: "um ajuste de tempo plausível, não um estiramento artificial
-        // só para exercitar a função". Numa página cujo fim é julgar emenda e
-        // masterização de ouvido, isso injeta uma variável alheia às duas e a
-        // saída deixa de ser comparável com a entrada.
+        // Ausente = 1.0. O example usa 1.05 fixo, e o coment├írio dele diz o
+        // que ├®: "um ajuste de tempo plaus├¡vel, n├úo um estiramento artificial
+        // s├│ para exercitar a fun├º├úo". Numa p├ígina cujo fim ├® julgar emenda e
+        // masteriza├º├úo de ouvido, isso injeta uma vari├ível alheia ├ás duas e a
+        // sa├¡da deixa de ser compar├ível com a entrada.
         None => 1.0,
         Some(f) => TimeStretchFactor::try_from(f)
             .map_err(|_| {
@@ -181,7 +181,7 @@ pub async fn processar(
             .get(),
     };
 
-    // O pipeline é síncrono e pesado. No executor async ele travaria o
+    // O pipeline ├® s├¡ncrono e pesado. No executor async ele travaria o
     // runtime inteiro enquanto processa.
     let (resposta, wav) = tokio::task::spawn_blocking(move || rodar_pipeline(&bytes, estiramento))
         .await
@@ -220,7 +220,7 @@ async fn extrair_arquivo(mut multipart: Multipart) -> Result<Bytes, Erro> {
                 (
                     StatusCode::PAYLOAD_TOO_LARGE,
                     format!(
-                        "file_too_large: o limite é {} MB",
+                        "file_too_large: o limite ├® {} MB",
                         LIMITE_UPLOAD_BYTES / 1024 / 1024
                     ),
                 )
@@ -233,7 +233,7 @@ async fn extrair_arquivo(mut multipart: Multipart) -> Result<Bytes, Erro> {
     ))
 }
 
-/// A fatia vertical em si — mesma cadeia do example, na mesma ordem.
+/// A fatia vertical em si ÔÇö mesma cadeia do example, na mesma ordem.
 fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<u8>), Erro> {
     let mut avisos: Vec<&'static str> = Vec::new();
 
@@ -249,7 +249,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
         return Err((
             StatusCode::PAYLOAD_TOO_LARGE,
             format!(
-                "file_too_large: o limite é {:.0} s ({:.1} min) e a faixa tem {:.0} s",
+                "file_too_large: o limite ├® {:.0} s ({:.1} min) e a faixa tem {:.0} s",
                 LIMITE_DURACAO_SEG,
                 LIMITE_DURACAO_SEG / 60.0,
                 duracao_entrada
@@ -260,7 +260,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
     let sample_rate = decodificado.sample_rate;
     let pcm = downmix_to_mono(&decodificado);
 
-    // 1. Detecção de batidas
+    // 1. Detec├º├úo de batidas
     let params = BeatDetectionParams {
         sample_rate,
         ..Default::default()
@@ -275,8 +275,8 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
     let block_size_beats = config.selection.block_size_beats.get();
     let blocos = analyzer.build_blocks(&pcm, &beats, block_size_beats, sample_rate);
 
-    // 3. Emenda. Sem algoritmo de seleção (SelectionConfig não é lido em
-    //    lugar nenhum do crate ainda, docs/04 §5) — usa todos, em ordem.
+    // 3. Emenda. Sem algoritmo de sele├º├úo (SelectionConfig n├úo ├® lido em
+    //    lugar nenhum do crate ainda, docs/04 ┬º5) ÔÇö usa todos, em ordem.
     let fade_alvo = ((20.0f32 / 1000.0) * sample_rate as f32) as usize;
     let mut montado: Vec<f32> = Vec::new();
     let mut emendas: Vec<Emenda> = Vec::new();
@@ -315,9 +315,9 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
 
     if montado.is_empty() {
         // Acontece de verdade nas fixtures de `rhythm/`: `detect_beat_frames`
-        // exige `onset[i] > 0.1` e o pico real dessas fixtures é ~0.071
-        // (issue #27). Sem este aviso a página mentiria — sem blocos, só a
-        // masterização agiu, e o "remix" não fez nada.
+        // exige `onset[i] > 0.1` e o pico real dessas fixtures ├® ~0.071
+        // (issue #27). Sem este aviso a p├ígina mentiria ÔÇö sem blocos, s├│ a
+        // masteriza├º├úo agiu, e o "remix" n├úo fez nada.
         avisos.push("no_beats_detected");
         montado = pcm.to_vec();
     }
@@ -338,7 +338,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
         &FadeCurve::Logarithmic,
     );
 
-    // 5. Estiramento — só se pedido explicitamente.
+    // 5. Estiramento ÔÇö s├│ se pedido explicitamente.
     let pcm_esticado = if (estiramento - 1.0).abs() < f32::EPSILON {
         Array1::from_vec(montado)
     } else {
@@ -350,11 +350,11 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
             None => {
                 avisos.push("time_stretch_skipped");
                 entrada
-            }
+            },
         }
     };
 
-    // 6. Masterização
+    // 6. Masteriza├º├úo
     let mut pcm_final = pcm_esticado.to_vec();
     if let LufsGainOutcome::UnmeasurableLoudness = apply_lufs_gain(
         &mut pcm_final,
@@ -365,7 +365,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
     }
     brickwall_limiter(&mut pcm_final, config.mastering.peak_db);
 
-    // 7. Exportação em memória
+    // 7. Exporta├º├úo em mem├│ria
     let mut export = config;
     export.format.channels = 1;
     export.format.sample_rate = sample_rate;
@@ -418,8 +418,8 @@ mod tests {
             .unwrap()
     }
 
-    /// Uma senoide curta não cruza o limiar de onset — cai no fallback de PCM
-    /// bruto, e o aviso precisa aparecer. É o caso da issue #27.
+    /// Uma senoide curta n├úo cruza o limiar de onset ÔÇö cai no fallback de PCM
+    /// bruto, e o aviso precisa aparecer. ├ë o caso da issue #27.
     #[test]
     fn sem_batidas_avisa_em_vez_de_mentir() {
         let amostras: Vec<f32> = (0..44100).map(|i| (i as f32 * 0.05).sin() * 0.3).collect();
@@ -434,9 +434,9 @@ mod tests {
         assert!(!wav.is_empty());
     }
 
-    /// O ponto da correção: sem `?stretch`, a duração de saída acompanha a de
+    /// O ponto da corre├º├úo: sem `?stretch`, a dura├º├úo de sa├¡da acompanha a de
     /// entrada. Com o 1.05 fixo do example, sairia ~5% mais longa e a
-    /// comparação A/B estaria comparando materiais diferentes.
+    /// compara├º├úo A/B estaria comparando materiais diferentes.
     #[test]
     fn sem_stretch_a_duracao_nao_muda() {
         let amostras: Vec<f32> = (0..44100).map(|i| (i as f32 * 0.05).sin() * 0.3).collect();
@@ -446,7 +446,7 @@ mod tests {
         assert_eq!(resposta.estiramento, 1.0);
         assert!(
             (resposta.duracao_saida_seg - resposta.duracao_entrada_seg).abs() < 0.01,
-            "entrada {} vs saída {}",
+            "entrada {} vs sa├¡da {}",
             resposta.duracao_entrada_seg,
             resposta.duracao_saida_seg
         );
@@ -460,8 +460,8 @@ mod tests {
 
     #[test]
     fn faixa_longa_demais_e_recusada_na_entrada() {
-        // Sample rate baixo para fabricar duração longa sem alocar memória:
-        // 8 Hz × 4000 amostras = 500 s, acima do teto de 240 s.
+        // Sample rate baixo para fabricar dura├º├úo longa sem alocar mem├│ria:
+        // 8 Hz ├ù 4000 amostras = 500 s, acima do teto de 240 s.
         let amostras = vec![0.1f32; 4000];
         let bytes = wav_de_teste(&amostras, 8);
 

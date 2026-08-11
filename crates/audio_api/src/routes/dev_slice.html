@@ -1,12 +1,12 @@
-<!-- Página de diagnóstico da fatia vertical. HTML puro, sem build, sem
-     dependência externa — servida por include_str! a partir de dev_slice.rs.
-     Descartável junto com a rota. Ver docs/18-DEPLOY-PUBLICO-NGINX.md. -->
+<!-- P├ígina de diagn├│stico da fatia vertical. HTML puro, sem build, sem
+     depend├¬ncia externa ÔÇö servida por include_str! a partir de dev_slice.rs.
+     Descart├ível junto com a rota. Ver docs/18-DEPLOY-PUBLICO-NGINX.md. -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mixlirous — escuta A/B da fatia vertical</title>
+<title>Mixlirous ÔÇö escuta A/B da fatia vertical</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -64,22 +64,22 @@
 <body>
 <main>
   <h1>Escuta A/B da fatia vertical</h1>
-  <p class="sub">Sobe uma faixa, roda o pipeline de DSP de forma síncrona e devolve o resultado para comparar aqui mesmo.</p>
+  <p class="sub">Sobe uma faixa, roda o pipeline de DSP de forma s├¡ncrona e devolve o resultado para comparar aqui mesmo.</p>
 
   <div class="aviso-topo">
-    Ferramenta de diagnóstico, não o produto. Sem fila, sem persistência, sem job e sem agente —
-    o áudio é processado dentro da requisição e o resultado fica guardado por 10 minutos.
-    A rota só existe quando <code>MIXLIROUS_DEV_SLICE=1</code>.
+    Ferramenta de diagn├│stico, n├úo o produto. Sem fila, sem persist├¬ncia, sem job e sem agente ÔÇö
+    o ├íudio ├® processado dentro da requisi├º├úo e o resultado fica guardado por 10 minutos.
+    A rota s├│ existe quando <code>MIXLIROUS_DEV_SLICE=1</code>.
   </div>
 
   <form id="form">
     <fieldset>
       <legend>Entrada</legend>
-      <label for="file">Arquivo — WAV, FLAC, AIFF, MP3, AAC ou M4A (máx. 100 MB, 4 min)</label>
+      <label for="file">Arquivo ÔÇö WAV, FLAC, AIFF, MP3, AAC ou M4A (m├íx. 100 MB, 4 min)</label>
       <input type="file" id="file" name="file" accept="audio/*,.wav,.flac,.aiff,.aif,.mp3,.m4a,.aac" required>
       <div class="linha">
         <div>
-          <label for="stretch" style="margin-top:1rem">Estiramento (opcional, 0.90–1.10)</label>
+          <label for="stretch" style="margin-top:1rem">Estiramento (opcional, 0.90ÔÇô1.10)</label>
           <input type="number" id="stretch" step="0.01" min="0.90" max="1.10" placeholder="sem estiramento">
         </div>
       </div>
@@ -93,12 +93,12 @@
     <div class="par">
       <div class="faixa">
         <h3>Original</h3>
-        <p>O arquivo como você enviou, direto do navegador.</p>
+        <p>O arquivo como voc├¬ enviou, direto do navegador.</p>
         <audio id="audio-original" controls preload="metadata"></audio>
       </div>
       <div class="faixa">
         <h3>Processado</h3>
-        <p>Depois de emenda, fades e masterização.</p>
+        <p>Depois de emenda, fades e masteriza├º├úo.</p>
         <audio id="audio-resultado" controls preload="metadata"></audio>
         <p style="margin:.6rem 0 0"><a id="baixar" download="mixlirous-resultado.wav">Baixar WAV</a></p>
       </div>
@@ -113,14 +113,14 @@
     <fieldset>
       <legend>Emendas</legend>
       <div id="sem-emendas" class="oculto" style="color:var(--mut);font-size:.88rem">
-        Nenhuma emenda — o pipeline não montou blocos e usou o PCM bruto.
-        Só a masterização agiu sobre o áudio.
+        Nenhuma emenda ÔÇö o pipeline n├úo montou blocos e usou o PCM bruto.
+        S├│ a masteriza├º├úo agiu sobre o ├íudio.
       </div>
       <div class="rolagem">
         <table id="tabela" class="oculto">
           <thead><tr>
             <th>#</th><th>Bloco (s)</th><th>Amostra alvo</th>
-            <th>Zero-crossing</th><th>Posição na saída (s)</th><th>Sobreposição</th>
+            <th>Zero-crossing</th><th>Posi├º├úo na sa├¡da (s)</th><th>Sobreposi├º├úo</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -130,8 +130,8 @@
 
   <footer>
     Sem beat detectado, o pipeline cai no PCM bruto e o aviso
-    <code>no_beats_detected</code> aparece — isso é conhecido
-    (<code>onset &gt; 0.1</code> não é cruzado por material sintético de baixo transiente).
+    <code>no_beats_detected</code> aparece ÔÇö isso ├® conhecido
+    (<code>onset &gt; 0.1</code> n├úo ├® cruzado por material sint├®tico de baixo transiente).
   </footer>
 </main>
 
@@ -144,9 +144,9 @@ let urlOriginal = null;
 let urlResultado = null;
 
 const ROTULOS = {
-  no_beats_detected: 'Nenhuma batida detectada — usou o PCM bruto, sem emendar',
-  unmeasurable_loudness: 'Loudness não mensurável — ganho de LUFS não aplicado',
-  time_stretch_skipped: 'Estiramento não pôde ser aplicado',
+  no_beats_detected: 'Nenhuma batida detectada ÔÇö usou o PCM bruto, sem emendar',
+  unmeasurable_loudness: 'Loudness n├úo mensur├ível ÔÇö ganho de LUFS n├úo aplicado',
+  time_stretch_skipped: 'Estiramento n├úo p├┤de ser aplicado',
 };
 
 function mostrarErro(texto) {
@@ -162,7 +162,7 @@ form.addEventListener('submit', async (evento) => {
 
   divErro.classList.add('oculto');
   botao.disabled = true;
-  botao.textContent = 'Processando…';
+  botao.textContent = 'ProcessandoÔÇª';
 
   try {
     const corpo = new FormData();
@@ -178,11 +178,11 @@ form.addEventListener('submit', async (evento) => {
     }
     const dados = await resposta.json();
 
-    // O áudio vem em requisição separada, como blob — nada de base64 em
+    // O ├íudio vem em requisi├º├úo separada, como blob ÔÇö nada de base64 em
     // JSON: uma faixa de 4 min viraria dezenas de MB de string.
     const respAudio = await fetch(dados.audio_url);
     if (!respAudio.ok) {
-      mostrarErro('Falha ao buscar o áudio: HTTP ' + respAudio.status
+      mostrarErro('Falha ao buscar o ├íudio: HTTP ' + respAudio.status
                   + '\n\n' + (await respAudio.text()));
       return;
     }
@@ -199,7 +199,7 @@ form.addEventListener('submit', async (evento) => {
     renderizar(dados);
     saida.classList.remove('oculto');
   } catch (e) {
-    mostrarErro('Falha na requisição: ' + e);
+    mostrarErro('Falha na requisi├º├úo: ' + e);
   } finally {
     botao.disabled = false;
     botao.textContent = 'Processar';
@@ -217,9 +217,9 @@ function renderizar(dados) {
   }
 
   const medidas = [
-    ['Duração da entrada', dados.duracao_entrada_seg.toFixed(3) + ' s'],
-    ['Duração da saída', dados.duracao_saida_seg.toFixed(3) + ' s'],
-    ['Estiramento aplicado', dados.estiramento === 1 ? 'nenhum' : dados.estiramento.toFixed(2) + '×'],
+    ['Dura├º├úo da entrada', dados.duracao_entrada_seg.toFixed(3) + ' s'],
+    ['Dura├º├úo da sa├¡da', dados.duracao_saida_seg.toFixed(3) + ' s'],
+    ['Estiramento aplicado', dados.estiramento === 1 ? 'nenhum' : dados.estiramento.toFixed(2) + '├ù'],
     ['Canais na entrada', String(dados.canais_entrada)],
     ['Sample rate', dados.sample_rate + ' Hz'],
     ['BPM estimado', dados.bpm_estimado.toFixed(1)],
@@ -253,7 +253,7 @@ function renderizar(dados) {
     const tr = document.createElement('tr');
     const celulas = [
       emenda.indice,
-      emenda.bloco_inicio_seg.toFixed(3) + '–' + emenda.bloco_fim_seg.toFixed(3),
+      emenda.bloco_inicio_seg.toFixed(3) + 'ÔÇô' + emenda.bloco_fim_seg.toFixed(3),
       emenda.amostra_alvo,
       emenda.zero_crossing_mais_proximo,
       emenda.posicao_na_saida_seg.toFixed(3),

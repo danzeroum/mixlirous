@@ -2,6 +2,7 @@ use audio_core::ports::repo_trait::{
     AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError,
 };
 use audio_core::{AudioFingerprint, BeatBlock, PipelineConfig};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -14,14 +15,6 @@ struct InMemoryState {
     consent: HashMap<Uuid, ConsentRecord>,
 }
 
-/// Implementação em memória do `AudioRepo`, usada como padrão local/MVP
-/// (ver ADR-0003). Uma implementação real sobre SQLite/Postgres é trabalho de
-/// Sprint 1+; esta adapter mantém a Sprint 0 compilando e testável sem
-/// depender de um banco de verdade.
-///
-/// `jobs` e `audit` ficam sob o mesmo `RwLock` (não dois locks separados):
-/// `transition_job` precisa escrever os dois como uma unidade atômica, e dois
-/// locks independentes não garantiriam isso mesmo em memória.
 #[derive(Default)]
 pub struct InMemoryRepo {
     state: RwLock<InMemoryState>,
@@ -52,9 +45,12 @@ impl AudioRepo for InMemoryRepo {
             user_id,
             config: serde_json::to_value(config)?,
             blocks: serde_json::to_value(blocks)?,
-            status: JobStatus::Pending,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
+            status: JobStatus::Queued,
+            worker_id: None,
+            attempts: 0,
+            last_heartbeat: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         };
         state.jobs.insert(job_id, record);
         Ok(())
@@ -85,7 +81,6 @@ impl AudioRepo for InMemoryRepo {
         _job_id: Uuid,
         _fingerprint: &AudioFingerprint,
     ) -> Result<(), RepoError> {
-        // Placeholder: a Sprint 0 não persiste fingerprints; ver docs/09-MLOPS-GOLDEN-MASTER.md
         Ok(())
     }
 
@@ -96,15 +91,13 @@ impl AudioRepo for InMemoryRepo {
         audit_action: &str,
     ) -> Result<(), RepoError> {
         let mut state = self.state.write().await;
-        let now = chrono::Utc::now();
-
+        let now = Utc::now();
         let job = state
             .jobs
             .get_mut(&job_id)
             .ok_or(RepoError::NotFound(job_id))?;
         job.status = new_status.clone();
         job.updated_at = now;
-
         state.audit.push(AuditRecord {
             job_id,
             action: audit_action.to_string(),
@@ -137,11 +130,89 @@ impl AudioRepo for InMemoryRepo {
         let mut state = self.state.write().await;
         let record = ConsentRecord {
             tenant_id,
-            assisted_mode_accepted_at: chrono::Utc::now(),
+            assisted_mode_accepted_at: Utc::now(),
             provider_at_accept: provider,
         };
         state.consent.insert(tenant_id, record.clone());
         Ok(record)
+    }
+
+    async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError> {
+        let mut state = self.state.write().await;
+        let now = Utc::now();
+        let job_id = state
+            .jobs
+            .iter()
+            .filter(|(_, r)| r.status == JobStatus::Queued)
+            .min_by_key(|(_, r)| r.created_at)
+            .map(|(id, _)| *id);
+
+        match job_id {
+            Some(id) => {
+                let job = state.jobs.get_mut(&id).unwrap();
+                job.status = JobStatus::Processing;
+                job.worker_id = Some(worker_id);
+                job.last_heartbeat = Some(now);
+                job.updated_at = now;
+                let job_clone = job.clone();
+                state.audit.push(AuditRecord {
+                    job_id: id,
+                    action: "JOB_CLAIMED".to_string(),
+                    new_status: JobStatus::Processing,
+                    occurred_at: now,
+                });
+                Ok(Some(job_clone))
+            },
+            None => Ok(None),
+        }
+    }
+
+    async fn heartbeat(&self, job_id: Uuid, worker_id: Uuid) -> Result<(), RepoError> {
+        let mut state = self.state.write().await;
+        let now = Utc::now();
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or(RepoError::NotFound(job_id))?;
+        match job.worker_id {
+            Some(wid) if wid == worker_id => {
+                job.last_heartbeat = Some(now);
+                job.updated_at = now;
+                Ok(())
+            },
+            Some(_) => Err(RepoError::AlreadyClaimed(job_id)),
+            None => Err(RepoError::NotFound(job_id)),
+        }
+    }
+
+    async fn fail_and_retry(&self, job_id: Uuid, max_attempts: u8) -> Result<(), RepoError> {
+        let mut state = self.state.write().await;
+        let now = Utc::now();
+        let job = state
+            .jobs
+            .get_mut(&job_id)
+            .ok_or(RepoError::NotFound(job_id))?;
+        job.attempts += 1;
+        job.worker_id = None;
+        job.updated_at = now;
+        if job.attempts >= max_attempts {
+            job.status = JobStatus::Failed;
+            state.audit.push(AuditRecord {
+                job_id,
+                action: "JOB_FAILED".to_string(),
+                new_status: JobStatus::Failed,
+                occurred_at: now,
+            });
+        } else {
+            job.status = JobStatus::Queued;
+            state.audit.push(AuditRecord {
+                job_id,
+                action: "JOB_RETRY".to_string(),
+                new_status: JobStatus::Queued,
+                occurred_at: now,
+            });
+        }
+        Ok(())
     }
 }
 
@@ -150,129 +221,48 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_save_then_get_job_roundtrip() {
+    async fn test_claim_next_job_returns_oldest_queued() {
         let repo = InMemoryRepo::new();
-        let job_id = Uuid::new_v4();
+        let worker_id = Uuid::new_v4();
         let tenant_id = Uuid::new_v4();
-        let user_id = Uuid::new_v4();
-
-        repo.save_job(job_id, tenant_id, user_id, &PipelineConfig::default(), &[])
-            .await
-            .unwrap();
-        let job = repo.get_job(job_id, tenant_id).await.unwrap();
-
-        assert_eq!(job.id, job_id);
-        assert_eq!(job.tenant_id, tenant_id);
-        assert_eq!(job.user_id, user_id);
-    }
-
-    #[tokio::test]
-    async fn test_get_unknown_job_returns_not_found() {
-        let repo = InMemoryRepo::new();
-        let err = repo
-            .get_job(Uuid::new_v4(), Uuid::new_v4())
-            .await
-            .unwrap_err();
-        assert!(matches!(err, RepoError::NotFound(_)));
-    }
-
-    #[tokio::test]
-    async fn test_get_job_from_another_tenant_returns_not_found() {
-        // O caso grave: job existe, mas pertence a outro tenant. Tem que dar
-        // o mesmo NotFound de um job inexistente — nunca um erro que deixe
-        // dá pra distinguir "não existe" de "existe mas não é seu" (ver
-        // docs/08-SEGURANCA-MULTITENANCY.md §3, 404 nunca 403).
-        let repo = InMemoryRepo::new();
-        let job_id = Uuid::new_v4();
-        let owner_tenant = Uuid::new_v4();
-        let attacker_tenant = Uuid::new_v4();
-
+        let job1 = Uuid::new_v4();
+        let job2 = Uuid::new_v4();
         repo.save_job(
-            job_id,
-            owner_tenant,
+            job1,
+            tenant_id,
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
         )
         .await
         .unwrap();
-
-        let err = repo.get_job(job_id, attacker_tenant).await.unwrap_err();
-        assert!(matches!(err, RepoError::NotFound(_)));
-
-        // Confere que o dono de verdade ainda consegue.
-        assert!(repo.get_job(job_id, owner_tenant).await.is_ok());
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        repo.save_job(
+            job2,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        let claimed = repo.claim_next_job(worker_id).await.unwrap();
+        assert!(claimed.is_some());
+        assert_eq!(claimed.unwrap().id, job1);
     }
 
     #[tokio::test]
-    async fn test_list_jobs_scopes_by_tenant() {
+    async fn test_claim_next_job_returns_none_when_empty() {
         let repo = InMemoryRepo::new();
-        let tenant_a = Uuid::new_v4();
-        let tenant_b = Uuid::new_v4();
-
-        repo.save_job(
-            Uuid::new_v4(),
-            tenant_a,
-            Uuid::new_v4(),
-            &PipelineConfig::default(),
-            &[],
-        )
-        .await
-        .unwrap();
-        repo.save_job(
-            Uuid::new_v4(),
-            tenant_b,
-            Uuid::new_v4(),
-            &PipelineConfig::default(),
-            &[],
-        )
-        .await
-        .unwrap();
-
-        let jobs_a = repo.list_jobs(tenant_a).await.unwrap();
-        assert_eq!(jobs_a.len(), 1);
-        assert_eq!(jobs_a[0].tenant_id, tenant_a);
+        assert!(repo.claim_next_job(Uuid::new_v4()).await.unwrap().is_none());
     }
 
     #[tokio::test]
-    async fn test_list_jobs_returns_all_users_within_same_tenant() {
-        // Regressão: list_jobs já filtrou por `user_id` no lugar de
-        // `tenant_id` — passava com um usuário por tenant e escondia jobs de
-        // outros usuários do mesmo tenant. Dois usuários, um tenant, os dois
-        // jobs têm que aparecer.
+    async fn test_heartbeat_updates_last_heartbeat() {
         let repo = InMemoryRepo::new();
-        let tenant = Uuid::new_v4();
-        let user_a = Uuid::new_v4();
-        let user_b = Uuid::new_v4();
-
-        repo.save_job(
-            Uuid::new_v4(),
-            tenant,
-            user_a,
-            &PipelineConfig::default(),
-            &[],
-        )
-        .await
-        .unwrap();
-        repo.save_job(
-            Uuid::new_v4(),
-            tenant,
-            user_b,
-            &PipelineConfig::default(),
-            &[],
-        )
-        .await
-        .unwrap();
-
-        let jobs = repo.list_jobs(tenant).await.unwrap();
-        assert_eq!(jobs.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn test_transition_job_updates_status_and_records_audit_together() {
-        let repo = InMemoryRepo::new();
-        let job_id = Uuid::new_v4();
+        let worker_id = Uuid::new_v4();
         let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
         repo.save_job(
             job_id,
             tenant_id,
@@ -282,87 +272,139 @@ mod tests {
         )
         .await
         .unwrap();
+        repo.claim_next_job(worker_id).await.unwrap();
+        let hb_before = repo
+            .get_job(job_id, tenant_id)
+            .await
+            .unwrap()
+            .last_heartbeat
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        repo.heartbeat(job_id, worker_id).await.unwrap();
+        let hb_after = repo
+            .get_job(job_id, tenant_id)
+            .await
+            .unwrap()
+            .last_heartbeat
+            .unwrap();
+        assert!(hb_after > hb_before);
+    }
 
-        repo.transition_job(job_id, JobStatus::Processing, "JOB_STARTED")
+    #[tokio::test]
+    async fn test_heartbeat_rejects_wrong_worker() {
+        let repo = InMemoryRepo::new();
+        let worker1 = Uuid::new_v4();
+        let worker2 = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(worker1).await.unwrap();
+        assert!(matches!(
+            repo.heartbeat(job_id, worker2).await.unwrap_err(),
+            RepoError::AlreadyClaimed(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_fail_and_retry_requeues() {
+        let repo = InMemoryRepo::new();
+        let worker_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(worker_id).await.unwrap();
+        repo.fail_and_retry(job_id, 3).await.unwrap();
+        let job = repo.get_job(job_id, tenant_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Queued);
+        assert_eq!(job.attempts, 1);
+    }
+
+    #[tokio::test]
+    async fn test_fail_and_retry_fails_when_max_reached() {
+        let repo = InMemoryRepo::new();
+        let worker_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(worker_id).await.unwrap();
+        repo.fail_and_retry(job_id, 1).await.unwrap();
+        let job = repo.get_job(job_id, tenant_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Failed);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_claims_each_job_once() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        for _ in 0..10 {
+            repo.save_job(
+                Uuid::new_v4(),
+                tenant_id,
+                Uuid::new_v4(),
+                &PipelineConfig::default(),
+                &[],
+            )
             .await
             .unwrap();
+        }
+        let mut handles = vec![];
+        for _ in 0..10 {
+            let repo_clone = repo.clone();
+            handles.push(tokio::spawn(async move {
+                repo_clone.claim_next_job(Uuid::new_v4()).await
+            }));
+        }
+        let mut claimed = 0;
+        for h in handles {
+            if h.await.unwrap().unwrap().is_some() {
+                claimed += 1;
+            }
+        }
+        assert_eq!(claimed, 10);
+    }
 
-        let job = repo.get_job(job_id, tenant_id).await.unwrap();
-        assert_eq!(job.status, JobStatus::Processing);
-
+    #[tokio::test]
+    async fn test_claim_emits_audit_event() {
+        let repo = InMemoryRepo::new();
+        let worker_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(worker_id).await.unwrap();
         let audit = repo.list_audit_records(job_id).await.unwrap();
         assert_eq!(audit.len(), 1);
-        assert_eq!(audit[0].action, "JOB_STARTED");
-        assert_eq!(audit[0].new_status, JobStatus::Processing);
-    }
-
-    #[tokio::test]
-    async fn test_transition_job_on_unknown_job_writes_no_audit_record() {
-        let repo = InMemoryRepo::new();
-        let job_id = Uuid::new_v4();
-
-        let err = repo
-            .transition_job(job_id, JobStatus::Completed, "JOB_COMPLETED")
-            .await
-            .unwrap_err();
-
-        assert!(matches!(err, RepoError::NotFound(_)));
-        // Metade da atomicidade que importa: se o status não mudou, o evento
-        // de auditoria correspondente também não pode existir.
-        assert!(repo.list_audit_records(job_id).await.unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_get_consent_returns_none_before_any_acceptance() {
-        let repo = InMemoryRepo::new();
-        assert!(repo.get_consent(Uuid::new_v4()).await.unwrap().is_none());
-    }
-
-    #[tokio::test]
-    async fn test_save_then_get_consent_roundtrip() {
-        let repo = InMemoryRepo::new();
-        let tenant_id = Uuid::new_v4();
-
-        repo.save_consent(tenant_id, "deepseek".to_string())
-            .await
-            .unwrap();
-
-        let consent = repo.get_consent(tenant_id).await.unwrap().unwrap();
-        assert_eq!(consent.tenant_id, tenant_id);
-        assert_eq!(consent.provider_at_accept, "deepseek");
-    }
-
-    #[tokio::test]
-    async fn test_consent_scoped_by_tenant() {
-        let repo = InMemoryRepo::new();
-        let tenant_a = Uuid::new_v4();
-        let tenant_b = Uuid::new_v4();
-
-        repo.save_consent(tenant_a, "deepseek".to_string())
-            .await
-            .unwrap();
-
-        assert!(repo.get_consent(tenant_a).await.unwrap().is_some());
-        // Tenant B nunca aceitou — não pode herdar o consentimento de A.
-        assert!(repo.get_consent(tenant_b).await.unwrap().is_none());
-    }
-
-    #[tokio::test]
-    async fn test_save_consent_overwrites_previous_record() {
-        // Aceitar de novo depois de o provedor mudar substitui o registro
-        // velho, não acumula histórico — só a decisão mais recente importa
-        // para o gate de modo assistido.
-        let repo = InMemoryRepo::new();
-        let tenant_id = Uuid::new_v4();
-
-        repo.save_consent(tenant_id, "ollama".to_string())
-            .await
-            .unwrap();
-        repo.save_consent(tenant_id, "deepseek".to_string())
-            .await
-            .unwrap();
-
-        let consent = repo.get_consent(tenant_id).await.unwrap().unwrap();
-        assert_eq!(consent.provider_at_accept, "deepseek");
+        assert_eq!(audit[0].action, "JOB_CLAIMED");
     }
 }

@@ -1,8 +1,8 @@
-//! Entrada e saída de áudio: decodificação de arquivo para PCM.
+//! Entrada e sa├¡da de ├íudio: decodifica├º├úo de arquivo para PCM.
 //!
 //! A escrita de WAV mora em `dsp::mastering::default_mixer`
-//! (`DefaultMixer::encode_wav`), junto do resto da masterização — não aqui,
-//! para não separar a validação de formato do estágio que a usa.
+//! (`DefaultMixer::encode_wav`), junto do resto da masteriza├º├úo ÔÇö n├úo aqui,
+//! para n├úo separar a valida├º├úo de formato do est├ígio que a usa.
 
 pub mod decode;
 

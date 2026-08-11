@@ -1,15 +1,15 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Alvo de normalização de loudness, em LUFS (tipicamente negativo) —
-/// validado na desserialização, não numa camada por cima
+/// Alvo de normaliza├º├úo de loudness, em LUFS (tipicamente negativo) ÔÇö
+/// validado na desserializa├º├úo, n├úo numa camada por cima
 /// (`docs/16-CORRECOES-DSP` T0.0, I14).
 ///
-/// Mesmo padrão de [`crate::CrossfadeMs`] (ver o comentário lá para o
-/// racional completo). `MIN`/`MAX` são a fonte canônica: `audio_agent::limits`
+/// Mesmo padr├úo de [`crate::CrossfadeMs`] (ver o coment├írio l├í para o
+/// racional completo). `MIN`/`MAX` s├úo a fonte can├┤nica: `audio_agent::limits`
 /// e `audio_agent::validator` leem daqui em vez de redigitar `-30.0`/`-6.0`.
-/// Usado também em [`crate::MasteringConfig::lufs_target`] — o mesmo
-/// invariante vale para um `PipelineConfig` reconstruído do banco quanto para
+/// Usado tamb├®m em [`crate::MasteringConfig::lufs_target`] ÔÇö o mesmo
+/// invariante vale para um `PipelineConfig` reconstru├¡do do banco quanto para
 /// uma chamada de ferramenta do agente.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]

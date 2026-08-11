@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod otel;
+pub mod rate_limit;
 pub mod tenant_scope;
 
 // Re-exports

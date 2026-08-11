@@ -1,11 +1,11 @@
-//! Idempotência da normalização — docs/17.1 §1.2. Normalizar para o mesmo
+//! Idempot├¬ncia da normaliza├º├úo ÔÇö docs/17.1 ┬º1.2. Normalizar para o mesmo
 //! alvo de LUFS duas vezes tem que dar o mesmo que uma vez. Se divergir, o
-//! normalizador tem estado ou o medidor não é estável.
+//! normalizador tem estado ou o medidor n├úo ├® est├ível.
 //!
-//! Matematicamente esperado ser exato, não só próximo: LUFS escala em dB
-//! com a amplitude linear, então `apply_lufs_gain` na primeira chamada leva
-//! a medição a `target_lufs` (a menos de arredondamento de ponto flutuante);
-//! a segunda chamada mede isso, calcula `gain_db ~= 0`, e não move nada.
+//! Matematicamente esperado ser exato, n├úo s├│ pr├│ximo: LUFS escala em dB
+//! com a amplitude linear, ent├úo `apply_lufs_gain` na primeira chamada leva
+//! a medi├º├úo a `target_lufs` (a menos de arredondamento de ponto flutuante);
+//! a segunda chamada mede isso, calcula `gain_db ~= 0`, e n├úo move nada.
 
 mod generators;
 
@@ -39,7 +39,7 @@ proptest! {
 
         prop_assert!(
             residual_db(&uma, &duas) <= -100.0,
-            "segunda normalização moveu o sinal — residual {} dB",
+            "segunda normaliza├º├úo moveu o sinal ÔÇö residual {} dB",
             residual_db(&uma, &duas)
         );
     }

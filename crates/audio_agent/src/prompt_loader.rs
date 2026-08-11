@@ -7,7 +7,7 @@ pub fn load_prompt_file(path: impl AsRef<Path>) -> Result<PromptSpec, PromptErro
     let content = fs::read_to_string(path)?;
     let yaml: Value = serde_yaml::from_str(&content)?;
 
-    // Valida schema mínimo
+    // Valida schema m├¡nimo
     let id = yaml["id"]
         .as_str()
         .ok_or(PromptError::InvalidFormat("Missing 'id'".to_string()))?

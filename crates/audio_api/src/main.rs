@@ -3,13 +3,18 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 
 mod adapters;
+mod atomic;
 mod config;
+mod instrument;
 mod middleware;
+mod recovery;
 mod routes;
+mod sse;
 mod state;
+mod worker;
 
 use adapters::InMemoryRepo;
-use audio_agent::{validator::ValidationLayer, ReActOrchestrator};
+use audio_agent::{llm::mock::MockLlm, validator::ValidationLayer, ReActOrchestrator};
 use config::AppConfig;
 use state::AppState;
 
@@ -29,25 +34,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let repo = InMemoryRepo::new();
     let validator = Arc::new(ValidationLayer::new());
-    let orchestrator = Arc::new(ReActOrchestrator::new(validator, app_config.llm.max_tools));
+    let mock = Arc::new(MockLlm::new());
+    let orchestrator = Arc::new(ReActOrchestrator::<MockLlm>::new(
+        validator,
+        mock,
+        app_config.llm.max_tools,
+    ));
+    let hub = Arc::new(sse::EventHub::new());
 
-    let state = AppState {
-        repo,
-        orchestrator,
-        config: Arc::new(app_config),
-    };
+    let state = AppState::new(repo, orchestrator, Arc::new(app_config), hub.clone());
 
-    // Rota de diagnóstico da fatia vertical: fail-closed, atrás de uma
-    // variável própria.
-    //
-    // `CONFIG_ENV` não serve como trava aqui. O compose de VPS roda
-    // `CONFIG_ENV=default` (ver `docker-compose.yml`), então `== "local"`
-    // desligaria a rota justamente no servidor onde ela precisa rodar; e
-    // `!= "production"` é a formulação que este repositório já removeu uma
-    // vez como falha de segurança (ver o comentário em `middleware/auth.rs`
-    // — `default` é modo VPS real, não o laptop do desenvolvedor).
-    // `#[cfg(debug_assertions)]` também não serve: a imagem Docker é
-    // `--release`.
     let dev_slice = std::env::var("MIXLIROUS_DEV_SLICE").as_deref() == Ok("1");
     let mut api = routes::api_router();
     if dev_slice && config_env != "production" {
@@ -67,7 +63,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .merge(routes::health_router())
         .nest("/api/v1", api)
-        .with_state(state);
+        .with_state(state.clone());
+
+    recovery::run_recovery(&state).await.unwrap_or_default();
+
+    let worker_state = state.clone();
+    tokio::spawn(async move {
+        worker::start_worker(worker_state).await;
+    });
 
     let listener = TcpListener::bind("0.0.0.0:8080").await?;
     tracing::info!("Remix AI API listening on 0.0.0.0:8080");

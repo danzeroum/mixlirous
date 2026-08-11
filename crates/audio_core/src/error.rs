@@ -1,4 +1,4 @@
-/// Erro do domínio + DSP (`audio_core`)
+/// Erro do dom├¡nio + DSP (`audio_core`)
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("I/O error: {0}")]

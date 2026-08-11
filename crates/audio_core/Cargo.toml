@@ -11,10 +11,10 @@ thiserror.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 # Formatos aceitos na entrada (docs/14-AUDITORIA-KIT.md C-symphonia). `wav`,
-# `flac` e `pcm` já vêm nas features default da 0.6 — ficam listados mesmo
-# assim porque são requisito de produto, não conveniência: sem isso, alguém
+# `flac` e `pcm` j├í v├¬m nas features default da 0.6 ÔÇö ficam listados mesmo
+# assim porque s├úo requisito de produto, n├úo conveni├¬ncia: sem isso, algu├®m
 # que adicionasse `default-features = false` derrubaria formatos aceitos sem
-# perceber. `aiff` não é default e precisa ser pedido: está na especificação
+# perceber. `aiff` n├úo ├® default e precisa ser pedido: est├í na especifica├º├úo
 # de entrada junto com WAV, FLAC e MP3.
 symphonia = { version = "0.6.0", features = [
     "wav",
@@ -25,18 +25,18 @@ symphonia = { version = "0.6.0", features = [
     "isomp4",
 ] }
 ndarray = "0.17.2"
-# Fixadas em versão exata (docs/16 T1.1): estas quatro implementam a
-# matemática de DSP em si (FFT, loudness, resampling), não infraestrutura de
-# decodificação/array genérica — o rubato publicou quatro versões maiores em
-# sete meses, e a Sprint 0 já perdeu tempo com uma API que mudou embaixo.
-# Atualização destas quatro é tarefa agendada, com escuta, não efeito
+# Fixadas em vers├úo exata (docs/16 T1.1): estas quatro implementam a
+# matem├ítica de DSP em si (FFT, loudness, resampling), n├úo infraestrutura de
+# decodifica├º├úo/array gen├®rica ÔÇö o rubato publicou quatro vers├Áes maiores em
+# sete meses, e a Sprint 0 j├í perdeu tempo com uma API que mudou embaixo.
+# Atualiza├º├úo destas quatro ├® tarefa agendada, com escuta, n├úo efeito
 # colateral de `cargo update`.
 realfft = "=3.5.0"
 ebur128 = "=0.1.10"
 rubato = "=4.0.0"
 audioadapter-buffers = "=4.0.0"
 # Movida de dev-dependencies: `DefaultMixer::export_wav` (default_mixer.rs)
-# agora escreve WAV de verdade, não só os testes de fixture leem com isto.
+# agora escreve WAV de verdade, n├úo s├│ os testes de fixture leem com isto.
 hound = "3.5"
 
 [dev-dependencies]

@@ -1,9 +1,9 @@
-//! Beat Tracking Algorithm — implementação funcional baseada em onset strength
+//! Beat Tracking Algorithm ÔÇö implementa├º├úo funcional baseada em onset strength
 //!
 //! # Fluxo
 //! 1. Calcula energia RMS em janelas (hop)
 //! 2. Derivada da energia para detectar onsets (transientes)
-//! 3. Autocorrelação do onset strength para estimar BPM
+//! 3. Autocorrela├º├úo do onset strength para estimar BPM
 //! 4. Picos locais no onset strength para alinhar batidas
 
 use crate::domain::{BeatBlock, BeatCandidate, BeatDetectionParams, EnergyProfile};
@@ -27,7 +27,7 @@ pub fn onset_strength(pcm: &Array1<f32>, frame_size: usize, hop_size: usize) -> 
         return vec![0.0; rms_frames.len()];
     }
 
-    // 2. Calcula a derivada positiva (energia da mudança)
+    // 2. Calcula a derivada positiva (energia da mudan├ºa)
     let mut onset = Vec::with_capacity(rms_frames.len());
     onset.push(0.0); // Primeira janela sem derivada
 
@@ -36,7 +36,7 @@ pub fn onset_strength(pcm: &Array1<f32>, frame_size: usize, hop_size: usize) -> 
         onset.push(delta.max(0.0)); // Apenas transientes positivos
     }
 
-    // 3. Suaviza com janela móvel de 3 pontos
+    // 3. Suaviza com janela m├│vel de 3 pontos
     let mut smoothed = Vec::with_capacity(onset.len());
     for i in 0..onset.len() {
         let window_start = i.saturating_sub(1);
@@ -49,9 +49,9 @@ pub fn onset_strength(pcm: &Array1<f32>, frame_size: usize, hop_size: usize) -> 
     smoothed
 }
 
-/// Estima o BPM a partir do onset strength usando autocorrelação
+/// Estima o BPM a partir do onset strength usando autocorrela├º├úo
 pub fn estimate_bpm(onset: &[f32], sample_rate: u32, hop_size: usize) -> f32 {
-    // Parâmetros: busca BPM entre 60 e 240 (1-4 batidas por segundo)
+    // Par├ómetros: busca BPM entre 60 e 240 (1-4 batidas por segundo)
     let min_bpm = 60.0;
     let max_bpm = 240.0;
     let min_lag = (sample_rate as f32 * 60.0 / max_bpm / (hop_size as f32)).round() as usize;
@@ -62,7 +62,7 @@ pub fn estimate_bpm(onset: &[f32], sample_rate: u32, hop_size: usize) -> f32 {
         return 120.0;
     }
 
-    // Autocorrelação
+    // Autocorrela├º├úo
     let mut best_score = -1.0f32;
     let mut best_lag = min_lag.max(1);
 
@@ -96,7 +96,7 @@ pub fn estimate_bpm(onset: &[f32], sample_rate: u32, hop_size: usize) -> f32 {
     }
 }
 
-/// Detecta as posições de batida (em frames de onset) usando o onset strength
+/// Detecta as posi├º├Áes de batida (em frames de onset) usando o onset strength
 fn detect_beat_frames(
     onset: &[f32],
     sample_rate: u32,
@@ -114,7 +114,7 @@ fn detect_beat_frames(
 
     for i in 1..(onset.len() - 1) {
         if onset[i] > onset[i - 1] && onset[i] > onset[i + 1] && onset[i] > 0.1 {
-            // Supressão de proximidade: garante que batidas não fiquem muito próximas
+            // Supress├úo de proximidade: garante que batidas n├úo fiquem muito pr├│ximas
             if beat_indices.is_empty() || (i - beat_indices.last().unwrap()) > window_size {
                 beat_indices.push(i);
             }
@@ -124,7 +124,7 @@ fn detect_beat_frames(
     beat_indices
 }
 
-/// Detecta as posições de batida (em samples) usando o onset strength
+/// Detecta as posi├º├Áes de batida (em samples) usando o onset strength
 pub fn detect_beats(
     onset: &[f32],
     sample_rate: u32,
@@ -137,7 +137,7 @@ pub fn detect_beats(
         .collect()
 }
 
-/// Implementação concreta do AudioAnalyzer para DSP
+/// Implementa├º├úo concreta do AudioAnalyzer para DSP
 pub struct DefaultAnalyzer;
 
 impl crate::ports::analyzer_trait::AudioAnalyzer for DefaultAnalyzer {
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_estimate_bpm_returns_reasonable_range() {
-        // 120 BPM = 0.5s por batida; a 44100 Hz / hop 512, isso é ~43 frames
+        // 120 BPM = 0.5s por batida; a 44100 Hz / hop 512, isso ├® ~43 frames
         let period_frames = 43;
         let mut onset = vec![0.0f32; 300];
         for i in (0..300).step_by(period_frames) {
@@ -305,8 +305,8 @@ mod tests {
 
     #[test]
     fn test_detect_beats_finds_peaks() {
-        // Espaçamento de 30 frames (> janela de supressão para bpm_hint=120) evita
-        // que os picos sejam mesclados pela supressão de proximidade.
+        // Espa├ºamento de 30 frames (> janela de supress├úo para bpm_hint=120) evita
+        // que os picos sejam mesclados pela supress├úo de proximidade.
         let mut onset = vec![0.0f32; 130];
         onset[10] = 0.8;
         onset[40] = 0.9;
@@ -316,7 +316,7 @@ mod tests {
         let beats = detect_beats(&onset, 44100, 512, Some(120.0));
         assert!(
             beats.len() >= 3,
-            "Não encontrou os picos esperados: {:?}",
+            "N├úo encontrou os picos esperados: {:?}",
             beats
         );
     }

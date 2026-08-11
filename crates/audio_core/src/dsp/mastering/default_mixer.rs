@@ -12,26 +12,26 @@ pub struct DefaultMixer;
 
 impl DefaultMixer {
     /// Mesma coisa que `export_wav`, mas para qualquer `Write + Seek` em vez
-    /// de um caminho no disco — é aqui que as validações e a conversão de
-    /// amostras moram de fato; `export_wav` só abre o arquivo e delega.
+    /// de um caminho no disco ÔÇö ├® aqui que as valida├º├Áes e a convers├úo de
+    /// amostras moram de fato; `export_wav` s├│ abre o arquivo e delega.
     ///
-    /// Existe porque quem serve WAV por HTTP precisa dos bytes em memória
-    /// (`Cursor<Vec<u8>>`), e escrever num arquivo temporário só para lê-lo
-    /// de volta seria I/O inventado. Método inerente, não do trait: um
-    /// método genérico quebraria a object safety de `dyn AudioMixer`.
+    /// Existe porque quem serve WAV por HTTP precisa dos bytes em mem├│ria
+    /// (`Cursor<Vec<u8>>`), e escrever num arquivo tempor├írio s├│ para l├¬-lo
+    /// de volta seria I/O inventado. M├®todo inerente, n├úo do trait: um
+    /// m├®todo gen├®rico quebraria a object safety de `dyn AudioMixer`.
     ///
-    /// As duas restrições deliberadas continuam valendo, cada uma retornando
+    /// As duas restri├º├Áes deliberadas continuam valendo, cada uma retornando
     /// erro em vez de escrever algo diferente do pedido silenciosamente (a
     /// mesma regra de `apply_lufs_gain`/`LufsGainOutcome`: nunca falha calado):
     ///
-    /// - **Só `AudioCodec::WAV`.** MP3/AAC/FLAC declarados em
-    ///   `AudioFormat::codec` não têm encoder em lugar nenhum do crate.
-    /// - **Só `channels == 1`.** Nenhum estágio do pipeline (crossfade,
-    ///   time_stretch, mastering) opera em áudio estéreo hoje — todos
-    ///   recebem `Array1<f32>`/`&[f32]` mono. Escrever um cabeçalho de 2
-    ///   canais para dados mono seria um WAV tecnicamente válido e
-    ///   semanticamente errado (canais trocados/duplicados sem ninguém
-    ///   pedir). `PipelineConfig::default()` declara `channels: 2` — quem
+    /// - **S├│ `AudioCodec::WAV`.** MP3/AAC/FLAC declarados em
+    ///   `AudioFormat::codec` n├úo t├¬m encoder em lugar nenhum do crate.
+    /// - **S├│ `channels == 1`.** Nenhum est├ígio do pipeline (crossfade,
+    ///   time_stretch, mastering) opera em ├íudio est├®reo hoje ÔÇö todos
+    ///   recebem `Array1<f32>`/`&[f32]` mono. Escrever um cabe├ºalho de 2
+    ///   canais para dados mono seria um WAV tecnicamente v├ílido e
+    ///   semanticamente errado (canais trocados/duplicados sem ningu├®m
+    ///   pedir). `PipelineConfig::default()` declara `channels: 2` ÔÇö quem
     ///   chamar com o default precisa sobrescrever para 1 explicitamente.
     pub fn encode_wav<W: Write + Seek>(
         &self,
@@ -41,14 +41,14 @@ impl DefaultMixer {
     ) -> Result<(), crate::Error> {
         if !matches!(config.format.codec, AudioCodec::WAV) {
             return Err(crate::Error::Validation(format!(
-                "encode_wav só escreve WAV; codec pedido foi {:?}",
+                "encode_wav s├│ escreve WAV; codec pedido foi {:?}",
                 config.format.codec
             )));
         }
         if config.format.channels != 1 {
             return Err(crate::Error::Validation(format!(
-                "encode_wav só escreve mono hoje — nenhum estágio do pipeline \
-                 processa estéreo; channels pedido foi {}",
+                "encode_wav s├│ escreve mono hoje ÔÇö nenhum est├ígio do pipeline \
+                 processa est├®reo; channels pedido foi {}",
                 config.format.channels
             )));
         }
@@ -59,9 +59,9 @@ impl DefaultMixer {
             32 => (32, hound::SampleFormat::Float),
             other => {
                 return Err(crate::Error::Validation(format!(
-                    "encode_wav só suporta bit_depth 16, 24 ou 32; pedido foi {other}"
+                    "encode_wav s├│ suporta bit_depth 16, 24 ou 32; pedido foi {other}"
                 )))
-            }
+            },
         };
 
         let spec = hound::WavSpec {
@@ -75,22 +75,22 @@ impl DefaultMixer {
 
         for &sample in pcm.iter() {
             let write_result = match bits_per_sample {
-                // PCM inteiro não tem representação acima de fundo de escala,
-                // então limitar aqui é obrigatório — o problema é fazê-lo em
-                // silêncio, e isso continua aberto (issue #37): o certo é
-                // contar as amostras limitadas e devolver o número, para
-                // virar aviso. Enquanto a assinatura não carrega isso, ao
-                // menos o limite fica explícito e não confundido com o caso
+                // PCM inteiro n├úo tem representa├º├úo acima de fundo de escala,
+                // ent├úo limitar aqui ├® obrigat├│rio ÔÇö o problema ├® faz├¬-lo em
+                // sil├¬ncio, e isso continua aberto (issue #37): o certo ├®
+                // contar as amostras limitadas e devolver o n├║mero, para
+                // virar aviso. Enquanto a assinatura n├úo carrega isso, ao
+                // menos o limite fica expl├¡cito e n├úo confundido com o caso
                 // do float.
                 16 => writer.write_sample((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16),
                 24 => writer.write_sample((sample.clamp(-1.0, 1.0) * 8_388_607.0) as i32),
-                // WAV float de 32 bits representa acima de ±1,0 sem problema
-                // — é justamente para isso que se usa float como formato
-                // intermediário. Limitar aqui era perda pura de informação, e
-                // ironicamente fazia do único formato que preserva margem o
-                // único onde ela era descartada calada.
+                // WAV float de 32 bits representa acima de ┬▒1,0 sem problema
+                // ÔÇö ├® justamente para isso que se usa float como formato
+                // intermedi├írio. Limitar aqui era perda pura de informa├º├úo, e
+                // ironicamente fazia do ├║nico formato que preserva margem o
+                // ├║nico onde ela era descartada calada.
                 32 => writer.write_sample(sample),
-                _ => unreachable!("bits_per_sample já validado acima"),
+                _ => unreachable!("bits_per_sample j├í validado acima"),
             };
             write_result.map_err(io_err)?;
         }
@@ -98,8 +98,8 @@ impl DefaultMixer {
         writer.finalize().map_err(io_err)
     }
 
-    /// Conveniência para quem quer os bytes de um WAV em memória sem montar
-    /// o `Cursor` na mão — o caso da rota de diagnóstico.
+    /// Conveni├¬ncia para quem quer os bytes de um WAV em mem├│ria sem montar
+    /// o `Cursor` na m├úo ÔÇö o caso da rota de diagn├│stico.
     pub fn encode_wav_to_vec(
         &self,
         pcm: &Array1<f32>,
@@ -119,7 +119,7 @@ impl AudioMixer for DefaultMixer {
         _config: &PipelineConfig,
     ) -> Array1<f32> {
         // Placeholder: concatena os blocos sequencialmente
-        // Na prática: aplica crossfade, fades, time-stretch
+        // Na pr├ítica: aplica crossfade, fades, time-stretch
         let mut output = Vec::new();
         for block in blocks {
             if block.end_sample <= pcm_source.len() && block.start_sample < block.end_sample {
@@ -131,8 +131,8 @@ impl AudioMixer for DefaultMixer {
     }
 
     /// Escreve `pcm` (mono) como WAV em `path`. Abre o arquivo e delega para
-    /// [`DefaultMixer::encode_wav`], onde ficam as validações e a conversão
-    /// de amostras — as mensagens de erro citam `encode_wav` por isso.
+    /// [`DefaultMixer::encode_wav`], onde ficam as valida├º├Áes e a convers├úo
+    /// de amostras ÔÇö as mensagens de erro citam `encode_wav` por isso.
     fn export_wav(
         &self,
         pcm: &Array1<f32>,
@@ -140,7 +140,7 @@ impl AudioMixer for DefaultMixer {
         config: &PipelineConfig,
     ) -> Result<(), crate::Error> {
         // `BufWriter` porque `encode_wav` escreve amostra a amostra; sem ele
-        // uma faixa de minutos vira milhões de `write` de 4 bytes no disco.
+        // uma faixa de minutos vira milh├Áes de `write` de 4 bytes no disco.
         let file = io::BufWriter::new(std::fs::File::create(path)?);
         self.encode_wav(pcm, file, config)
     }
@@ -184,8 +184,8 @@ mod tests {
         assert_eq!(out.len(), 200);
     }
 
-    /// `PipelineConfig::default()` declara `channels: 2` — não é o config que
-    /// `export_wav` aceita, é o config para o resto do pipeline. Um teste que
+    /// `PipelineConfig::default()` declara `channels: 2` ÔÇö n├úo ├® o config que
+    /// `export_wav` aceita, ├® o config para o resto do pipeline. Um teste que
     /// usasse o default direto estaria testando o caminho de erro sem
     /// perceber; monta explicitamente o config mono que os testes de escrita
     /// real precisam.
@@ -209,7 +209,7 @@ mod tests {
                     .samples::<i32>()
                     .map(|s| s.unwrap() as f32 / max_val)
                     .collect()
-            }
+            },
         }
     }
 
@@ -246,9 +246,9 @@ mod tests {
         let lido = ler_wav_mono_f32(&path);
         assert_eq!(lido.len(), pcm.len());
         for (esperado, obtido) in pcm.iter().zip(lido.iter()) {
-            // Quantização de 16 bits: passo de 1/32767 ≈ 3e-5; tolerância
-            // generosa (1e-3) só para não prender o teste no arredondamento
-            // exato de um bit específico.
+            // Quantiza├º├úo de 16 bits: passo de 1/32767 Ôëê 3e-5; toler├óncia
+            // generosa (1e-3) s├│ para n├úo prender o teste no arredondamento
+            // exato de um bit espec├¡fico.
             assert!(
                 (esperado - obtido).abs() < 1e-3,
                 "esperado {esperado}, obtido {obtido}"
@@ -277,8 +277,8 @@ mod tests {
 
     #[test]
     fn test_export_wav_rejects_stereo_channels() {
-        // A restrição que existe hoje só porque nenhum estágio do pipeline
-        // processa estéreo — não um limite arbitrário de `export_wav`.
+        // A restri├º├úo que existe hoje s├│ porque nenhum est├ígio do pipeline
+        // processa est├®reo ÔÇö n├úo um limite arbitr├írio de `export_wav`.
         let dir = std::env::temp_dir().join(format!("mixlirous_test_{}", Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("saida.wav");
@@ -293,16 +293,16 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// Float de 32 bits preserva margem acima de ±1,0 — é o motivo de existir
-    /// como formato intermediário. O `clamp` que havia aqui destruía isso em
-    /// silêncio (ver a discussão no #37).
+    /// Float de 32 bits preserva margem acima de ┬▒1,0 ÔÇö ├® o motivo de existir
+    /// como formato intermedi├írio. O `clamp` que havia aqui destru├¡a isso em
+    /// sil├¬ncio (ver a discuss├úo no #37).
     #[test]
     fn export_wav_float32_preserva_amostras_acima_de_fundo_de_escala() {
         let dir = std::env::temp_dir().join(format!("mixlirous_test_{}", Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("saida.wav");
 
-        // 6.5 é a ordem de grandeza real medida no buffer intermediário do
+        // 6.5 ├® a ordem de grandeza real medida no buffer intermedi├írio do
         // pipeline depois de `apply_lufs_gain` em material percussivo (#37).
         let pcm = Array1::from_vec(vec![6.5f32, -6.5, 1.0, -1.0, 0.0]);
         DefaultMixer
@@ -310,13 +310,13 @@ mod tests {
             .unwrap();
 
         let lido = ler_wav_mono_f32(&path);
-        assert_eq!(lido, pcm.to_vec(), "float de 32 bits não pode limitar");
+        assert_eq!(lido, pcm.to_vec(), "float de 32 bits n├úo pode limitar");
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// PCM inteiro não tem representação acima de fundo de escala: limitar é
-    /// obrigatório. O que falta é contar e reportar (#37), não deixar de
+    /// PCM inteiro n├úo tem representa├º├úo acima de fundo de escala: limitar ├®
+    /// obrigat├│rio. O que falta ├® contar e reportar (#37), n├úo deixar de
     /// limitar.
     #[test]
     fn export_wav_inteiro_ainda_limita_por_falta_de_representacao() {
@@ -334,7 +334,7 @@ mod tests {
         assert!(lido[1] < -0.99 && lido[1] >= -1.0, "saturou em {}", lido[1]);
         assert!(
             (lido[2] - 0.5).abs() < 1e-3,
-            "não deveria tocar: {}",
+            "n├úo deveria tocar: {}",
             lido[2]
         );
 

@@ -5,9 +5,9 @@ use axum::{
 };
 use uuid::Uuid;
 
-/// Escopo de tenant resolvido a partir do JWT. Handlers que só precisam do
-/// `tenant_id` (sem o resto das claims) usam este extractor — mantém o
-/// princípio de `docs/03-CONTRATOS-API.md` §1: nenhum endpoint aceita
+/// Escopo de tenant resolvido a partir do JWT. Handlers que s├│ precisam do
+/// `tenant_id` (sem o resto das claims) usam este extractor ÔÇö mant├®m o
+/// princ├¡pio de `docs/03-CONTRATOS-API.md` ┬º1: nenhum endpoint aceita
 /// `tenant_id` vindo de corpo ou query.
 #[derive(Debug, Clone, Copy)]
 pub struct TenantScope(pub Uuid);

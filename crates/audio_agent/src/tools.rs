@@ -60,9 +60,9 @@ pub struct EqBand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrossfadeParams {
     pub duration_ms: u32,
-    /// "constant_power" | "constant_gain" — ver `docs/03-ADENDO-R2-CONTRATOS.md`
-    /// §0. Vocabulário distinto de `FadeParams.curve`: aqui dois sinais somam,
-    /// lá um sinal vai de/para o silêncio.
+    /// "constant_power" | "constant_gain" ÔÇö ver `docs/03-ADENDO-R2-CONTRATOS.md`
+    /// ┬º0. Vocabul├írio distinto de `FadeParams.curve`: aqui dois sinais somam,
+    /// l├í um sinal vai de/para o sil├¬ncio.
     pub curve: String,
 }
 
@@ -80,7 +80,7 @@ pub struct LufsNormalizationParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FadeParams {
     pub duration_ms: u32,
-    /// "linear" | "logarithmic" | "exponential" — percepção de volume, não
-    /// soma de dois sinais. Ver `docs/03-ADENDO-R2-CONTRATOS.md` §0.
+    /// "linear" | "logarithmic" | "exponential" ÔÇö percep├º├úo de volume, n├úo
+    /// soma de dois sinais. Ver `docs/03-ADENDO-R2-CONTRATOS.md` ┬º0.
     pub curve: String,
 }

@@ -15,7 +15,7 @@ pub fn apply_fade_out(pcm: &mut [f32], start: usize, duration_samples: usize, cu
                 let alpha = 1.0 - (i as f32) / (len as f32);
                 pcm[start + i] *= alpha;
             }
-        }
+        },
         FadeCurve::Logarithmic => {
             let n = len as f32;
             for i in 0..len {
@@ -23,7 +23,7 @@ pub fn apply_fade_out(pcm: &mut [f32], start: usize, duration_samples: usize, cu
                 let gain = 1.0 - (1.0 + x).ln() / (1.0 + n).ln();
                 pcm[start + i] *= gain.max(0.0);
             }
-        }
+        },
         FadeCurve::Exponential => {
             let n = (len as f32 - 1.0).max(1.0);
             for i in 0..len {
@@ -32,7 +32,7 @@ pub fn apply_fade_out(pcm: &mut [f32], start: usize, duration_samples: usize, cu
                 let gain = 2.0 - alpha.exp2();
                 pcm[start + i] *= gain.clamp(0.0, 1.0);
             }
-        }
+        },
     }
 }
 
@@ -45,7 +45,7 @@ pub fn apply_fade_in(pcm: &mut [f32], start: usize, duration_samples: usize, cur
                 let alpha = (i as f32) / (len as f32);
                 pcm[start + i] *= alpha;
             }
-        }
+        },
         FadeCurve::Logarithmic => {
             let n = len as f32;
             for i in 0..len {
@@ -53,7 +53,7 @@ pub fn apply_fade_in(pcm: &mut [f32], start: usize, duration_samples: usize, cur
                 let gain = 1.0 - (1.0 + x).ln() / (1.0 + n).ln();
                 pcm[start + i] *= gain.max(0.0);
             }
-        }
+        },
         FadeCurve::Exponential => {
             let n = (len as f32 - 1.0).max(1.0);
             for i in 0..len {
@@ -62,7 +62,7 @@ pub fn apply_fade_in(pcm: &mut [f32], start: usize, duration_samples: usize, cur
                 let gain = alpha.exp2() - 1.0;
                 pcm[start + i] *= gain.clamp(0.0, 1.0);
             }
-        }
+        },
     }
 }
 
@@ -81,11 +81,11 @@ mod tests {
             apply_fade_out(&mut pcm, 0, 100, &curve);
             assert!(
                 pcm[0] > 0.9,
-                "{curve:?} deveria começar próximo do volume cheio"
+                "{curve:?} deveria come├ºar pr├│ximo do volume cheio"
             );
             assert!(
                 pcm[99] < 0.15,
-                "{curve:?} deveria terminar próximo do silêncio, got {}",
+                "{curve:?} deveria terminar pr├│ximo do sil├¬ncio, got {}",
                 pcm[99]
             );
         }
@@ -102,12 +102,12 @@ mod tests {
             apply_fade_in(&mut pcm, 0, 100, &curve);
             assert!(
                 pcm[0] < 0.15,
-                "{curve:?} deveria começar próximo do silêncio, got {}",
+                "{curve:?} deveria come├ºar pr├│ximo do sil├¬ncio, got {}",
                 pcm[0]
             );
             assert!(
                 pcm[99] > 0.9,
-                "{curve:?} deveria terminar próximo do volume cheio"
+                "{curve:?} deveria terminar pr├│ximo do volume cheio"
             );
         }
     }

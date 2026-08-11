@@ -22,8 +22,6 @@ pub struct StorageQuota {
     pub limit_gb: f32,
 }
 
-/// Placeholder: números fixos até a fila real existir (Sprint 1+). O
-/// endpoint já respeita o formato de `docs/03-CONTRATOS-API.md` §3.8.
 pub async fn get_quota(TenantScope(_tenant_id): TenantScope) -> axum::Json<TenantQuota> {
     axum::Json(TenantQuota {
         jobs: JobsQuota {
@@ -59,8 +57,6 @@ impl From<audio_core::ports::repo_trait::ConsentRecord> for ConsentResponse {
     }
 }
 
-/// `GET /api/v1/tenants/me/consent` (`docs/03-ADENDO-R2-CONTRATOS.md` §7) —
-/// `null`/`null` quando o tenant nunca aceitou modo assistido.
 pub async fn get_consent(
     State(state): State<AppState>,
     TenantScope(tenant_id): TenantScope,
@@ -79,14 +75,6 @@ pub async fn get_consent(
     )))
 }
 
-/// `POST /api/v1/tenants/me/consent` — o cliente confirma o provedor que viu
-/// em `GET /system/info` e aceita; o servidor grava o provedor **que ele
-/// mesmo conhece agora**, nunca o valor do corpo (mesma regra de
-/// `tenant_id` nunca vir do cliente). Se o provedor mudou entre a tela
-/// mostrar e o aceite chegar, `409 provider_mismatch` — aceitar sem
-/// verificar gravaria consentimento para o provedor errado, exatamente o
-/// que a regra "provedor mudou, consentimento pede de novo" existe para
-/// evitar.
 pub async fn post_consent(
     State(state): State<AppState>,
     TenantScope(tenant_id): TenantScope,
@@ -120,7 +108,9 @@ mod tests {
     use crate::config::{
         AppConfig, AudioConfig, DatabaseConfig, LlmConfig, ObservabilityConfig, StorageConfig,
     };
-    use audio_agent::{validator::ValidationLayer, ReActOrchestrator};
+    use audio_agent::llm::mock::MockLlm;
+    use audio_agent::validator::ValidationLayer;
+    use audio_agent::ReActOrchestrator;
     use std::sync::Arc;
     use uuid::Uuid;
 
@@ -162,12 +152,20 @@ mod tests {
             },
             features: Default::default(),
         };
-
         let validator = Arc::new(ValidationLayer::new());
+        let mock = Arc::new(MockLlm::new());
+        let orchestrator = Arc::new(ReActOrchestrator::<MockLlm>::new(
+            validator,
+            mock,
+            config.llm.max_tools,
+        ));
+        let hub = Arc::new(crate::sse::hub::EventHub::new());
         AppState {
             repo: InMemoryRepo::new(),
-            orchestrator: Arc::new(ReActOrchestrator::new(validator, config.llm.max_tools)),
+            orchestrator,
             config: Arc::new(config),
+            hub,
+            proposal_store: crate::routes::proposals::ProposalStore::new(),
         }
     }
 
@@ -177,7 +175,6 @@ mod tests {
         let Json(body) = get_consent(State(state), TenantScope(Uuid::new_v4()))
             .await
             .unwrap();
-
         assert!(body.assisted_mode_accepted_at.is_none());
         assert!(body.provider_at_accept.is_none());
     }
@@ -186,7 +183,6 @@ mod tests {
     async fn test_post_consent_with_matching_provider_records_it() {
         let state = state_with_provider("deepseek");
         let tenant_id = Uuid::new_v4();
-
         let Json(body) = post_consent(
             State(state.clone()),
             TenantScope(tenant_id),
@@ -197,11 +193,8 @@ mod tests {
         )
         .await
         .unwrap();
-
         assert_eq!(body.provider_at_accept.as_deref(), Some("deepseek"));
         assert!(body.assisted_mode_accepted_at.is_some());
-
-        // E persiste — uma leitura seguinte enxerga o mesmo registro.
         let Json(read_back) = get_consent(State(state), TenantScope(tenant_id))
             .await
             .unwrap();
@@ -210,12 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_consent_rejects_provider_mismatch() {
-        // A tela mostrou "deepseek" (GET /system/info), mas o servidor está
-        // em "ollama" agora — o aceite não pode gravar para o provedor
-        // errado. Regressão direta contra o cenário que este endpoint existe
-        // para prevenir.
         let state = state_with_provider("ollama");
-
         let err = post_consent(
             State(state),
             TenantScope(Uuid::new_v4()),
@@ -226,7 +214,6 @@ mod tests {
         )
         .await
         .unwrap_err();
-
         assert_eq!(err.0, StatusCode::CONFLICT);
         assert_eq!(err.1, "provider_mismatch");
     }
@@ -234,7 +221,6 @@ mod tests {
     #[tokio::test]
     async fn test_post_consent_rejects_accepted_false() {
         let state = state_with_provider("deepseek");
-
         let err = post_consent(
             State(state),
             TenantScope(Uuid::new_v4()),
@@ -245,7 +231,6 @@ mod tests {
         )
         .await
         .unwrap_err();
-
         assert_eq!(err.0, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(err.1, "consent_not_accepted");
     }
@@ -255,7 +240,6 @@ mod tests {
         let state = state_with_provider("deepseek");
         let tenant_a = Uuid::new_v4();
         let tenant_b = Uuid::new_v4();
-
         let Json(_) = post_consent(
             State(state.clone()),
             TenantScope(tenant_a),
@@ -266,7 +250,6 @@ mod tests {
         )
         .await
         .unwrap();
-
         let Json(body_b) = get_consent(State(state), TenantScope(tenant_b))
             .await
             .unwrap();

@@ -1,0 +1,42 @@
+# ws — paths, traps, toolchain
+
+root: .
+crate_root: crates/audio_api
+toolchain: stable-rust {gcc|msvc}
+encoding: UTF-8 sem BOM (Write-RustFile sempre)
+
+# RED PRE-PUSH CHECKLIST (roda antes de git push!)
+prepush:
+  shortcut: . .dev/DevHelper.ps1; Test-CI
+  steps: fmt --check, clippy -D warnings, build, test
+
+# TRAPS (learned the hard way)
+traps:
+  - CI fmt --check fails: run cargo fmt --all before commit
+  - CI clippy -D warnings: run cargo clippy --workspace -- -D warnings
+  - Set-Content adds BOM: use Write-RustFile always
+  - DSP edges (0, NaN, empty): test borders always
+  - dead_code in infra modules: add #![allow(dead_code)] until integrated
+
+# PATHS
+paths:
+  dsp: crates/audio_core/src/dsp
+  domain: crates/audio_core/src/domain
+  agent: crates/audio_agent/src
+  api: crates/audio_api/src
+  ui: ui/src
+
+# SHORTCUTS
+shortcuts:
+  ci: Test-CI
+  fmt: cargo fmt --all
+  clippy: cargo clippy --workspace -- -D warnings
+  build: cargo build --workspace
+  test: cargo test -p audio_api
+
+# DOCS
+docs:
+  dsp: docs/04-DOMINIO-DSP.md
+  agent: docs/05-AGENTE-IA-HITL.md
+  contracts: docs/03-CONTRATOS-API.md
+  tests: docs/10-TESTES-QUALIDADE.md
