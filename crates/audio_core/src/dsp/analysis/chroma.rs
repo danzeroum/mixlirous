@@ -195,7 +195,9 @@ mod tests {
         ];
 
         let matrix = similarity_matrix(&vectors);
+        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
+            #[allow(clippy::needless_range_loop)]
             for j in 0..3 {
                 assert!(
                     (matrix[i][j] - matrix[j][i]).abs() < 0.01,
@@ -220,6 +222,6 @@ mod tests {
             [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ];
         let sections = detect_sections(&vectors, 44100, 512);
-        assert!(sections.len() >= 1);
+        assert!(!sections.is_empty());
     }
 }

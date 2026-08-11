@@ -1,7 +1,5 @@
 use audio_core::domain::block::BeatBlock;
-use audio_core::dsp::selection::{
-    select_blocks, select_continuous_window, SelectionConfig, SelectionError,
-};
+use audio_core::dsp::selection::{select_blocks, SelectionConfig, SelectionError};
 use proptest::prelude::*;
 use uuid::Uuid;
 
