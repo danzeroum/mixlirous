@@ -1,0 +1,49 @@
+# Sprint 4 — Resiliência + Observabilidade
+
+## tasks (ordem)
+S4.1: Escrita atômica artefato (.tmp→fsync→rename→fsync dir)
+S4.2: Recovery loop boot (detectar órfãos, resolver)
+S4.3: Heartbeat worker (detectar travados 2min→requeue)
+S4.4: Rate limiting (300 req/min, 60 jobs/min)
+S4.5: OTel spans (propagação ponta-a-ponta)
+S4.6: Métricas Prometheus (negócio, LLM, DSP, infra)
+S4.7: audit_events todas ações sensíveis
+S4.8: Testes injeção falha R1-R7
+
+## recovery tests (R1-R7) — docs/10-TESTES-QUALIDADE §4
+R1: SIGKILL durante escrita → queued, .tmp removido
+R2: SIGKILL após rename, antes UPDATE → completed
+R3: arquivo existe, hash não bate → queued
+R4: artefato ausente + attempt≥max → failed
+R5: proposta expirada no crash → expired→queued
+R6: recovery interrompido → idempotente
+R7: dois processos → lock, só 1 faz recovery
+
+## patterns
+atomic_write:
+  1. escrever em .tmp
+  2. fsync(.tmp)
+  3. rename(.tmp→final)
+  4. fsync(dir)
+
+recovery:
+  1. listar jobs Processing + last_heartbeat>2min
+  2. verificar artefato (hash)
+  3. requeue ou completed
+
+rate_limit:
+  - middleware layer
+  - global: 300/min tenant
+  - jobs: 60/min post
+  - sse: 10 streams/tenant
+
+otel:
+  - #[instrument] em toda fronteira pública
+  - trace_id propagado do request→worker→SSE
+  - já existe middleware parcial (otel.rs)
+
+## doc refs
+  recovery: docs/06-PERSISTENCIA-RESILIENCIA.md
+  tests: docs/10-TESTES-QUALIDADE §4
+  security: docs/08-SEGURANCA-MULTITENANCY.md
+  deploy: docs/18-DEPLOY-PUBLICO-NGINX.md

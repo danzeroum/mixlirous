@@ -1,0 +1,39 @@
+# module-status — Mixlirous
+# Atualizar após cada tarefa concluída
+
+audio_core: 100%
+  domain: MFCC real, JobRecord, PipelineConfig
+  dsp/analysis: onset, beat_tracking, rms, fft, chroma+seções
+  dsp/stitching: crossfade, fades, zero_cross
+  dsp/mastering: compressor, lufs, limiter, stretch
+  dsp/selection: knapsack DP, continuous
+  ports: AudioRepo completo (claim/beat/retry)
+
+audio_agent: 95%
+  react_kernel: ReAct funcional + MockLlm
+  llm: MockLlm, Ollama adapter
+  prompt_guard: regex + 4096 limit
+  validator+limits: completos (pré-existente)
+
+audio_api: 95%
+  routes: jobs, tracks, uploads, proposals
+  sse: EventHub broadcast + async-stream
+  adapters: InMemoryRepo, SqliteRepo
+  worker: pipeline DSP real + heartbeat
+  middleware: auth JWT, rate_limit
+  resiliência: atomic_write, recovery loop
+
+ui: 95%
+  components: UploadPanel, ProposalOverlay, RemixCanvas
+  hooks: useParamStream, useApi
+  store: graphStore (Zustand)
+  types: api.ts
+
+sprints:
+  S1: 100% — fila, persistência, rotas, SSE, worker
+  S2: 100% — compressor, knapsack, chroma, MFCC, worker↔DSP
+  S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend
+  S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
+
+tests: 300+ (41 api + 53 agent + 206 core)
+build: OK

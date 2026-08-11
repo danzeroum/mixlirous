@@ -1,45 +1,38 @@
 # Mixlirous — Guia para Assistentes
 
-> **LEIAM `.dev/workspace.yaml` PRIMEIRO antes de qualquer ação.**
+> **LEIA `.dev/workspace.yaml` PRIMEIRO antes de editar qualquer coisa.**
 
 ## Descoberta Obrigatória
 
-1. **Ler `.dev/workspace.yaml`** — contém paths, issues conhecidos, sprint atual
-2. **Ler `.dev/module-status.yaml`** — contém status de cada módulo
-3. **Carregar `.dev/DevHelper.ps1`** — contém funções `Write-RustFile`, `Read-RustFile`, etc.
+1. **Ler `.dev/workspace.yaml`** — paths, armadilhas, shortcuts, doc refs
+2. **Ler `.dev/module-status.yaml`** — o que está feito/quebrado/pending
+3. **Carregar `.dev/DevHelper.ps1`** — funções Write-RustFile, Read-RustFile, etc.
 
-## Regras Fundamentais
+## Regras Absolutas
 
-- **NUNCA** usar `Set-Content` para arquivos Rust (adiciona BOM, quebra compilador)
+- **NUNCA** usar `Set-Content` para arquivos Rust (adiciona BOM)
 - **SEMPRE** usar `Write-RustFile` do DevHelper
-- **SEMPRE** prefixar paths com `crates/` (ex: `crates/audio_api/src/...`)
-- **NUNCA** commitar `.dev/`
-- **ATUALIZAR** metadados após cada tarefa
+- **SEMPRE** prefixar paths novos com `crates/`
+- **ATUALIZAR** `module-status.yaml` após cada tarefa concluída
+- **NUNCA** commitar `.env`, `*.wav` ou arquivos temporários
 
-## Estrutura do Workspace
+## Estrutura
 
 ```
-mixlirous/
-├── crates/
-│   ├── audio_core/      # DSP + domínio
-│   ├── audio_agent/     # Loop ReAct
-│   └── audio_api/       # API REST + rotas + adapters
-├── ui/                  # Frontend React
-├── docs/                # Documentação
-└── .dev/                # Metadados de desenvolvimento (este guia)
+crates/
+├── audio_core/      # DSP + domínio (biblioteca, zero I/O rede)
+├── audio_agent/     # Loop ReAct, LlmProvider, prompt_guard
+└── audio_api/       # API REST + SSE + worker + adapters
+ui/                  # React + Vite (Upload, Canvas, HITL overlay)
+docs/                # Arquitetura, contratos, roadmap
+.dev/                # Metadados de desenvolvimento (commitado!)
 ```
 
-## Comandos Úteis
+## Comandos Essenciais
 
 ```powershell
-# Carregar helpers
-. .\.dev\DevHelper.ps1
-
-# Escrever arquivo Rust (sem BOM)
-Write-RustFile -Path "crates/audio_api/src/..." -Content $content
-
-# Verificar build
-Test-WorkspaceBuild
-
-# Verificar BOM
-Test-NoBom -Files @("crates/...")
+. .\.dev\DevHelper.ps1                  # carregar helpers
+Write-RustFile -Path "crates/..." -C $c  # escrever Rust sem BOM
+Test-WorkspaceBuild                      # build workspace
+Test-NoBom @("file1","file2")            # checar BOM
+```
