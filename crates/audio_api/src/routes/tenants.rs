@@ -160,13 +160,16 @@ mod tests {
             config.llm.max_tools,
         ));
         let hub = Arc::new(crate::sse::hub::EventHub::new());
-        AppState {
-            repo: InMemoryRepo::new(),
+        let storage: Arc<dyn audio_core::ports::Storage> = Arc::new(
+            crate::storage::LocalFsStorage::new(tempfile::tempdir().unwrap().keep()).unwrap(),
+        );
+        AppState::new(
+            InMemoryRepo::new(),
             orchestrator,
-            config: Arc::new(config),
+            Arc::new(config),
             hub,
-            proposal_store: crate::routes::proposals::ProposalStore::new(),
-        }
+            storage,
+        )
     }
 
     #[tokio::test]

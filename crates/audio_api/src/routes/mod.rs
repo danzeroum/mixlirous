@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 
@@ -14,6 +14,8 @@ mod sse;
 mod system;
 mod tenants;
 mod tools;
+pub mod tracks;
+pub mod uploads;
 
 pub fn health_router() -> Router<AppState> {
     Router::new()
@@ -48,13 +50,22 @@ pub fn api_router() -> Router<AppState> {
             "/jobs/{job_id}/proposals/{proposal_id}/reject",
             post(proposals::ProposalHandlers::reject_proposal),
         )
+        // Upload + Tracks
+        .route("/uploads/presign", post(uploads::presign_upload))
+        .route("/uploads/{object_key}", put(uploads::upload_put))
+        .route(
+            "/tracks",
+            post(tracks::create_track).get(tracks::list_tracks),
+        )
+        .route("/tracks/{track_id}", get(tracks::get_track))
+        .route("/tracks/{track_id}/peaks", get(tracks::get_track_peaks))
 }
 
-/// Rotas de diagn├│stico. **S├│ entram no router se `MIXLIROUS_DEV_SLICE=1`**
-/// (ver `main.rs`) ÔÇö n├úo existem por padr├úo.
+/// Rotas de diagnostico. **So entram no router se `MIXLIROUS_DEV_SLICE=1`**
+/// (ver `main.rs`) -- nao existem por padrao.
 ///
-/// Ficam sem `AuthContext` de prop├│sito: quem protege ├® o `auth_basic` do
-/// nginx ├á frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). N├úo exponha o vhost
+/// Ficam sem `AuthContext` de proposito: quem protege e o `auth_basic` do
+/// nginx a frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). Nao exponha o vhost
 /// sem ele.
 pub fn dev_router() -> Router<AppState> {
     Router::new()
@@ -63,6 +74,6 @@ pub fn dev_router() -> Router<AppState> {
             get(dev_slice::pagina).post(dev_slice::processar),
         )
         .route("/dev/slice/{id}", get(dev_slice::audio))
-        // O default do axum ├® 2 MB ÔÇö uma faixa real em WAV passa de 50 MB.
+        // O default do axum e 2 MB -- uma faixa real em WAV passa de 50 MB.
         .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
 }
