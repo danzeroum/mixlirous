@@ -31,7 +31,10 @@ pub fn sanitize_prompt(prompt: &str) -> GuardDecision {
     }
 
     // Check for control characters
-    if prompt.chars().any(|c| c.is_control() && c != '\n' && c != '\t') {
+    if prompt
+        .chars()
+        .any(|c| c.is_control() && c != '\n' && c != '\t')
+    {
         return GuardDecision::Reject("prompt contains control characters".to_string());
     }
 
@@ -49,7 +52,9 @@ pub fn sanitize_prompt(prompt: &str) -> GuardDecision {
     for pattern in FORBIDDEN_PATTERNS {
         if let Ok(re) = Regex::new(pattern) {
             if re.is_match(prompt) {
-                return GuardDecision::Reject(format!("prompt matches forbidden pattern: {pattern}"));
+                return GuardDecision::Reject(format!(
+                    "prompt matches forbidden pattern: {pattern}"
+                ));
             }
         }
     }

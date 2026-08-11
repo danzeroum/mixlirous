@@ -46,8 +46,14 @@ impl LlmProvider for MockLlm {
         })
     }
 
-    async fn stream(&self, _req: LlmRequest) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError> {
-        Err(LlmError::Provider("Mock does not support streaming".to_string()))
+    async fn stream(
+        &self,
+        _req: LlmRequest,
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError>
+    {
+        Err(LlmError::Provider(
+            "Mock does not support streaming".to_string(),
+        ))
     }
 
     fn model_id(&self) -> &str {
@@ -83,7 +89,9 @@ mod tests {
             "compression",
             LlmResponse {
                 thought: "Applying compression".to_string(),
-                tool_call: Some(serde_json::json!({"name": "compression", "params": {"ratio": 4.0}})),
+                tool_call: Some(
+                    serde_json::json!({"name": "compression", "params": {"ratio": 4.0}}),
+                ),
                 raw_json: "{}".to_string(),
             },
         );

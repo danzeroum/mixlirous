@@ -72,7 +72,7 @@ fn decodificar(path: &Path) -> Result<(Array1<f32>, u32), hound::Error> {
                 .samples::<i32>()
                 .map(|s| s.map(|v| v as f32 / max_val))
                 .collect::<Result<_, _>>()?
-        }
+        },
         hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<_, _>>()?,
     };
 
@@ -107,7 +107,7 @@ fn main() -> ExitCode {
         Err(e) => {
             eprintln!("falha ao decodificar {entrada:?}: {e}");
             return ExitCode::FAILURE;
-        }
+        },
     };
     println!(
         "{} amostras, {sample_rate} Hz, downmix para mono",
@@ -247,10 +247,12 @@ fn main() -> ExitCode {
     match apply_lufs_gain(&mut pcm_final, sample_rate, target_lufs) {
         LufsGainOutcome::Applied { gain_db } => {
             println!("LUFS: ganho de {gain_db:.2} dB aplicado (alvo {target_lufs} LUFS)")
-        }
+        },
         LufsGainOutcome::UnmeasurableLoudness => {
-            println!("LUFS: n├úo mensur├ível (buffer curto/silencioso demais) ÔÇö buffer n├úo alterado")
-        }
+            println!(
+                "LUFS: n├úo mensur├ível (buffer curto/silencioso demais) ÔÇö buffer n├úo alterado"
+            )
+        },
     }
     brickwall_limiter(&mut pcm_final, config.mastering.peak_db);
     println!(
@@ -270,10 +272,10 @@ fn main() -> ExitCode {
         Ok(()) => {
             println!("escrito em {saida:?}");
             ExitCode::SUCCESS
-        }
+        },
         Err(e) => {
             eprintln!("falha ao exportar: {e}");
             ExitCode::FAILURE
-        }
+        },
     }
 }

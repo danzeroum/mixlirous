@@ -26,9 +26,7 @@ impl RateLimiter {
         let mut state = self.state.lock().unwrap();
         let now = Instant::now();
 
-        let (count, window_start) = state.counters
-            .entry(key.to_string())
-            .or_insert((0, now));
+        let (count, window_start) = state.counters.entry(key.to_string()).or_insert((0, now));
 
         // Reset window if 1 minute passed
         if now.duration_since(*window_start).as_secs() >= 60 {
@@ -65,6 +63,6 @@ mod tests {
         assert!(rl.check("key_b"));
         assert!(rl.check("key_a"));
         assert!(!rl.check("key_a")); // blocked for a
-        assert!(rl.check("key_b"));  // still ok for b
+        assert!(rl.check("key_b")); // still ok for b
     }
 }

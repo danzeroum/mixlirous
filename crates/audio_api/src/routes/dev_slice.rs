@@ -350,7 +350,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
             None => {
                 avisos.push("time_stretch_skipped");
                 entrada
-            }
+            },
         }
     };
 

@@ -31,7 +31,10 @@ pub enum LlmError {
 #[async_trait]
 pub trait LlmProvider: Send + Sync {
     async fn complete(&self, req: LlmRequest) -> Result<LlmResponse, LlmError>;
-    async fn stream(&self, req: LlmRequest) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError>;
+    async fn stream(
+        &self,
+        req: LlmRequest,
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError>;
     fn model_id(&self) -> &str;
     fn supports_tools(&self) -> bool;
 }

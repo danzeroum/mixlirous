@@ -61,7 +61,7 @@ impl DefaultMixer {
                 return Err(crate::Error::Validation(format!(
                     "encode_wav s├│ suporta bit_depth 16, 24 ou 32; pedido foi {other}"
                 )))
-            }
+            },
         };
 
         let spec = hound::WavSpec {
@@ -209,7 +209,7 @@ mod tests {
                     .samples::<i32>()
                     .map(|s| s.unwrap() as f32 / max_val)
                     .collect()
-            }
+            },
         }
     }
 

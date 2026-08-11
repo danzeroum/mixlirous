@@ -133,7 +133,9 @@ fn pico_espectral_hz(
 fn load_manifest() -> Manifest {
     let manifest_path = fixtures_dir().join("manifest.json");
     let raw = std::fs::read_to_string(&manifest_path).unwrap_or_else(|e| {
-        panic!("{manifest_path:?}: {e} ÔÇö rode `python scripts/generate_fixtures.py` (docs/17 ┬º2)")
+        panic!(
+            "{manifest_path:?}: {e} ÔÇö rode `python scripts/generate_fixtures.py` (docs/17 ┬º2)"
+        )
     });
     serde_json::from_str(&raw).expect("manifest.json malformado")
 }
@@ -170,7 +172,7 @@ fn decodificar(path: &Path) -> Result<Decoded, hound::Error> {
                 .samples::<i32>()
                 .map(|s| s.map(|v| v as f32 / max_val))
                 .collect::<Result<_, _>>()?
-        }
+        },
         hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<_, _>>()?,
     };
 

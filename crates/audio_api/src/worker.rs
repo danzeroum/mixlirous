@@ -10,7 +10,12 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(state: AppState) -> Self { Self { id: Uuid::new_v4(), state } }
+    pub fn new(state: AppState) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            state,
+        }
+    }
 
     pub async fn run(&self) {
         let mut ticker = interval(Duration::from_secs(5));
@@ -37,16 +42,38 @@ impl Worker {
         let hb_wid = worker_id;
         let hb_task = tokio::spawn(async move {
             let mut iv = tokio::time::interval(Duration::from_secs(10));
-            loop { iv.tick().await; if repo.heartbeat(hb_job, hb_wid).await.is_err() { break; } }
+            loop {
+                iv.tick().await;
+                if repo.heartbeat(hb_job, hb_wid).await.is_err() {
+                    break;
+                }
+            }
         });
 
-        self.state.hub.publish(job_id, "job.state", serde_json::json!({"status":"processing"})).await;
+        self.state
+            .hub
+            .publish(
+                job_id,
+                "job.state",
+                serde_json::json!({"status":"processing"}),
+            )
+            .await;
         tokio::time::sleep(Duration::from_secs(2)).await;
         hb_task.abort();
 
-        self.state.repo.transition_job(job_id, JobStatus::Completed, "JOB_COMPLETED").await
+        self.state
+            .repo
+            .transition_job(job_id, JobStatus::Completed, "JOB_COMPLETED")
+            .await
             .map_err(|e| format!("transition: {e}"))?;
-        self.state.hub.publish(job_id, "job.completed", serde_json::json!({"status":"completed"})).await;
+        self.state
+            .hub
+            .publish(
+                job_id,
+                "job.completed",
+                serde_json::json!({"status":"completed"}),
+            )
+            .await;
         Ok(())
     }
 }

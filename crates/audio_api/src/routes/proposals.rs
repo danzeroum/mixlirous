@@ -1,6 +1,10 @@
 use crate::middleware::{AuthContext, TenantScope};
 use crate::state::AppState;
-use axum::{extract::{Path, State}, http::StatusCode, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -125,7 +129,9 @@ impl ProposalHandlers {
     ) -> Result<Json<Vec<ProposalResponse>>, (StatusCode, String)> {
         let store = state.proposal_store.write().await;
         let proposals = store.list_for_job(job_id).await;
-        Ok(Json(proposals.into_iter().map(ProposalResponse::from).collect()))
+        Ok(Json(
+            proposals.into_iter().map(ProposalResponse::from).collect(),
+        ))
     }
 
     /// POST /api/v1/jobs/{job_id}/proposals/{proposal_id}/approve
@@ -137,7 +143,9 @@ impl ProposalHandlers {
     ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
         let mut store = state.proposal_store.write().await;
 
-        let proposal = store.get(proposal_id).await
+        let proposal = store
+            .get(proposal_id)
+            .await
             .ok_or((StatusCode::NOT_FOUND, "proposal_not_found".to_string()))?;
 
         if proposal.job_id != job_id {
@@ -150,20 +158,30 @@ impl ProposalHandlers {
 
         // Check if expired
         if chrono::Utc::now() > proposal.expires_at {
-            store.update_status(proposal_id, ProposalStatus::Expired).await;
+            store
+                .update_status(proposal_id, ProposalStatus::Expired)
+                .await;
             return Err((StatusCode::CONFLICT, "proposal_expired".to_string()));
         }
 
-        store.update_status(proposal_id, ProposalStatus::Approved).await;
+        store
+            .update_status(proposal_id, ProposalStatus::Approved)
+            .await;
 
         // Publish SSE event
-        state.hub.publish(job_id, "proposal.decided",
-            serde_json::json!({
-                "job_id": job_id,
-                "proposal_id": proposal_id.to_string(),
-                "decision": "approved",
-                "node_id": Uuid::new_v4().to_string(),
-            })).await;
+        state
+            .hub
+            .publish(
+                job_id,
+                "proposal.decided",
+                serde_json::json!({
+                    "job_id": job_id,
+                    "proposal_id": proposal_id.to_string(),
+                    "decision": "approved",
+                    "node_id": Uuid::new_v4().to_string(),
+                }),
+            )
+            .await;
 
         Ok(Json(serde_json::json!({
             "proposal_id": proposal_id.to_string(),
@@ -186,7 +204,9 @@ impl ProposalHandlers {
     ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
         let mut store = state.proposal_store.write().await;
 
-        let proposal = store.get(proposal_id).await
+        let proposal = store
+            .get(proposal_id)
+            .await
             .ok_or((StatusCode::NOT_FOUND, "proposal_not_found".to_string()))?;
 
         if proposal.job_id != job_id {
@@ -197,15 +217,23 @@ impl ProposalHandlers {
             return Err((StatusCode::CONFLICT, "proposal_already_decided".to_string()));
         }
 
-        store.update_status(proposal_id, ProposalStatus::Rejected).await;
+        store
+            .update_status(proposal_id, ProposalStatus::Rejected)
+            .await;
 
-        state.hub.publish(job_id, "proposal.decided",
-            serde_json::json!({
-                "job_id": job_id,
-                "proposal_id": proposal_id.to_string(),
-                "decision": "rejected",
-                "agent_will_replan": true,
-            })).await;
+        state
+            .hub
+            .publish(
+                job_id,
+                "proposal.decided",
+                serde_json::json!({
+                    "job_id": job_id,
+                    "proposal_id": proposal_id.to_string(),
+                    "decision": "rejected",
+                    "agent_will_replan": true,
+                }),
+            )
+            .await;
 
         Ok(Json(serde_json::json!({
             "proposal_id": proposal_id.to_string(),

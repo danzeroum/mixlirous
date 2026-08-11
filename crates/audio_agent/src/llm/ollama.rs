@@ -72,8 +72,14 @@ impl LlmProvider for OllamaProvider {
         })
     }
 
-    async fn stream(&self, _req: LlmRequest) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError> {
-        Err(LlmError::Provider("Streaming not yet implemented for Ollama".to_string()))
+    async fn stream(
+        &self,
+        _req: LlmRequest,
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send + Unpin>, LlmError>
+    {
+        Err(LlmError::Provider(
+            "Streaming not yet implemented for Ollama".to_string(),
+        ))
     }
 
     fn model_id(&self) -> &str {

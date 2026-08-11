@@ -46,11 +46,11 @@ pub fn select_blocks(
 
     let target = config.target_duration_sec;
     let tolerance = config.duration_tolerance_sec;
-    
+
     // Calculate preservation budget
     let preservation_sec = (config.preserve_intro_ms + config.preserve_outro_ms) as f32 / 1000.0;
     let available_target = target - preservation_sec;
-    
+
     if available_target <= 0.0 {
         return Err(SelectionError::PreservationTooLarge);
     }
@@ -66,7 +66,7 @@ pub fn select_blocks(
     let step_ms = 10.0;
     let step_sec = step_ms / 1000.0;
     let max_steps = (available_target / step_sec) as usize + 1;
-    
+
     // DP table: dp[i][t] = max score using first i blocks with duration t
     let n = candidates.len();
     let mut dp = vec![vec![0.0f32; max_steps + 1]; n + 1];
@@ -96,7 +96,7 @@ pub fn select_blocks(
     // Find best valid solution
     let mut best_t = 0;
     let mut best_score = 0.0f32;
-    
+
     for t in 0..=max_steps {
         let duration = t as f32 * step_sec;
         if (duration - available_target).abs() <= tolerance {
@@ -108,10 +108,7 @@ pub fn select_blocks(
     }
 
     if best_t == 0 && best_score == 0.0 {
-        return Err(SelectionError::CannotMeetTarget {
-            target,
-            tolerance,
-        });
+        return Err(SelectionError::CannotMeetTarget { target, tolerance });
     }
 
     // Reconstruct solution
@@ -142,11 +139,11 @@ pub fn select_continuous_window(
     }
 
     let target = config.target_duration_sec;
-    
+
     // Build prefix sum of durations and energy×duration
     let mut prefix_duration = vec![0.0f32; blocks.len() + 1];
     let mut prefix_energy = vec![0.0f32; blocks.len() + 1];
-    
+
     for (i, block) in blocks.iter().enumerate() {
         prefix_duration[i + 1] = prefix_duration[i] + block.duration;
         prefix_energy[i + 1] = prefix_energy[i] + block.rms_energy * block.duration;
@@ -160,11 +157,11 @@ pub fn select_continuous_window(
     for start in 0..blocks.len() {
         for end in (start + 1)..=blocks.len() {
             let window_duration = prefix_duration[end] - prefix_duration[start];
-            
+
             if (window_duration - target).abs() <= config.duration_tolerance_sec {
                 let window_energy = prefix_energy[end] - prefix_energy[start];
                 let avg_energy = window_energy / window_duration;
-                
+
                 if avg_energy > best_avg_energy {
                     best_avg_energy = avg_energy;
                     best_start = start;
@@ -186,8 +183,8 @@ pub fn select_continuous_window(
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
     use super::*;
+    use uuid::Uuid;
 
     fn make_block(id: usize, duration: f32, score: f32, beat_index: usize) -> BeatBlock {
         BeatBlock {

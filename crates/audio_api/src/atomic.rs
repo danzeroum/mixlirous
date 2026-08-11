@@ -38,7 +38,10 @@ mod tests {
         atomic_write(&path, data).unwrap();
         assert!(artifact_exists(&path));
         let mut buf = Vec::new();
-        fs::File::open(&path).unwrap().read_to_end(&mut buf).unwrap();
+        fs::File::open(&path)
+            .unwrap()
+            .read_to_end(&mut buf)
+            .unwrap();
         assert_eq!(buf, data);
     }
 

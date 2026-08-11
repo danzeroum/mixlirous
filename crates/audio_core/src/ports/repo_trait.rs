@@ -4,14 +4,34 @@ use uuid::Uuid;
 
 #[async_trait::async_trait]
 pub trait AudioRepo: Send + Sync {
-    async fn save_job(&self, job_id: Uuid, tenant_id: Uuid, user_id: Uuid, config: &PipelineConfig, blocks: &[BeatBlock]) -> Result<(), RepoError>;
+    async fn save_job(
+        &self,
+        job_id: Uuid,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        config: &PipelineConfig,
+        blocks: &[BeatBlock],
+    ) -> Result<(), RepoError>;
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError>;
     async fn list_jobs(&self, tenant_id: Uuid) -> Result<Vec<JobRecord>, RepoError>;
-    async fn save_fingerprint(&self, job_id: Uuid, fingerprint: &AudioFingerprint) -> Result<(), RepoError>;
-    async fn transition_job(&self, job_id: Uuid, new_status: JobStatus, audit_action: &str) -> Result<(), RepoError>;
+    async fn save_fingerprint(
+        &self,
+        job_id: Uuid,
+        fingerprint: &AudioFingerprint,
+    ) -> Result<(), RepoError>;
+    async fn transition_job(
+        &self,
+        job_id: Uuid,
+        new_status: JobStatus,
+        audit_action: &str,
+    ) -> Result<(), RepoError>;
     async fn list_audit_records(&self, job_id: Uuid) -> Result<Vec<AuditRecord>, RepoError>;
     async fn get_consent(&self, tenant_id: Uuid) -> Result<Option<ConsentRecord>, RepoError>;
-    async fn save_consent(&self, tenant_id: Uuid, provider: String) -> Result<ConsentRecord, RepoError>;
+    async fn save_consent(
+        &self,
+        tenant_id: Uuid,
+        provider: String,
+    ) -> Result<ConsentRecord, RepoError>;
     async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError>;
     async fn heartbeat(&self, job_id: Uuid, worker_id: Uuid) -> Result<(), RepoError>;
     async fn fail_and_retry(&self, job_id: Uuid, max_attempts: u8) -> Result<(), RepoError>;

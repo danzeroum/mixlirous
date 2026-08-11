@@ -174,9 +174,8 @@ impl AudioFingerprint {
         let mfcc_dist = Self::euclidean(&self.mfcc, &other.mfcc) / (NUM_MFCC as f32).sqrt();
 
         // Normalized centroid distance
-        let centroid_dist =
-            (self.spectral_centroid - other.spectral_centroid).abs()
-                / self.spectral_centroid.max(other.spectral_centroid).max(1.0);
+        let centroid_dist = (self.spectral_centroid - other.spectral_centroid).abs()
+            / self.spectral_centroid.max(other.spectral_centroid).max(1.0);
 
         // Normalized RMS distance
         let rms_dist = (self.rms_energy - other.rms_energy).abs()
@@ -206,7 +205,10 @@ mod tests {
         let pcm = Array1::from_vec(vec![0.0f32; 44100]);
         let f1 = AudioFingerprint::from_pcm(&pcm, 44100);
         let f2 = AudioFingerprint::from_pcm(&pcm, 44100);
-        assert!((f1.distance(&f2)).abs() < 0.01, "distance(x,x) should be ~0");
+        assert!(
+            (f1.distance(&f2)).abs() < 0.01,
+            "distance(x,x) should be ~0"
+        );
     }
 
     /// I10: distance is symmetric
@@ -224,7 +226,12 @@ mod tests {
 
         let d1 = f_silence.distance(&f_tone);
         let d2 = f_tone.distance(&f_silence);
-        assert!((d1 - d2).abs() < 0.01, "distance should be symmetric: {} vs {}", d1, d2);
+        assert!(
+            (d1 - d2).abs() < 0.01,
+            "distance should be symmetric: {} vs {}",
+            d1,
+            d2
+        );
     }
 
     /// MFCC should not be all zeros for non-silence

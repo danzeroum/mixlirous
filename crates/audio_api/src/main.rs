@@ -4,17 +4,17 @@ use tokio::net::TcpListener;
 
 mod adapters;
 mod atomic;
-mod recovery;
-mod instrument;
 mod config;
+mod instrument;
 mod middleware;
+mod recovery;
 mod routes;
 mod sse;
 mod state;
 mod worker;
 
 use adapters::InMemoryRepo;
-use audio_agent::{validator::ValidationLayer, llm::mock::MockLlm, ReActOrchestrator};
+use audio_agent::{llm::mock::MockLlm, validator::ValidationLayer, ReActOrchestrator};
 use config::AppConfig;
 use state::AppState;
 

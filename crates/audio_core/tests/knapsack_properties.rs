@@ -1,5 +1,7 @@
-use audio_core::dsp::selection::{select_blocks, select_continuous_window, SelectionConfig, SelectionError};
 use audio_core::domain::block::BeatBlock;
+use audio_core::dsp::selection::{
+    select_blocks, select_continuous_window, SelectionConfig, SelectionError,
+};
 use proptest::prelude::*;
 use uuid::Uuid;
 
@@ -39,7 +41,7 @@ proptest! {
             duration_tolerance_sec: 1.0,
             ..Default::default()
         };
-        
+
         match select_blocks(&blocks, &config) {
             Ok(selected) => {
                 let total_duration: f32 = selected.iter().map(|b| b.duration).sum();
@@ -75,10 +77,10 @@ proptest! {
             duration_tolerance_sec: 1.0,
             ..Default::default()
         };
-        
+
         let result1 = select_blocks(&blocks, &config);
         let result2 = select_blocks(&blocks, &config);
-        
+
         match (result1, result2) {
             (Ok(r1), Ok(r2)) => {
                 prop_assert_eq!(r1.len(), r2.len());
@@ -110,7 +112,7 @@ proptest! {
             duration_tolerance_sec: 1.0,
             ..Default::default()
         };
-        
+
         if let Ok(selected) = select_blocks(&blocks, &config) {
             for window in selected.windows(2) {
                 prop_assert!(

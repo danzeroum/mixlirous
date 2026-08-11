@@ -9,11 +9,11 @@ mod dev_slice;
 mod health;
 mod jobs;
 mod prompts;
+pub mod proposals;
 mod sse;
 mod system;
 mod tenants;
 mod tools;
-pub mod proposals;
 
 pub fn health_router() -> Router<AppState> {
     Router::new()
@@ -36,9 +36,18 @@ pub fn api_router() -> Router<AppState> {
             get(tenants::get_consent).post(tenants::post_consent),
         )
         .route("/system/info", get(system::get_system_info))
-        .route("/jobs/{job_id}/proposals", get(proposals::ProposalHandlers::list_proposals))
-        .route("/jobs/{job_id}/proposals/{proposal_id}/approve", post(proposals::ProposalHandlers::approve_proposal))
-        .route("/jobs/{job_id}/proposals/{proposal_id}/reject", post(proposals::ProposalHandlers::reject_proposal))
+        .route(
+            "/jobs/{job_id}/proposals",
+            get(proposals::ProposalHandlers::list_proposals),
+        )
+        .route(
+            "/jobs/{job_id}/proposals/{proposal_id}/approve",
+            post(proposals::ProposalHandlers::approve_proposal),
+        )
+        .route(
+            "/jobs/{job_id}/proposals/{proposal_id}/reject",
+            post(proposals::ProposalHandlers::reject_proposal),
+        )
 }
 
 /// Rotas de diagn├│stico. **S├│ entram no router se `MIXLIROUS_DEV_SLICE=1`**

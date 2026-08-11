@@ -67,7 +67,7 @@ impl ValidationLayer {
                 }
 
                 Ok(AudioToolDef::Compression(params.clone()))
-            }
+            },
             AudioToolDef::DynamicEq(params) => {
                 if params.bands.is_empty() || params.bands.len() > 8 {
                     return Err(ValidationError::Bound(
@@ -99,7 +99,7 @@ impl ValidationLayer {
                     }
                 }
                 Ok(AudioToolDef::DynamicEq(params.clone()))
-            }
+            },
             AudioToolDef::Crossfade(params) => {
                 // T0.0 (docs/16, I14): o limite n├úo ├® redigitado aqui ÔÇö o
                 // newtype ├® a checagem. `bound()` comparava contra 0.0/3000.0
@@ -110,7 +110,7 @@ impl ValidationLayer {
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 enum_value("crossfade.curve", &params.curve, VALID_CROSSFADE_CURVES)?;
                 Ok(AudioToolDef::Crossfade(params.clone()))
-            }
+            },
             AudioToolDef::FadeIn(params) => {
                 bound(
                     "fade_in.duration_ms",
@@ -120,7 +120,7 @@ impl ValidationLayer {
                 )?;
                 enum_value("fade_in.curve", &params.curve, VALID_FADE_CURVES)?;
                 Ok(AudioToolDef::FadeIn(params.clone()))
-            }
+            },
             AudioToolDef::FadeOut(params) => {
                 bound(
                     "fade_out.duration_ms",
@@ -130,14 +130,14 @@ impl ValidationLayer {
                 )?;
                 enum_value("fade_out.curve", &params.curve, VALID_FADE_CURVES)?;
                 Ok(AudioToolDef::FadeOut(params.clone()))
-            }
+            },
             AudioToolDef::TimeStretch(params) => {
                 // T0.0 (docs/16, I14): n├úo redigita 0.90/1.10 ÔÇö checagem ├®
                 // audio_core::TimeStretchFactor.
                 audio_core::TimeStretchFactor::try_from(params.factor)
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 Ok(AudioToolDef::TimeStretch(params.clone()))
-            }
+            },
             AudioToolDef::LufsNormalization(params) => {
                 // T0.0 (docs/16, I14): n├úo redigita -30.0/-6.0 ÔÇö checagem ├®
                 // audio_core::LufsTarget. max_true_peak_db fica de fora do
@@ -151,7 +151,7 @@ impl ValidationLayer {
                     0.0,
                 )?;
                 Ok(AudioToolDef::LufsNormalization(params.clone()))
-            }
+            },
             AudioToolDef::StemSeparation(params) => {
                 enum_value("stem_separation.model", &params.model, VALID_STEM_MODELS)?;
                 if params.stems.is_empty() || params.stems.len() > 4 {
@@ -163,7 +163,7 @@ impl ValidationLayer {
                     enum_value("stem_separation.stems[]", stem, VALID_STEMS)?;
                 }
                 Ok(AudioToolDef::StemSeparation(params.clone()))
-            }
+            },
         }
     }
 }

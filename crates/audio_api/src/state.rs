@@ -25,6 +25,12 @@ impl AppState {
         config: Arc<AppConfig>,
         hub: Arc<EventHub>,
     ) -> Self {
-        Self { repo, orchestrator, config, hub, proposal_store: ProposalStore::new() }
+        Self {
+            repo,
+            orchestrator,
+            config,
+            hub,
+            proposal_store: ProposalStore::new(),
+        }
     }
 }

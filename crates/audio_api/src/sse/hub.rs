@@ -30,7 +30,7 @@ impl EventHub {
                 let (tx, rx) = broadcast::channel(200);
                 channels.insert(job_id, tx);
                 rx
-            }
+            },
         }
     }
 

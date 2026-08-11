@@ -17,7 +17,7 @@ fn compute_gains(alpha: f32, curve: CrossfadeCurve) -> (f32, f32) {
         CrossfadeCurve::ConstantPower => {
             let angle = a * FRAC_PI_2;
             (angle.cos(), angle.sin())
-        }
+        },
     }
 }
 

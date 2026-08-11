@@ -1,5 +1,5 @@
-use audio_core::dsp::mastering::compressor::{apply_compression, CompressorParams};
 use audio_core::domain::{AttackMs, CompressionRatio, ReleaseMs, ThresholdDb};
+use audio_core::dsp::mastering::compressor::{apply_compression, CompressorParams};
 use proptest::prelude::*;
 
 fn arb_sample() -> impl Strategy<Value = f32> {
@@ -17,14 +17,14 @@ fn arb_params() -> impl Strategy<Value = CompressorParams> {
         (0u32..=500).prop_map(|x| AttackMs::try_from(x).unwrap()),
         (10u32..=5000).prop_map(|x| ReleaseMs::try_from(x).unwrap()),
     )
-    .prop_map(|(threshold, ratio, attack, release)| CompressorParams {
-        threshold_db: threshold,
-        ratio,
-        attack_ms: attack,
-        release_ms: release,
-        makeup_gain_db: 0.0,
-        knee_db: 6.0,
-    })
+        .prop_map(|(threshold, ratio, attack, release)| CompressorParams {
+            threshold_db: threshold,
+            ratio,
+            attack_ms: attack,
+            release_ms: release,
+            makeup_gain_db: 0.0,
+            knee_db: 6.0,
+        })
 }
 
 proptest! {
