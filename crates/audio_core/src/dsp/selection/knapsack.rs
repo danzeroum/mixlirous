@@ -168,6 +168,7 @@ pub fn select_continuous_window(
 
 #[cfg(test)]
 mod tests {
+    use uuid::Uuid;
     use super::*;
 
     fn make_block(id: usize, duration: f32, score: f32, beat_index: usize) -> BeatBlock {
