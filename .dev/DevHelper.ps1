@@ -87,7 +87,7 @@ function Test-CI {
     Write-Host "  OK" -ForegroundColor Green
 
     Write-Host "=== 2/4 clippy -D warnings" -ForegroundColor Cyan
-    cargo clippy --workspace -- -D warnings 2>&1 | Out-Null
+    cargo clippy --workspace --all-targets -- -D warnings 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Host "FAIL: clippy issues found" -ForegroundColor Red; return $false }
     Write-Host "  OK" -ForegroundColor Green
 
