@@ -59,7 +59,7 @@ impl AudioFingerprint {
         let mel_filters = Self::mel_filterbank(NUM_MEL_FILTERS, n, sample_rate);
 
         // Apply filters and take log
-        let mut filter_energies = vec![0.0f32; NUM_MEL_FILTERS];
+        let mut filter_energies = [0.0f32; NUM_MEL_FILTERS];
         for (i, filter) in mel_filters.iter().enumerate() {
             let energy: f32 = filter.iter().zip(power.iter()).map(|(f, p)| f * p).sum();
             filter_energies[i] = (energy + 1e-10).ln();
@@ -67,6 +67,7 @@ impl AudioFingerprint {
 
         // DCT-II (keep coefficients 1-13, discard 0)
         let mut mfcc = vec![0.0f32; NUM_MFCC];
+        #[allow(clippy::needless_range_loop)]
         for k in 0..NUM_MFCC {
             let mut sum = 0.0f32;
             for (n_idx, &energy) in filter_energies.iter().enumerate() {
@@ -106,11 +107,13 @@ impl AudioFingerprint {
             let right = bin_points[i + 2];
 
             if center > left {
+                #[allow(clippy::needless_range_loop)]
                 for j in left..center {
                     filter[j] = (j - left) as f32 / (center - left) as f32;
                 }
             }
             if right > center {
+                #[allow(clippy::needless_range_loop)]
                 for j in center..right {
                     filter[j] = (right - j) as f32 / (right - center) as f32;
                 }

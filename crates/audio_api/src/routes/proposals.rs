@@ -1,4 +1,5 @@
-use crate::middleware::{AuthContext, TenantScope};
+#![allow(dead_code)]
+use crate::middleware::AuthContext;
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},

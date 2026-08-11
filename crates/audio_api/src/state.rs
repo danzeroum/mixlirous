@@ -12,6 +12,7 @@ pub type Orchestrator = ReActOrchestrator<MockLlm>;
 #[derive(Clone)]
 pub struct AppState {
     pub repo: Arc<dyn AudioRepo>,
+    #[allow(dead_code)]
     pub orchestrator: Arc<Orchestrator>,
     pub config: Arc<AppConfig>,
     pub hub: Arc<EventHub>,

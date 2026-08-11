@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::time::Instant;
 
 /// Registra métricas de execução de uma etapa do pipeline

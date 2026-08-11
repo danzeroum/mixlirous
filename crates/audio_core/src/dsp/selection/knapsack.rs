@@ -34,8 +34,6 @@ impl Default for SelectionConfig {
     }
 }
 
-/// Knapsack 0/1 selection algorithm
-/// Uses dynamic programming for exact solution when blocks <= 500
 pub fn select_blocks(
     blocks: &[BeatBlock],
     config: &SelectionConfig,
@@ -47,8 +45,8 @@ pub fn select_blocks(
     let target = config.target_duration_sec;
     let tolerance = config.duration_tolerance_sec;
 
-    // Calculate preservation budget
-    let preservation_sec = (config.preserve_intro_ms + config.preserve_outro_ms) as f32 / 1000.0;
+    let preservation_sec =
+        (config.preserve_intro_ms + config.preserve_outro_ms) as f32 / 1000.0;
     let available_target = target - preservation_sec;
 
     if available_target <= 0.0 {
@@ -61,13 +59,10 @@ pub fn select_blocks(
         return Err(SelectionError::NoBlocks);
     }
 
-    // Use dynamic programming for exact knapsack solution
-    // Discretize duration to 10ms steps
     let step_ms = 10.0;
     let step_sec = step_ms / 1000.0;
     let max_steps = (available_target / step_sec) as usize + 1;
 
-    // DP table: dp[i][t] = max score using first i blocks with duration t
     let n = candidates.len();
     let mut dp = vec![vec![0.0f32; max_steps + 1]; n + 1];
     let mut keep = vec![vec![false; max_steps + 1]; n + 1];
@@ -78,11 +73,9 @@ pub fn select_blocks(
         let score = block.score;
 
         for t in 0..=max_steps {
-            // Option 1: don't take block i
             dp[i][t] = dp[i - 1][t];
             keep[i][t] = false;
 
-            // Option 2: take block i (if it fits)
             if block_steps <= t {
                 let candidate_score = dp[i - 1][t - block_steps] + score;
                 if candidate_score > dp[i][t] {
@@ -93,17 +86,15 @@ pub fn select_blocks(
         }
     }
 
-    // Find best valid solution
     let mut best_t = 0;
     let mut best_score = 0.0f32;
 
+    #[allow(clippy::needless_range_loop)]
     for t in 0..=max_steps {
         let duration = t as f32 * step_sec;
-        if (duration - available_target).abs() <= tolerance {
-            if dp[n][t] > best_score {
-                best_score = dp[n][t];
-                best_t = t;
-            }
+        if (duration - available_target).abs() <= tolerance && dp[n][t] > best_score {
+            best_score = dp[n][t];
+            best_t = t;
         }
     }
 
@@ -111,7 +102,6 @@ pub fn select_blocks(
         return Err(SelectionError::CannotMeetTarget { target, tolerance });
     }
 
-    // Reconstruct solution
     let mut selected = Vec::new();
     let mut t = best_t;
     for i in (1..=n).rev() {
@@ -122,14 +112,11 @@ pub fn select_blocks(
         }
     }
 
-    // Sort by original chronological order (beat_index)
     selected.sort_by_key(|b| b.beat_index);
 
     Ok(selected)
 }
 
-/// Continuous window selection (mode 6.2)
-/// Finds the window with highest average energy using prefix sum
 pub fn select_continuous_window(
     blocks: &[BeatBlock],
     config: &SelectionConfig,
@@ -140,7 +127,6 @@ pub fn select_continuous_window(
 
     let target = config.target_duration_sec;
 
-    // Build prefix sum of durations and energy×duration
     let mut prefix_duration = vec![0.0f32; blocks.len() + 1];
     let mut prefix_energy = vec![0.0f32; blocks.len() + 1];
 
@@ -149,7 +135,6 @@ pub fn select_continuous_window(
         prefix_energy[i + 1] = prefix_energy[i] + block.rms_energy * block.duration;
     }
 
-    // Find window with highest average energy
     let mut best_start = 0;
     let mut best_end = 0;
     let mut best_avg_energy = 0.0f32;
@@ -184,7 +169,6 @@ pub fn select_continuous_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
 
     fn make_block(id: usize, duration: f32, score: f32, beat_index: usize) -> BeatBlock {
         BeatBlock {
@@ -224,14 +208,12 @@ mod tests {
         };
         let result = select_blocks(&blocks, &config).unwrap();
         assert_eq!(result.len(), 2);
-        // Should select highest scoring blocks (0.9 and 0.8)
         assert!(result.iter().any(|b| b.score == 0.9));
         assert!(result.iter().any(|b| b.score == 0.8));
     }
 
     #[test]
     fn test_select_blocks_deterministic() {
-        // I9: same input -> same output
         let blocks = vec![
             make_block(0, 4.0, 0.8, 0),
             make_block(1, 4.0, 0.6, 1),
@@ -252,7 +234,6 @@ mod tests {
 
     #[test]
     fn test_select_blocks_chronological_order() {
-        // Blocks should be returned in chronological order, not score order
         let blocks = vec![
             make_block(0, 4.0, 0.5, 0),
             make_block(1, 4.0, 0.9, 1),
@@ -265,7 +246,6 @@ mod tests {
             ..Default::default()
         };
         let result = select_blocks(&blocks, &config).unwrap();
-        // Verify chronological order
         for window in result.windows(2) {
             assert!(window[0].beat_index <= window[1].beat_index);
         }
@@ -285,7 +265,6 @@ mod tests {
             ..Default::default()
         };
         let result = select_continuous_window(&blocks, &config).unwrap();
-        // Should select window with highest average energy (blocks 0-1 or 1-2)
         assert_eq!(result.len(), 2);
     }
 }

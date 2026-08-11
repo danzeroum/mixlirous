@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::state::AppState;
 use audio_core::ports::repo_trait::JobStatus;
 use chrono::Utc;

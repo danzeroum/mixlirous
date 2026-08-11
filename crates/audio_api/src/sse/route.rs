@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::middleware::AuthContext;
 use crate::state::AppState;
 use axum::{
@@ -17,17 +18,12 @@ pub async fn job_stream(
     let mut rx = state.hub.subscribe(job_id).await;
 
     let stream = async_stream::stream! {
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    let evt = Event::default()
-                        .event(&event.event_type)
-                        .json_data(event.data)
-                        .unwrap_or_else(|_| Event::default().event("error"));
-                    yield Ok(evt);
-                }
-                Err(_) => break,
-            }
+        while let Ok(event) = rx.recv().await {
+            let evt = Event::default()
+                .event(&event.event_type)
+                .json_data(event.data)
+                .unwrap_or_else(|_| Event::default().event("error"));
+            yield Ok(evt);
         }
     };
 
