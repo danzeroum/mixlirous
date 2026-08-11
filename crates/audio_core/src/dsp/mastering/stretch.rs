@@ -2,14 +2,14 @@ use audioadapter_buffers::direct::SequentialSliceOfVecs;
 use ndarray::Array1;
 use rubato::{Async, FixedAsync, Resampler, SincInterpolationParameters};
 
-/// Ajusta a duração de um buffer PCM mono por reamostragem sinc de banda
-/// limitada (`rubato::Async`, janela Blackman-Harris2, interpolação cúbica).
+/// Ajusta a dura├º├úo de um buffer PCM mono por reamostragem sinc de banda
+/// limitada (`rubato::Async`, janela Blackman-Harris2, interpola├º├úo c├║bica).
 ///
-/// Reamostrar ainda altera o pitch junto com a duração — não é um
-/// time-stretch que preserva afinação (isso seria WSOLA/phase vocoder,
+/// Reamostrar ainda altera o pitch junto com a dura├º├úo ÔÇö n├úo ├® um
+/// time-stretch que preserva afina├º├úo (isso seria WSOLA/phase vocoder,
 /// trabalho futuro quando entrar pitch-shifting independente). Mas o
-/// resample em si é de qualidade real: banda limitada por sinc, não
-/// interpolação linear (que aliasa e perde agudos).
+/// resample em si ├® de qualidade real: banda limitada por sinc, n├úo
+/// interpola├º├úo linear (que aliasa e perde agudos).
 pub fn time_stretch(
     pcm: &Array1<f32>,
     sample_rate: u32,
@@ -67,10 +67,10 @@ mod tests {
         assert_eq!(result.len(), pcm.len());
     }
 
-    /// I12 (docs/10-TESTES-QUALIDADE.md §3): entrega duração dentro de ±20ms.
-    /// A implementação por sinc devolve o comprimento exato pedido (o teste
-    /// acima já prova isso), o que é bem mais apertado que a tolerância do
-    /// invariante — este teste torna esse invariante explícito por nome.
+    /// I12 (docs/10-TESTES-QUALIDADE.md ┬º3): entrega dura├º├úo dentro de ┬▒20ms.
+    /// A implementa├º├úo por sinc devolve o comprimento exato pedido (o teste
+    /// acima j├í prova isso), o que ├® bem mais apertado que a toler├óncia do
+    /// invariante ÔÇö este teste torna esse invariante expl├¡cito por nome.
     #[test]
     fn test_time_stretch_satisfies_i12_duration_tolerance() {
         let sample_rate = 44100u32;
@@ -85,13 +85,13 @@ mod tests {
         let actual_sec = stretched.len() as f32 / sample_rate as f32;
         assert!(
             (actual_sec - target_sec).abs() <= 0.020,
-            "duração fora de ±20ms: alvo {target_sec}s, obtido {actual_sec}s"
+            "dura├º├úo fora de ┬▒20ms: alvo {target_sec}s, obtido {actual_sec}s"
         );
     }
 
     /// A qualidade do resample importa: um sinal senoidal puro reamostrado
-    /// não deve ganhar energia de alta frequência (aliasing) que não existia
-    /// na entrada. Interpolação linear falha este teste; sinc passa.
+    /// n├úo deve ganhar energia de alta frequ├¬ncia (aliasing) que n├úo existia
+    /// na entrada. Interpola├º├úo linear falha este teste; sinc passa.
     #[test]
     fn test_time_stretch_does_not_introduce_gross_amplitude_artifacts() {
         let sample_rate = 44100u32;
@@ -104,9 +104,9 @@ mod tests {
 
         let stretched = time_stretch(&pcm, sample_rate, 0.7).unwrap();
         let peak = stretched.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
-        // Um seno de amplitude 1 não deve virar > ~1.05 depois do resample
-        // (alguma margem para ripple do filtro sinc); interpolação linear
+        // Um seno de amplitude 1 n├úo deve virar > ~1.05 depois do resample
+        // (alguma margem para ripple do filtro sinc); interpola├º├úo linear
         // com aliasing severo tende a produzir picos bem maiores que isso.
-        assert!(peak <= 1.05, "pico pós-resample suspeito: {peak}");
+        assert!(peak <= 1.05, "pico p├│s-resample suspeito: {peak}");
     }
 }

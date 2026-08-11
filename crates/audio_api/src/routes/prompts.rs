@@ -135,7 +135,7 @@ mod tests {
     use super::*;
 
     fn workspace_path(relative: &str) -> String {
-        // `cargo test` roda com CWD = diretório do pacote, não a raiz do
+        // `cargo test` roda com CWD = diret├│rio do pacote, n├úo a raiz do
         // workspace; CARGO_MANIFEST_DIR aponta para crates/audio_api.
         format!("{}/../../{relative}", env!("CARGO_MANIFEST_DIR"))
     }
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_catalog_parses() {
         let prompts = load_catalog_from(&workspace_path("prompts/catalog.json"))
-            .expect("catalog.json deve existir e ser válido");
+            .expect("catalog.json deve existir e ser v├ílido");
         assert!(prompts.iter().any(|p| p.id == "tiktok_aggressive_v2"));
     }
 }

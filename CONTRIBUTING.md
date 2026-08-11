@@ -11,7 +11,26 @@ Leia, nesta ordem:
 
 ---
 
-## Ambiente
+## Dev Metadata (metadados de desenvolvimento)
+
+O repositório contém metadados em `.dev/` que **devem ser lidos antes de iniciar qualquer trabalho**:
+
+| Arquivo | Quando ler |
+|---|---|
+| `.dev/workspace.yaml` | Início de sessão — paths, issues conhecidos, sprint atual |
+| `.dev/module-status.yaml` | Para saber o que está feito/quebrado/pending |
+| `.dev/DevHelper.ps1` | Sempre que for criar/editar arquivos Rust |
+
+**Regras importantes:**
+- **NUNCA** commitar `.dev/`
+- **SEMPRE** usar `Write-RustFile` do DevHelper para escrever arquivos Rust (evita BOM)
+- **SEMPRE** prefixar paths com `crates/`
+
+Veja [`.dev/README.md`](.dev/README.md) para documentação completa.
+
+---
+
+
 
 ```bash
 rustup toolchain install stable

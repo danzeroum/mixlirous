@@ -1,6 +1,6 @@
 use ndarray::{s, ArrayView1};
 
-/// Calcula o RMS (Root Mean Square) de um buffer de áudio
+/// Calcula o RMS (Root Mean Square) de um buffer de ├íudio
 pub fn calculate_rms(pcm: ArrayView1<f32>) -> f32 {
     if pcm.len() < 100 {
         return 0.0;
@@ -9,7 +9,7 @@ pub fn calculate_rms(pcm: ArrayView1<f32>) -> f32 {
     (sum_sq / pcm.len() as f32).sqrt()
 }
 
-/// Calcula RMS em janelas deslizantes para análise de energia ao longo do tempo
+/// Calcula RMS em janelas deslizantes para an├ílise de energia ao longo do tempo
 pub fn sliding_rms(pcm: ArrayView1<f32>, frame_size: usize, hop_size: usize) -> Vec<f32> {
     let mut rms_values = Vec::new();
 
@@ -50,7 +50,7 @@ mod tests {
         assert!(frames.iter().all(|&v| (v - 0.5).abs() < 1e-5));
     }
 
-    /// I13 (docs/10-TESTES-QUALIDADE.md §3): RMS(seno amplitude 1) ~= 0.7071.
+    /// I13 (docs/10-TESTES-QUALIDADE.md ┬º3): RMS(seno amplitude 1) ~= 0.7071.
     #[test]
     fn test_rms_of_unit_sine_satisfies_i13() {
         let sample_rate = 44100.0f32;

@@ -1,9 +1,9 @@
-//! Tabela canônica de limites de parâmetros — espelha
-//! `docs/05-AGENTE-IA-HITL.md` §3. Exposta para `GET /api/v1/tools` (a UI lê
+//! Tabela can├┤nica de limites de par├ómetros ÔÇö espelha
+//! `docs/05-AGENTE-IA-HITL.md` ┬º3. Exposta para `GET /api/v1/tools` (a UI l├¬
 //! os limites daqui em vez de hardcodar `max: 3000`).
 //!
-//! Os números aqui e os de `validator.rs` precisam bater; o teste no fundo
-//! deste arquivo falha se alguém mudar um sem o outro.
+//! Os n├║meros aqui e os de `validator.rs` precisam bater; o teste no fundo
+//! deste arquivo falha se algu├®m mudar um sem o outro.
 
 use serde::Serialize;
 
@@ -26,12 +26,12 @@ pub struct ToolLimits {
     pub label_ptbr: &'static str,
     pub category: &'static str,
     pub available: bool,
-    /// `available` reflete a existência do DSP, não a existência do schema.
-    /// Um parâmetro validado e exposto aqui sem nenhum código que o
-    /// consuma é a mesma classe de bug que a divergência
-    /// validador/registry — só que na direção "promete mais do que existe"
-    /// em vez de "promete menos". `docs/03-CONTRATOS-API.md` §3.7 documenta
-    /// os códigos (`"not_implemented"`, `"requires_plan_pro"`, etc.).
+    /// `available` reflete a exist├¬ncia do DSP, n├úo a exist├¬ncia do schema.
+    /// Um par├ómetro validado e exposto aqui sem nenhum c├│digo que o
+    /// consuma ├® a mesma classe de bug que a diverg├¬ncia
+    /// validador/registry ÔÇö s├│ que na dire├º├úo "promete mais do que existe"
+    /// em vez de "promete menos". `docs/03-CONTRATOS-API.md` ┬º3.7 documenta
+    /// os c├│digos (`"not_implemented"`, `"requires_plan_pro"`, etc.).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unavailable_reason: Option<&'static str>,
     pub parameters: Vec<ParamLimit>,
@@ -72,7 +72,7 @@ fn e(
     }
 }
 
-/// Array cujos itens vêm de um enum fechado, com contagem mínima/máxima
+/// Array cujos itens v├¬m de um enum fechado, com contagem m├¡nima/m├íxima
 /// (ex.: `stem_separation.stems`: 1 a 4 itens, cada um de `VALID_STEMS`).
 fn array_enum(
     name: &'static str,
@@ -97,12 +97,12 @@ pub fn tool_registry() -> Vec<ToolLimits> {
     vec![
         ToolLimits {
             name: "compression",
-            label_ptbr: "Compressão",
+            label_ptbr: "Compress├úo",
             category: "mastering",
-            // Sem módulo de DSP (nenhum arquivo em audio_core::dsp implementa
-            // compressor) — o schema existe e o validador aceita, mas
-            // nenhum código lê os parâmetros. `available: true` aqui seria a
-            // ferramenta fantasma que a ADR-0010 (docs/adr/README.md) já
+            // Sem m├│dulo de DSP (nenhum arquivo em audio_core::dsp implementa
+            // compressor) ÔÇö o schema existe e o validador aceita, mas
+            // nenhum c├│digo l├¬ os par├ómetros. `available: true` aqui seria a
+            // ferramenta fantasma que a ADR-0010 (docs/adr/README.md) j├í
             // resolve corretamente para stem_separation.
             available: false,
             unavailable_reason: Some("not_implemented"),
@@ -110,8 +110,8 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "ratio",
                     "float",
-                    // T0.0 (docs/16): estes dois números vêm do newtype
-                    // audio_core::CompressionRatio — ver o comentário em
+                    // T0.0 (docs/16): estes dois n├║meros v├¬m do newtype
+                    // audio_core::CompressionRatio ÔÇö ver o coment├írio em
                     // crossfade.duration_ms mais abaixo para o racional.
                     Some(audio_core::CompressionRatio::MIN as f64),
                     Some(audio_core::CompressionRatio::MAX as f64),
@@ -162,10 +162,10 @@ pub fn tool_registry() -> Vec<ToolLimits> {
         },
         ToolLimits {
             name: "dynamic_eq",
-            label_ptbr: "EQ dinâmico",
+            label_ptbr: "EQ din├ómico",
             category: "mastering",
-            // Mesma situação de `compression`: sem módulo de DSP sob
-            // audio_core::dsp, mesmo com schema e validação completos.
+            // Mesma situa├º├úo de `compression`: sem m├│dulo de DSP sob
+            // audio_core::dsp, mesmo com schema e valida├º├úo completos.
             available: false,
             unavailable_reason: Some("not_implemented"),
             parameters: vec![
@@ -203,7 +203,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
         },
         ToolLimits {
             name: "crossfade",
-            label_ptbr: "Transição",
+            label_ptbr: "Transi├º├úo",
             category: "stitching",
             available: true,
             unavailable_reason: None,
@@ -211,10 +211,10 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 p(
                     "duration_ms",
                     "integer",
-                    // T0.0 (docs/16): estes dois números vêm do newtype
-                    // audio_core::CrossfadeMs, não são redigitados aqui — um
+                    // T0.0 (docs/16): estes dois n├║meros v├¬m do newtype
+                    // audio_core::CrossfadeMs, n├úo s├úo redigitados aqui ÔÇö um
                     // teste de deriva (fundo deste arquivo) prende os dois
-                    // juntos, então não há como o registry e o tipo
+                    // juntos, ent├úo n├úo h├í como o registry e o tipo
                     // divergirem silenciosamente.
                     Some(audio_core::CrossfadeMs::MIN as f64),
                     Some(audio_core::CrossfadeMs::MAX as f64),
@@ -266,7 +266,7 @@ pub fn tool_registry() -> Vec<ToolLimits> {
         },
         ToolLimits {
             name: "time_stretch",
-            label_ptbr: "Ajuste de duração",
+            label_ptbr: "Ajuste de dura├º├úo",
             category: "mastering",
             available: true,
             unavailable_reason: None,
@@ -276,12 +276,12 @@ pub fn tool_registry() -> Vec<ToolLimits> {
                 Some(audio_core::TimeStretchFactor::MIN as f64),
                 Some(audio_core::TimeStretchFactor::MAX as f64),
                 Some(1.0.into()),
-                Some("×"),
+                Some("├ù"),
             )],
         },
         ToolLimits {
             name: "lufs_normalization",
-            label_ptbr: "Normalização LUFS",
+            label_ptbr: "Normaliza├º├úo LUFS",
             category: "mastering",
             available: true,
             unavailable_reason: None,
@@ -306,13 +306,13 @@ pub fn tool_registry() -> Vec<ToolLimits> {
         },
         ToolLimits {
             name: "stem_separation",
-            label_ptbr: "Separação de stems",
+            label_ptbr: "Separa├º├úo de stems",
             category: "analysis",
-            // ADR-0010 pendente — ver docs/adr/README.md. `model` ainda é
-            // lista fixa (VALID_STEM_MODELS); deveria vir do binário
-            // detectado, não do código (prioridade baixa enquanto a
-            // ferramenta estiver indisponível, mas não pode passar da
-            // Sprint 3 sem virar detecção real).
+            // ADR-0010 pendente ÔÇö ver docs/adr/README.md. `model` ainda ├®
+            // lista fixa (VALID_STEM_MODELS); deveria vir do bin├írio
+            // detectado, n├úo do c├│digo (prioridade baixa enquanto a
+            // ferramenta estiver indispon├¡vel, mas n├úo pode passar da
+            // Sprint 3 sem virar detec├º├úo real).
             available: false,
             unavailable_reason: Some("not_implemented"),
             parameters: vec![
@@ -329,12 +329,12 @@ pub fn tool_registry() -> Vec<ToolLimits> {
     ]
 }
 
-// Adendo R2 §0: crossfade (dois sinais somando) e fade_in/fade_out (um sinal
-// de/para o silêncio) são conceitos diferentes e têm enums distintos —
-// contrato, validador e registry, os três. `crossfade` nunca aceitou
-// "linear"/"exponential" de verdade; a matemática de potência/ganho
-// constante (docs/16 T2.2) também já está em
-// dsp::stitching::crossfade::crossfade_buffers() — não sobra mais operando
+// Adendo R2 ┬º0: crossfade (dois sinais somando) e fade_in/fade_out (um sinal
+// de/para o sil├¬ncio) s├úo conceitos diferentes e t├¬m enums distintos ÔÇö
+// contrato, validador e registry, os tr├¬s. `crossfade` nunca aceitou
+// "linear"/"exponential" de verdade; a matem├ítica de pot├¬ncia/ganho
+// constante (docs/16 T2.2) tamb├®m j├í est├í em
+// dsp::stitching::crossfade::crossfade_buffers() ÔÇö n├úo sobra mais operando
 // sobre o FadeCurve antigo por baixo.
 pub const VALID_CROSSFADE_CURVES: &[&str] = &["constant_power", "constant_gain"];
 pub const VALID_FADE_CURVES: &[&str] = &["linear", "logarithmic", "exponential"];
@@ -342,16 +342,16 @@ pub const VALID_STEM_MODELS: &[&str] = &["htdemucs", "htdemucs_ft"];
 pub const VALID_STEMS: &[&str] = &["drums", "bass", "vocals", "other"];
 pub const VALID_EQ_FILTER_TYPES: &[&str] = &["peak", "shelf", "highpass", "lowpass"];
 
-/// Gera a tabela markdown de `docs/05-AGENTE-IA-HITL.md` §3 a partir do
-/// registry — a fonte é `tool_registry()`, a tabela é projeção. Um teste no
+/// Gera a tabela markdown de `docs/05-AGENTE-IA-HITL.md` ┬º3 a partir do
+/// registry ÔÇö a fonte ├® `tool_registry()`, a tabela ├® proje├º├úo. Um teste no
 /// fundo deste arquivo compara este output contra o bloco marcado no arquivo
-/// de doc; se divergirem, o teste falha e diz para regenerar. Só cobre as
+/// de doc; se divergirem, o teste falha e diz para regenerar. S├│ cobre as
 /// ferramentas de `GET /api/v1/tools`: `block_selection` e `target_duration`
-/// (campos de `pipeline_config`, não uma entrada de tool_registry) ficam de
-/// fora de propósito — ver nota logo abaixo do bloco gerado em docs/05.
+/// (campos de `pipeline_config`, n├úo uma entrada de tool_registry) ficam de
+/// fora de prop├│sito ÔÇö ver nota logo abaixo do bloco gerado em docs/05.
 pub fn render_markdown_table() -> String {
     let mut out = String::from(
-        "| Ferramenta | Disponível | Parâmetro | Tipo | Mín | Máx | Padrão | Unidade/Enum |\n",
+        "| Ferramenta | Dispon├¡vel | Par├ómetro | Tipo | M├¡n | M├íx | Padr├úo | Unidade/Enum |\n",
     );
     out.push_str("| --- | --- | --- | --- | --- | --- | --- | --- |\n");
 
@@ -360,14 +360,14 @@ pub fn render_markdown_table() -> String {
             "sim".to_string()
         } else {
             format!(
-                "não ({})",
-                tool.unavailable_reason.unwrap_or("motivo não registrado")
+                "n├úo ({})",
+                tool.unavailable_reason.unwrap_or("motivo n├úo registrado")
             )
         };
 
         if tool.parameters.is_empty() {
             out.push_str(&format!(
-                "| `{}` | {} | — | — | — | — | — | — |\n",
+                "| `{}` | {} | ÔÇö | ÔÇö | ÔÇö | ÔÇö | ÔÇö | ÔÇö |\n",
                 tool.name, availability
             ));
             continue;
@@ -387,19 +387,19 @@ pub fn render_markdown_table() -> String {
             let min = param
                 .min
                 .map(format_number)
-                .unwrap_or_else(|| "—".to_string());
+                .unwrap_or_else(|| "ÔÇö".to_string());
             let max = param
                 .max
                 .map(format_number)
-                .unwrap_or_else(|| "—".to_string());
+                .unwrap_or_else(|| "ÔÇö".to_string());
             let default = param
                 .default
                 .as_ref()
                 .map(|v| v.to_string())
-                .unwrap_or_else(|| "—".to_string());
+                .unwrap_or_else(|| "ÔÇö".to_string());
             let unit_or_enum = match param.enum_values {
                 Some(values) => values.join(" \\| "),
-                None => param.unit.unwrap_or("—").to_string(),
+                None => param.unit.unwrap_or("ÔÇö").to_string(),
             };
 
             out.push_str(&format!(
@@ -413,12 +413,12 @@ pub fn render_markdown_table() -> String {
 }
 
 fn format_number(v: f64) -> String {
-    // Bounds de origem `f32` (a maioria dos newtypes T0.0) carregam ruído de
-    // arredondamento invisível até o cast para f64: `TimeStretchFactor::MIN`
-    // (0.90_f32) as f64 é 0.8999999761581421, não 0.9 — a mesma fração não
+    // Bounds de origem `f32` (a maioria dos newtypes T0.0) carregam ru├¡do de
+    // arredondamento invis├¡vel at├® o cast para f64: `TimeStretchFactor::MIN`
+    // (0.90_f32) as f64 ├® 0.8999999761581421, n├úo 0.9 ÔÇö a mesma fra├º├úo n├úo
     // representa igual nos dois formatos. Arredonda antes de formatar para
-    // não vazar esse ruído pra tabela gerada; 6 casas cobre toda a precisão
-    // que qualquer parâmetro deste registry usa de propósito.
+    // n├úo vazar esse ru├¡do pra tabela gerada; 6 casas cobre toda a precis├úo
+    // que qualquer par├ómetro deste registry usa de prop├│sito.
     let arredondado = (v * 1e6).round() / 1e6;
     if arredondado.fract() == 0.0 {
         format!("{arredondado:.0}")
@@ -442,29 +442,29 @@ mod tests {
     const END_MARKER: &str = "<!-- END GENERATED TOOLS TABLE -->";
 
     /// Extrai o bloco entre os marcadores e normaliza fim de linha.
-    /// `include_str!` preserva o fim de linha do arquivo em disco — no
-    /// runner Windows do CI isso é `\r\n` (checkout do git normaliza),
+    /// `include_str!` preserva o fim de linha do arquivo em disco ÔÇö no
+    /// runner Windows do CI isso ├® `\r\n` (checkout do git normaliza),
     /// enquanto `render_markdown_table()` sempre gera `\n`. Sem normalizar,
-    /// a comparação falha em CRLF mesmo com conteúdo idêntico — não é
-    /// divergência real, é diferença de fim de linha entre SOs.
+    /// a compara├º├úo falha em CRLF mesmo com conte├║do id├¬ntico ÔÇö n├úo ├®
+    /// diverg├¬ncia real, ├® diferen├ºa de fim de linha entre SOs.
     fn extract_generated_block(doc: &str) -> &str {
         let begin = doc
             .find(BEGIN_MARKER)
-            .expect("marcador BEGIN não encontrado em docs/05-AGENTE-IA-HITL.md");
+            .expect("marcador BEGIN n├úo encontrado em docs/05-AGENTE-IA-HITL.md");
         let begin_line_end = doc[begin..]
             .find('\n')
             .map(|i| begin + i + 1)
             .expect("marcador BEGIN sem quebra de linha");
         let end = doc
             .find(END_MARKER)
-            .expect("marcador END não encontrado em docs/05-AGENTE-IA-HITL.md");
+            .expect("marcador END n├úo encontrado em docs/05-AGENTE-IA-HITL.md");
         doc[begin_line_end..end].trim_end()
     }
 
-    /// A tabela §3 de docs/05 é gerada a partir do registry, não mantida à
-    /// mão — este teste é o que impede as duas de divergirem de novo (a
+    /// A tabela ┬º3 de docs/05 ├® gerada a partir do registry, n├úo mantida ├á
+    /// m├úo ÔÇö este teste ├® o que impede as duas de divergirem de novo (a
     /// causa raiz do adendo R2 estar desatualizado: foi escrito lendo o kit
-    /// original, não a `main`). Se este teste falhar, rode
+    /// original, n├úo a `main`). Se este teste falhar, rode
     /// `render_markdown_table()` (ex.: via um teste com `--nocapture`) e
     /// cole o resultado entre os marcadores no arquivo de doc.
     #[test]
@@ -475,14 +475,14 @@ mod tests {
 
         assert_eq!(
             committed, generated,
-            "\n\ndocs/05 §3 divergiu do registry. Cole isto entre os marcadores:\n\n{generated}\n"
+            "\n\ndocs/05 ┬º3 divergiu do registry. Cole isto entre os marcadores:\n\n{generated}\n"
         );
     }
 
-    /// Prova a normalização de CRLF isolada do arquivo real — este sandbox
-    /// roda Linux, então o bug (CI falhando só no runner Windows) não
+    /// Prova a normaliza├º├úo de CRLF isolada do arquivo real ÔÇö este sandbox
+    /// roda Linux, ent├úo o bug (CI falhando s├│ no runner Windows) n├úo
     /// reproduz aqui sem simular o \r\n manualmente. Sem este teste, a
-    /// correção do CRLF só seria verificada de novo no próximo push ao CI.
+    /// corre├º├úo do CRLF s├│ seria verificada de novo no pr├│ximo push ao CI.
     #[test]
     fn test_extract_generated_block_normalizes_crlf() {
         let doc_unix =
@@ -497,9 +497,9 @@ mod tests {
     }
 
     /// Achado ao migrar `time_stretch.factor` para `TimeStretchFactor`
-    /// (T0.0): `0.90_f32 as f64` é `0.8999999761581421`, não `0.9` — o
-    /// mesmo valor não representa igual nos dois formatos, e sem
-    /// arredondar antes de formatar a tabela gerada carrega esse ruído.
+    /// (T0.0): `0.90_f32 as f64` ├® `0.8999999761581421`, n├úo `0.9` ÔÇö o
+    /// mesmo valor n├úo representa igual nos dois formatos, e sem
+    /// arredondar antes de formatar a tabela gerada carrega esse ru├¡do.
     #[test]
     fn test_format_number_rounds_away_f32_cast_noise() {
         assert_eq!(
@@ -515,19 +515,19 @@ mod tests {
     fn find<'a>(reg: &'a [ToolLimits], tool: &str) -> &'a ToolLimits {
         reg.iter()
             .find(|t| t.name == tool)
-            .unwrap_or_else(|| panic!("tool {tool} não está no registry"))
+            .unwrap_or_else(|| panic!("tool {tool} n├úo est├í no registry"))
     }
 
     fn param<'a>(tool: &'a ToolLimits, name: &str) -> &'a ParamLimit {
         tool.parameters
             .iter()
             .find(|p| p.name == name)
-            .unwrap_or_else(|| panic!("param {name} não está em {}", tool.name))
+            .unwrap_or_else(|| panic!("param {name} n├úo est├í em {}", tool.name))
     }
 
-    /// T0.0: o registry não redigita os números de `CrossfadeMs` — lê a
+    /// T0.0: o registry n├úo redigita os n├║meros de `CrossfadeMs` ÔÇö l├¬ a
     /// constante direto (`p(..., Some(audio_core::CrossfadeMs::MIN as f64), ...)`
-    /// acima). Este teste não pega uma cópia divergindo — pega alguém que
+    /// acima). Este teste n├úo pega uma c├│pia divergindo ÔÇö pega algu├®m que
     /// troque a leitura da constante por um literal solto de novo, o que
     /// reabriria exatamente o "terceiro lugar" que T0.0 fecha.
     #[test]
@@ -540,9 +540,9 @@ mod tests {
     }
 
     /// T0.0: mesma checagem de deriva de `test_crossfade_duration_registry_matches_crossfade_ms_newtype`,
-    /// aplicada aos 7 newtypes restantes que têm entrada no registry
-    /// (`BlockSizeBeats` e `Percentile` ficam de fora — não são parâmetro de
-    /// tool call, ver `docs/05-AGENTE-IA-HITL.md` §3).
+    /// aplicada aos 7 newtypes restantes que t├¬m entrada no registry
+    /// (`BlockSizeBeats` e `Percentile` ficam de fora ÔÇö n├úo s├úo par├ómetro de
+    /// tool call, ver `docs/05-AGENTE-IA-HITL.md` ┬º3).
     #[test]
     fn test_compression_ratio_registry_matches_newtype() {
         let reg = tool_registry();
@@ -599,9 +599,9 @@ mod tests {
         assert_eq!(param.max, Some(audio_core::LufsTarget::MAX as f64));
     }
 
-    /// Garante que o teto de `crossfade.duration_ms` no registry é
-    /// exatamente o que o validador aceita — pega divergência silenciosa
-    /// entre a UI (que lê este registry) e o Rust (que valida de fato).
+    /// Garante que o teto de `crossfade.duration_ms` no registry ├®
+    /// exatamente o que o validador aceita ÔÇö pega diverg├¬ncia silenciosa
+    /// entre a UI (que l├¬ este registry) e o Rust (que valida de fato).
     #[test]
     fn test_crossfade_duration_registry_matches_validator() {
         let reg = tool_registry();
@@ -699,16 +699,16 @@ mod tests {
         ] {
             assert!(
                 names.contains(&expected),
-                "registry não descreve a ferramenta {expected}"
+                "registry n├úo descreve a ferramenta {expected}"
             );
         }
     }
 
-    /// `available: true` sem nenhum módulo de DSP por baixo é a ferramenta
-    /// fantasma: GET /tools anuncia, o validador aceita, o áudio não muda.
-    /// compression e dynamic_eq não têm implementação em audio_core::dsp
-    /// (nenhum arquivo compressor/eq existe lá) — as duas têm que estar
-    /// `available: false` com motivo, não `true`. As cinco ferramentas com
+    /// `available: true` sem nenhum m├│dulo de DSP por baixo ├® a ferramenta
+    /// fantasma: GET /tools anuncia, o validador aceita, o ├íudio n├úo muda.
+    /// compression e dynamic_eq n├úo t├¬m implementa├º├úo em audio_core::dsp
+    /// (nenhum arquivo compressor/eq existe l├í) ÔÇö as duas t├¬m que estar
+    /// `available: false` com motivo, n├úo `true`. As cinco ferramentas com
     /// DSP real (crossfade, fade_in, fade_out, time_stretch,
     /// lufs_normalization) continuam `true`.
     #[test]
@@ -719,11 +719,11 @@ mod tests {
             let tool = find(&reg, name);
             assert!(
                 !tool.available,
-                "{name} não tem DSP mas está available: true"
+                "{name} n├úo tem DSP mas est├í available: true"
             );
             assert!(
                 tool.unavailable_reason.is_some(),
-                "{name} está unavailable mas sem unavailable_reason"
+                "{name} est├í unavailable mas sem unavailable_reason"
             );
         }
 
@@ -737,11 +737,11 @@ mod tests {
             let tool = find(&reg, name);
             assert!(
                 tool.available,
-                "{name} tem DSP real mas está available: false"
+                "{name} tem DSP real mas est├í available: false"
             );
             assert!(
                 tool.unavailable_reason.is_none(),
-                "{name} está available mas tem unavailable_reason"
+                "{name} est├í available mas tem unavailable_reason"
             );
         }
     }
@@ -769,11 +769,11 @@ mod tests {
         }
     }
 
-    /// Adendo R2 §0: crossfade (dois sinais somando) e fade_in/fade_out (um
-    /// sinal de/para o silêncio) são conceitos diferentes — cada um expõe seu
-    /// próprio enum no registry, e os dois vocabulários não se sobrepõem. Sem
-    /// este teste, a UI (que lê só daqui) voltaria a oferecer "logarítmica"
-    /// como opção de crossfade.
+    /// Adendo R2 ┬º0: crossfade (dois sinais somando) e fade_in/fade_out (um
+    /// sinal de/para o sil├¬ncio) s├úo conceitos diferentes ÔÇö cada um exp├Áe seu
+    /// pr├│prio enum no registry, e os dois vocabul├írios n├úo se sobrep├Áem. Sem
+    /// este teste, a UI (que l├¬ s├│ daqui) voltaria a oferecer "logar├¡tmica"
+    /// como op├º├úo de crossfade.
     #[test]
     fn test_crossfade_and_fade_curve_enums_are_distinct_in_registry() {
         let reg = tool_registry();
@@ -788,7 +788,7 @@ mod tests {
         for shared in VALID_CROSSFADE_CURVES {
             assert!(
                 !VALID_FADE_CURVES.contains(shared),
-                "{shared} não deveria valer para os dois vocabulários"
+                "{shared} n├úo deveria valer para os dois vocabul├írios"
             );
         }
 
@@ -807,8 +807,8 @@ mod tests {
     }
 
     /// Espelha `test_crossfade_duration_registry_matches_validator`: o
-    /// registry e o validador precisam concordar nos dois vocabulários, não
-    /// só num deles.
+    /// registry e o validador precisam concordar nos dois vocabul├írios, n├úo
+    /// s├│ num deles.
     #[test]
     fn test_crossfade_curve_registry_matches_validator() {
         let layer = ValidationLayer::new();
@@ -829,7 +829,7 @@ mod tests {
             });
             assert!(
                 layer.validate_tool_call(&tool, &Value::Null).is_err(),
-                "{invalid} não deveria ser aceito em crossfade"
+                "{invalid} n├úo deveria ser aceito em crossfade"
             );
         }
     }

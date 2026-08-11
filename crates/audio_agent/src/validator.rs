@@ -6,10 +6,10 @@ use crate::tools::AudioToolDef;
 use serde_json::Value;
 use thiserror::Error;
 
-/// Camada de validação estrita que tipa e limita parâmetros de ferramentas.
+/// Camada de valida├º├úo estrita que tipa e limita par├ómetros de ferramentas.
 ///
-/// Os limites abaixo espelham a tabela canônica de `docs/05-AGENTE-IA-HITL.md`
-/// §3. Mudar um limite aqui exige atualizar a tabela e o schema exposto à UI
+/// Os limites abaixo espelham a tabela can├┤nica de `docs/05-AGENTE-IA-HITL.md`
+/// ┬º3. Mudar um limite aqui exige atualizar a tabela e o schema exposto ├á UI
 /// no mesmo PR (ver `CONTRIBUTING.md`).
 pub struct ValidationLayer {}
 
@@ -24,7 +24,7 @@ impl ValidationLayer {
         Self {}
     }
 
-    /// Valida uma tool call antes da execução
+    /// Valida uma tool call antes da execu├º├úo
     pub fn validate_tool_call(
         &self,
         tool: &AudioToolDef,
@@ -32,10 +32,10 @@ impl ValidationLayer {
     ) -> Result<AudioToolDef, ValidationError> {
         match tool {
             AudioToolDef::Compression(params) => {
-                // T0.0 (docs/16, I14): os quatro limites abaixo não são
-                // redigitados aqui — cada newtype é a checagem, igual ao
-                // braço de Crossfade logo adiante. makeup_gain_db/knee_db
-                // ficam de fora do lote de 9 (docs/04 não os lista) e
+                // T0.0 (docs/16, I14): os quatro limites abaixo n├úo s├úo
+                // redigitados aqui ÔÇö cada newtype ├® a checagem, igual ao
+                // bra├ºo de Crossfade logo adiante. makeup_gain_db/knee_db
+                // ficam de fora do lote de 9 (docs/04 n├úo os lista) e
                 // continuam via `bound()`.
                 audio_core::CompressionRatio::try_from(params.ratio)
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
@@ -53,16 +53,16 @@ impl ValidationLayer {
                 )?;
                 bound("compression.knee_db", params.knee_db, 0.0, 12.0)?;
 
-                // R1: ataque não pode ser maior que o release
+                // R1: ataque n├úo pode ser maior que o release
                 if params.attack_ms > params.release_ms {
                     return Err(ValidationError::Rule(
-                        "ataque não pode ser maior que o release".to_string(),
+                        "ataque n├úo pode ser maior que o release".to_string(),
                     ));
                 }
-                // R2: ratio alto com threshold raso é compressão destrutiva
+                // R2: ratio alto com threshold raso ├® compress├úo destrutiva
                 if params.ratio >= 8.0 && params.threshold_db > -10.0 {
                     return Err(ValidationError::Rule(
-                        "compressão destrutiva: ratio alto com threshold raso".to_string(),
+                        "compress├úo destrutiva: ratio alto com threshold raso".to_string(),
                     ));
                 }
 
@@ -76,8 +76,8 @@ impl ValidationLayer {
                 }
                 for band in &params.bands {
                     bound("dynamic_eq.bands[].freq_hz", band.freq_hz, 20.0, 20000.0)?;
-                    // T0.0 (docs/16, I14): não redigita -24.0/24.0 — checagem
-                    // é audio_core::EqGainDb.
+                    // T0.0 (docs/16, I14): n├úo redigita -24.0/24.0 ÔÇö checagem
+                    // ├® audio_core::EqGainDb.
                     audio_core::EqGainDb::try_from(band.gain_db)
                         .map_err(|e| ValidationError::Bound(e.to_string()))?;
                     bound("dynamic_eq.bands[].q", band.q, 0.1, 10.0)?;
@@ -87,7 +87,7 @@ impl ValidationLayer {
                         VALID_EQ_FILTER_TYPES,
                     )?;
                 }
-                // R4: bandas com freq_hz duplicada (±5%)
+                // R4: bandas com freq_hz duplicada (┬▒5%)
                 for i in 0..params.bands.len() {
                     for j in (i + 1)..params.bands.len() {
                         let (a, b) = (params.bands[i].freq_hz, params.bands[j].freq_hz);
@@ -101,11 +101,11 @@ impl ValidationLayer {
                 Ok(AudioToolDef::DynamicEq(params.clone()))
             }
             AudioToolDef::Crossfade(params) => {
-                // T0.0 (docs/16, I14): o limite não é redigitado aqui — o
-                // newtype é a checagem. `bound()` comparava contra 0.0/3000.0
-                // hardcoded, uma cópia manual do que audio_core::CrossfadeMs
-                // já garante; a checagem duplicada é exatamente o "terceiro
-                // lugar" que divergia sem ninguém perceber.
+                // T0.0 (docs/16, I14): o limite n├úo ├® redigitado aqui ÔÇö o
+                // newtype ├® a checagem. `bound()` comparava contra 0.0/3000.0
+                // hardcoded, uma c├│pia manual do que audio_core::CrossfadeMs
+                // j├í garante; a checagem duplicada ├® exatamente o "terceiro
+                // lugar" que divergia sem ningu├®m perceber.
                 audio_core::CrossfadeMs::try_from(params.duration_ms)
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 enum_value("crossfade.curve", &params.curve, VALID_CROSSFADE_CURVES)?;
@@ -132,16 +132,16 @@ impl ValidationLayer {
                 Ok(AudioToolDef::FadeOut(params.clone()))
             }
             AudioToolDef::TimeStretch(params) => {
-                // T0.0 (docs/16, I14): não redigita 0.90/1.10 — checagem é
+                // T0.0 (docs/16, I14): n├úo redigita 0.90/1.10 ÔÇö checagem ├®
                 // audio_core::TimeStretchFactor.
                 audio_core::TimeStretchFactor::try_from(params.factor)
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 Ok(AudioToolDef::TimeStretch(params.clone()))
             }
             AudioToolDef::LufsNormalization(params) => {
-                // T0.0 (docs/16, I14): não redigita -30.0/-6.0 — checagem é
+                // T0.0 (docs/16, I14): n├úo redigita -30.0/-6.0 ÔÇö checagem ├®
                 // audio_core::LufsTarget. max_true_peak_db fica de fora do
-                // lote de 9 (docs/04 não o lista) e continua via `bound()`.
+                // lote de 9 (docs/04 n├úo o lista) e continua via `bound()`.
                 audio_core::LufsTarget::try_from(params.target_lufs)
                     .map_err(|e| ValidationError::Bound(e.to_string()))?;
                 bound(
@@ -289,9 +289,9 @@ mod tests {
 
     #[test]
     fn test_dynamic_eq_invalid_type_filter_rejected() {
-        // type_filter era String livre — o validador nunca checava o valor.
-        // Registry (limits.rs) já expõe o enum; o validador precisa
-        // impor o mesmo, senão volta a divergência de sempre.
+        // type_filter era String livre ÔÇö o validador nunca checava o valor.
+        // Registry (limits.rs) j├í exp├Áe o enum; o validador precisa
+        // impor o mesmo, sen├úo volta a diverg├¬ncia de sempre.
         let tool = AudioToolDef::DynamicEq(DynamicEqParams {
             bands: vec![EqBand {
                 freq_hz: 1000.0,
@@ -323,8 +323,8 @@ mod tests {
 
     #[test]
     fn test_crossfade_rejects_fade_vocabulary() {
-        // Adendo R2 §0: crossfade e fade_in/fade_out não compartilham mais
-        // vocabulário de curva. "logarithmic" descreve fade, não crossfade.
+        // Adendo R2 ┬º0: crossfade e fade_in/fade_out n├úo compartilham mais
+        // vocabul├írio de curva. "logarithmic" descreve fade, n├úo crossfade.
         let tool = AudioToolDef::Crossfade(CrossfadeParams {
             duration_ms: 1000,
             curve: "logarithmic".to_string(),
@@ -377,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_time_stretch_outside_canonical_bounds_rejected() {
-        // 1.5 passava no validador antigo (0.5..=2.0); o canônico é 0.90..=1.10
+        // 1.5 passava no validador antigo (0.5..=2.0); o can├┤nico ├® 0.90..=1.10
         let tool = AudioToolDef::TimeStretch(TimeStretchParams { factor: 1.5 });
         assert!(layer().validate_tool_call(&tool, &Value::Null).is_err());
     }

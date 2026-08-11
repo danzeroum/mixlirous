@@ -93,7 +93,27 @@ Documentação completa: [`docs/02-ARQUITETURA.md`](docs/02-ARQUITETURA.md)
 
 ---
 
-## Quickstart (modo local, sem dependências externas)
+## Dev Metadata (para assistentes e devs)
+
+O repositório contém metadados de desenvolvimento em `.dev/` que **devem ser lidos antes de iniciar qualquer trabalho**:
+
+| Arquivo | Quando ler |
+|---|---|
+| `.dev/workspace.yaml` | Início de sessão — paths, issues conhecidos, sprint atual |
+| `.dev/module-status.yaml` | Para saber o que está feito/quebrado/pending |
+| `.dev/DevHelper.ps1` | Sempre que for criar/editar arquivos Rust |
+| `.dev/README.md` | Documentação completa das ferramentas |
+
+**Regras importantes:**
+- **NUNCA** commitar `.dev/` (já está no `.gitignore`)
+- **SEMPRE** usar `Write-RustFile` para escrever arquivos Rust (evita BOM)
+- **SEMPRE** usar prefixo `crates/` para paths de módulo
+- **ATUALIZAR** `module-status.yaml` após cada tarefa concluída
+
+Veja [`.dev/README.md`](.dev/README.md) para documentação completa.
+
+
+ (modo local, sem dependências externas)
 
 Requisitos: Rust stable, Node 20+, Docker (opcional).
 

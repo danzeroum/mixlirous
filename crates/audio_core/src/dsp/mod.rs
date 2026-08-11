@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod selection;
 pub mod mastering;
 pub mod stitching;
 

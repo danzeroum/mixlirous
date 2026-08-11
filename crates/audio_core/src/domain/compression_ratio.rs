@@ -1,13 +1,13 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Razão de compressão (`N`:1) — validada na desserialização, não numa
+/// Raz├úo de compress├úo (`N`:1) ÔÇö validada na desserializa├º├úo, n├úo numa
 /// camada por cima (`docs/16-CORRECOES-DSP` T0.0, I14).
 ///
-/// Mesmo padrão de [`crate::CrossfadeMs`] (ver o comentário lá para o
-/// racional completo de por que "sem `Default`, sem `From` infalível, sem
-/// aritmética" é o ponto, não só a validação em si). `MIN`/`MAX` são a fonte
-/// canônica: `audio_agent::limits` e `audio_agent::validator` leem daqui em
+/// Mesmo padr├úo de [`crate::CrossfadeMs`] (ver o coment├írio l├í para o
+/// racional completo de por que "sem `Default`, sem `From` infal├¡vel, sem
+/// aritm├®tica" ├® o ponto, n├úo s├│ a valida├º├úo em si). `MIN`/`MAX` s├úo a fonte
+/// can├┤nica: `audio_agent::limits` e `audio_agent::validator` leem daqui em
 /// vez de redigitar `1.0`/`10.0`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
@@ -57,8 +57,8 @@ mod tests {
 
     #[test]
     fn test_rejects_nan() {
-        // (MIN..=MAX).contains(&NaN) é sempre false — NaN nunca desserializa
-        // com sucesso, sem checagem explícita à parte (I15, issue #22).
+        // (MIN..=MAX).contains(&NaN) ├® sempre false ÔÇö NaN nunca desserializa
+        // com sucesso, sem checagem expl├¡cita ├á parte (I15, issue #22).
         assert!(CompressionRatio::try_from(f32::NAN).is_err());
     }
 

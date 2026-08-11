@@ -1,12 +1,12 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Fator de ajuste de duração por `time_stretch` (1.0 = sem mudança) —
-/// validado na desserialização, não numa camada por cima
+/// Fator de ajuste de dura├º├úo por `time_stretch` (1.0 = sem mudan├ºa) ÔÇö
+/// validado na desserializa├º├úo, n├úo numa camada por cima
 /// (`docs/16-CORRECOES-DSP` T0.0, I14).
 ///
-/// Mesmo padrão de [`crate::CrossfadeMs`] (ver o comentário lá para o
-/// racional completo). `MIN`/`MAX` são a fonte canônica: `audio_agent::limits`
+/// Mesmo padr├úo de [`crate::CrossfadeMs`] (ver o coment├írio l├í para o
+/// racional completo). `MIN`/`MAX` s├úo a fonte can├┤nica: `audio_agent::limits`
 /// e `audio_agent::validator` leem daqui em vez de redigitar `0.90`/`1.10`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]

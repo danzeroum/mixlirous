@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc c91c9b66b06f358f2b03e938a5382ce199638b5235b2e6afb551366dfd6e9729 # shrinks to params = CompressorParams { threshold_db: ThresholdDb(0.0), ratio: CompressionRatio(1.0), attack_ms: AttackMs(0), release_ms: ReleaseMs(10), makeup_gain_db: 0.0, knee_db: 6.0 }
+cc 80558e5f5921e6a4236b6ab71be0b5e28f90918f84ddf7e5dbfc9416b4d21597 # shrinks to input = [-0.12572663], params = CompressorParams { threshold_db: ThresholdDb(0.0), ratio: CompressionRatio(1.0), attack_ms: AttackMs(1), release_ms: ReleaseMs(10), makeup_gain_db: 0.0, knee_db: 6.0 }
+cc c2b998374c5f8f6daba341bb655de516c016eb58feb2b89e4dee8a8025fcc499 # shrinks to input = [0.0]

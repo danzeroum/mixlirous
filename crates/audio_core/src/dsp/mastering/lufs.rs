@@ -15,8 +15,8 @@ pub fn measure_lufs(pcm: &Array1<f32>, sample_rate: u32) -> f32 {
 }
 
 /// Mede o true peak em dBTP (sobreamostragem ITU-R BS.1770, `Mode::TRUE_PEAK`
-/// do ebur128) — não confundir com pico de amostra (ver B5 em docs/17).
-/// `pcm` é intercalado por frame quando `channels > 1`.
+/// do ebur128) ÔÇö n├úo confundir com pico de amostra (ver B5 em docs/17).
+/// `pcm` ├® intercalado por frame quando `channels > 1`.
 pub fn measure_true_peak(pcm: &[f32], channels: u32, sample_rate: u32) -> f32 {
     let Ok(mut meter) = EbuR128::new(channels, sample_rate, Mode::TRUE_PEAK) else {
         return f32::NEG_INFINITY;
@@ -37,23 +37,23 @@ pub fn measure_true_peak(pcm: &[f32], channels: u32, sample_rate: u32) -> f32 {
     }
 }
 
-/// Resultado de `apply_lufs_gain`. `#[must_use]` de propósito: a variante
-/// `UnmeasurableLoudness` significa que o buffer **não foi tocado** — se o
-/// chamador ignorar o retorno, o áudio sai sem normalizar e ninguém sabe,
-/// exatamente o padrão de falha silenciosa que este projeto vem eliminando
+/// Resultado de `apply_lufs_gain`. `#[must_use]` de prop├│sito: a variante
+/// `UnmeasurableLoudness` significa que o buffer **n├úo foi tocado** ÔÇö se o
+/// chamador ignorar o retorno, o ├íudio sai sem normalizar e ningu├®m sabe,
+/// exatamente o padr├úo de falha silenciosa que este projeto vem eliminando
 /// em outras camadas (ex.: `loudness_target_conflict`). Quando a cadeia de
-/// `warnings[]` existir (`docs/03-ADENDO-R2-CONTRATOS.md` §1, T3.3 do
-/// `docs/16`), esta variante vira o código `unmeasurable_loudness` — mesma
-/// família, mesma regra: aviso não bloqueante, não muda o estado do job.
+/// `warnings[]` existir (`docs/03-ADENDO-R2-CONTRATOS.md` ┬º1, T3.3 do
+/// `docs/16`), esta variante vira o c├│digo `unmeasurable_loudness` ÔÇö mesma
+/// fam├¡lia, mesma regra: aviso n├úo bloqueante, n├úo muda o estado do job.
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LufsGainOutcome {
-    /// Ganho aplicado; `gain_db` é o quanto foi ajustado.
+    /// Ganho aplicado; `gain_db` ├® o quanto foi ajustado.
     Applied { gain_db: f32 },
-    /// `measure_lufs` devolveu um valor não finito (buffer curto ou
-    /// silencioso demais para formar um bloco de gating da BS.1770 — retorno
-    /// válido de `loudness_global()`, não erro). Sem loudness mensurável não
-    /// há ganho coerente a calcular; o buffer não foi tocado.
+    /// `measure_lufs` devolveu um valor n├úo finito (buffer curto ou
+    /// silencioso demais para formar um bloco de gating da BS.1770 ÔÇö retorno
+    /// v├ílido de `loudness_global()`, n├úo erro). Sem loudness mensur├ível n├úo
+    /// h├í ganho coerente a calcular; o buffer n├úo foi tocado.
     UnmeasurableLoudness,
 }
 
@@ -66,9 +66,9 @@ pub fn apply_lufs_gain(pcm: &mut [f32], sample_rate: u32, target_lufs: f32) -> L
 
     let gain_db = target_lufs - current;
     let gain_linear = 10f32.powf(gain_db / 20.0);
-    // `target - current` pode ser não finito por outras vias além de
-    // `current` (ex.: `target_lufs` não finito, responsabilidade do
-    // chamador) — mesma guarda, mesmo motivo: `0.0 * inf = NaN`.
+    // `target - current` pode ser n├úo finito por outras vias al├®m de
+    // `current` (ex.: `target_lufs` n├úo finito, responsabilidade do
+    // chamador) ÔÇö mesma guarda, mesmo motivo: `0.0 * inf = NaN`.
     if !gain_linear.is_finite() {
         return LufsGainOutcome::UnmeasurableLoudness;
     }
@@ -90,12 +90,12 @@ mod tests {
         assert!(lufs < -60.0);
     }
 
-    /// Regressão: um buffer curto o bastante para não formar um bloco de
-    /// gating da BS.1770 mede -inf LUFS (retorno válido de `loudness_global`,
-    /// não sentinela). `target - (-inf) = +inf`; sem a guarda de
+    /// Regress├úo: um buffer curto o bastante para n├úo formar um bloco de
+    /// gating da BS.1770 mede -inf LUFS (retorno v├ílido de `loudness_global`,
+    /// n├úo sentinela). `target - (-inf) = +inf`; sem a guarda de
     /// `is_finite()`, multiplicar por ganho infinito produzia +-inf e, em
-    /// qualquer amostra exatamente 0.0, NaN — contaminando o buffer inteiro.
-    /// Achado pelo teste de offset DC de docs/17.1 §7 (`dc_offset.rs`), com
+    /// qualquer amostra exatamente 0.0, NaN ÔÇö contaminando o buffer inteiro.
+    /// Achado pelo teste de offset DC de docs/17.1 ┬º7 (`dc_offset.rs`), com
     /// um caso de 17 amostras.
     #[test]
     fn test_apply_lufs_gain_does_not_corrupt_buffer_with_unmeasurable_loudness() {
@@ -111,7 +111,7 @@ mod tests {
         );
     }
 
-    /// I11 (docs/10-TESTES-QUALIDADE.md §3): após normalização, |lufs-alvo| <= 0.5 LU.
+    /// I11 (docs/10-TESTES-QUALIDADE.md ┬º3): ap├│s normaliza├º├úo, |lufs-alvo| <= 0.5 LU.
     #[test]
     fn test_apply_lufs_gain_satisfies_i11_tolerance() {
         let mut pcm = vec![0.05f32; 44100];

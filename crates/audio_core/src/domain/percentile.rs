@@ -1,22 +1,22 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Percentil de força de batida usado para separar batidas fortes de fracas
-/// (`docs/04-DOMINIO-DSP.md` §B.3, `strong_beat_threshold`) — expresso como
-/// fração `0.0..=1.0`, não `0..=100` (`percentile = 0.8` no exemplo
-/// documentado). Validado na desserialização, não numa camada por cima
-/// (`docs/16-CORRECOES-DSP` T0.0, I14). Mesmo padrão de [`crate::CrossfadeMs`]
-/// (ver o comentário lá para o racional completo).
+/// Percentil de for├ºa de batida usado para separar batidas fortes de fracas
+/// (`docs/04-DOMINIO-DSP.md` ┬ºB.3, `strong_beat_threshold`) ÔÇö expresso como
+/// fra├º├úo `0.0..=1.0`, n├úo `0..=100` (`percentile = 0.8` no exemplo
+/// documentado). Validado na desserializa├º├úo, n├úo numa camada por cima
+/// (`docs/16-CORRECOES-DSP` T0.0, I14). Mesmo padr├úo de [`crate::CrossfadeMs`]
+/// (ver o coment├írio l├í para o racional completo).
 ///
-/// `MIN = 0.0`/`MAX = 1.0` vêm diretamente da semântica de "percentil como
-/// fração" que `docs/04` já usa (`np.percentile(beat_strength, 80)` vira
-/// `percentile = 0.8`) — não é uma escolha minha como em
+/// `MIN = 0.0`/`MAX = 1.0` v├¬m diretamente da sem├óntica de "percentil como
+/// fra├º├úo" que `docs/04` j├í usa (`np.percentile(beat_strength, 80)` vira
+/// `percentile = 0.8`) ÔÇö n├úo ├® uma escolha minha como em
 /// [`crate::BlockSizeBeats`].
 ///
-/// Sem entrada em `audio_agent::limits`/`validator`: é campo de
-/// [`crate::SelectionConfig`], não parâmetro de tool call do agente —
-/// `docs/05-AGENTE-IA-HITL.md` §3 exclui `block_selection` do escopo do
-/// registry de propósito.
+/// Sem entrada em `audio_agent::limits`/`validator`: ├® campo de
+/// [`crate::SelectionConfig`], n├úo par├ómetro de tool call do agente ÔÇö
+/// `docs/05-AGENTE-IA-HITL.md` ┬º3 exclui `block_selection` do escopo do
+/// registry de prop├│sito.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
 pub struct Percentile(f32);

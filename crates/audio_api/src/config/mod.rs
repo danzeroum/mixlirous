@@ -87,9 +87,9 @@ fn default_true() -> bool {
 }
 
 impl AppConfig {
-    /// Carrega `config/default.yaml` e sobrepõe com `config/{CONFIG_ENV}.yaml`
-    /// (se existir) e variáveis de ambiente com prefixo `REMIX__` (ex.:
-    /// `REMIX__DATABASE__URL`). `CONFIG_ENV` default é `local`.
+    /// Carrega `config/default.yaml` e sobrep├Áe com `config/{CONFIG_ENV}.yaml`
+    /// (se existir) e vari├íveis de ambiente com prefixo `REMIX__` (ex.:
+    /// `REMIX__DATABASE__URL`). `CONFIG_ENV` default ├® `local`.
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
 

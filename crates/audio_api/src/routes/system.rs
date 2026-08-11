@@ -3,11 +3,11 @@ use crate::state::AppState;
 use axum::{extract::State, Json};
 use serde::Serialize;
 
-/// Provedores que rodam na própria máquina — nenhum dado sai dela. Todo o
-/// resto (`deepseek`, `openai`, `anthropic`, ...) é serviço externo: o prompt
-/// e os metadados da faixa saem, o áudio nunca (`docs/08-SEGURANCA-MULTITENANCY.md`
-/// §8). Lista de um elemento porque hoje só o Ollama é suportado local
-/// (ADR-0009) — cresce se um segundo provedor local entrar.
+/// Provedores que rodam na pr├│pria m├íquina ÔÇö nenhum dado sai dela. Todo o
+/// resto (`deepseek`, `openai`, `anthropic`, ...) ├® servi├ºo externo: o prompt
+/// e os metadados da faixa saem, o ├íudio nunca (`docs/08-SEGURANCA-MULTITENANCY.md`
+/// ┬º8). Lista de um elemento porque hoje s├│ o Ollama ├® suportado local
+/// (ADR-0009) ÔÇö cresce se um segundo provedor local entrar.
 const LOCAL_PROVIDERS: &[&str] = &["ollama"];
 
 pub fn data_egress_for(provider: &str) -> bool {
@@ -20,17 +20,17 @@ pub struct SystemInfo {
     pub database_backend: String,
     pub llm_provider: String,
     pub llm_model: String,
-    /// `true` quando o provedor ativo é externo — prompt e metadados saem da
-    /// máquina. Nome e valor existem para o aviso de consentimento
-    /// (`docs/03-ADENDO-R2-CONTRATOS.md` §7) nomear o provedor e dizer se há
-    /// saída de dados, não para decidir isso silenciosamente.
+    /// `true` quando o provedor ativo ├® externo ÔÇö prompt e metadados saem da
+    /// m├íquina. Nome e valor existem para o aviso de consentimento
+    /// (`docs/03-ADENDO-R2-CONTRATOS.md` ┬º7) nomear o provedor e dizer se h├í
+    /// sa├¡da de dados, n├úo para decidir isso silenciosamente.
     pub data_egress: bool,
     pub cpu_cores: usize,
 }
 
-/// `GET /api/v1/system/info` (`docs/03-CONTRATOS-API.md` §3.1) — versão,
-/// backend de banco, provedor LLM e núcleos. É a fonte que a tela de
-/// consentimento lê para nomear o provedor ativo antes da primeira execução
+/// `GET /api/v1/system/info` (`docs/03-CONTRATOS-API.md` ┬º3.1) ÔÇö vers├úo,
+/// backend de banco, provedor LLM e n├║cleos. ├ë a fonte que a tela de
+/// consentimento l├¬ para nomear o provedor ativo antes da primeira execu├º├úo
 /// em modo assistido.
 pub async fn get_system_info(
     State(state): State<AppState>,

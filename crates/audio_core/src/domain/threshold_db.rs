@@ -1,12 +1,12 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Limiar de compressão, em dB (tipicamente negativo) — validado na
-/// desserialização, não numa camada por cima (`docs/16-CORRECOES-DSP` T0.0,
+/// Limiar de compress├úo, em dB (tipicamente negativo) ÔÇö validado na
+/// desserializa├º├úo, n├úo numa camada por cima (`docs/16-CORRECOES-DSP` T0.0,
 /// I14).
 ///
-/// Mesmo padrão de [`crate::CrossfadeMs`] (ver o comentário lá para o
-/// racional completo). `MIN`/`MAX` são a fonte canônica: `audio_agent::limits`
+/// Mesmo padr├úo de [`crate::CrossfadeMs`] (ver o coment├írio l├í para o
+/// racional completo). `MIN`/`MAX` s├úo a fonte can├┤nica: `audio_agent::limits`
 /// e `audio_agent::validator` leem daqui em vez de redigitar `-60.0`/`0.0`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]

@@ -1,15 +1,15 @@
-//! Teste de nulo em ajuste neutro — docs/17.1 §1.1, o item #1 da "Ordem
-//! sugerida" (o de maior alcance: uma regra, várias ferramentas).
+//! Teste de nulo em ajuste neutro ÔÇö docs/17.1 ┬º1.1, o item #1 da "Ordem
+//! sugerida" (o de maior alcance: uma regra, v├írias ferramentas).
 //!
-//! Ferramenta em ajuste neutro que altera o sinal tem bug — quase sempre
-//! arredondamento indevido, ganho aplicado duas vezes, ou conversão de tipo
-//! perdendo precisão.
+//! Ferramenta em ajuste neutro que altera o sinal tem bug ÔÇö quase sempre
+//! arredondamento indevido, ganho aplicado duas vezes, ou convers├úo de tipo
+//! perdendo precis├úo.
 //!
-//! **Escopo real, não o da tabela inteira.** `compression` e `dynamic_eq`
-//! não têm DSP nenhum por trás ainda (issue #8 — ferramenta anunciada no
-//! schema sem implementação) — não há o que testar. Cobertas aqui: as
-//! quatro que existem e têm um "ajuste neutro" bem definido: `crossfade`,
-//! `fade_in`/`fade_out`, `time_stretch`, e o ganho de normalização LUFS.
+//! **Escopo real, n├úo o da tabela inteira.** `compression` e `dynamic_eq`
+//! n├úo t├¬m DSP nenhum por tr├ís ainda (issue #8 ÔÇö ferramenta anunciada no
+//! schema sem implementa├º├úo) ÔÇö n├úo h├í o que testar. Cobertas aqui: as
+//! quatro que existem e t├¬m um "ajuste neutro" bem definido: `crossfade`,
+//! `fade_in`/`fade_out`, `time_stretch`, e o ganho de normaliza├º├úo LUFS.
 
 mod generators;
 
@@ -22,8 +22,8 @@ use generators::arb_pcm;
 use ndarray::Array1;
 use proptest::prelude::*;
 
-/// Pico da diferença amostra a amostra, em dB. `-inf` para diferença zero
-/// (residual perfeito) — não "muito negativo", porque `log10(0)` não existe.
+/// Pico da diferen├ºa amostra a amostra, em dB. `-inf` para diferen├ºa zero
+/// (residual perfeito) ÔÇö n├úo "muito negativo", porque `log10(0)` n├úo existe.
 fn residual_db(a: &[f32], b: &[f32]) -> f32 {
     let pico = a
         .iter()
@@ -53,11 +53,11 @@ proptest! {
     }
 
     /// `crossfade` com `duration_ms: 0` (fade_samples=0) devolve a
-    /// concatenação simples: nada de A se sobrepõe, B substitui integralmente
-    /// a partir do ponto de emenda. Buffers do mesmo tamanho para não
-    /// disputar espaço com a semântica de truncamento de
-    /// `crossfade_buffers` quando os dois lados têm tamanhos diferentes —
-    /// isso é uma pergunta separada, não o que este teste cobre.
+    /// concatena├º├úo simples: nada de A se sobrep├Áe, B substitui integralmente
+    /// a partir do ponto de emenda. Buffers do mesmo tamanho para n├úo
+    /// disputar espa├ºo com a sem├óntica de truncamento de
+    /// `crossfade_buffers` quando os dois lados t├¬m tamanhos diferentes ÔÇö
+    /// isso ├® uma pergunta separada, n├úo o que este teste cobre.
     #[test]
     fn crossfade_zero_duration_is_simple_concatenation(
         a in arb_pcm(), b_seed in arb_pcm()
@@ -72,11 +72,11 @@ proptest! {
         }
     }
 
-    /// `time_stretch` com o alvo igual à duração atual devolve a entrada —
-    /// já é o comportamento hoje (curto-circuito explícito em `stretch.rs`
-    /// quando `|atual - alvo| < 0.05s`). Fixture do próprio docs/17.1: "se a
-    /// implementação sempre passar pelo reamostrador, o residual não vai ser
-    /// zero — isso É o achado". Aqui não é: o caminho neutro é curto-circuitado.
+    /// `time_stretch` com o alvo igual ├á dura├º├úo atual devolve a entrada ÔÇö
+    /// j├í ├® o comportamento hoje (curto-circuito expl├¡cito em `stretch.rs`
+    /// quando `|atual - alvo| < 0.05s`). Fixture do pr├│prio docs/17.1: "se a
+    /// implementa├º├úo sempre passar pelo reamostrador, o residual n├úo vai ser
+    /// zero ÔÇö isso ├ë o achado". Aqui n├úo ├®: o caminho neutro ├® curto-circuitado.
     #[test]
     fn time_stretch_same_duration_is_identity(x in arb_pcm()) {
         prop_assume!(!x.is_empty());
@@ -88,15 +88,15 @@ proptest! {
         prop_assert_eq!(residual_db(&x, out.as_slice().unwrap()), f32::NEG_INFINITY);
     }
 
-    /// Normalizar para o próprio LUFS medido (alvo == atual) não move nada.
-    /// Dois casos, os dois preservam a entrada: se `atual` é finito,
+    /// Normalizar para o pr├│prio LUFS medido (alvo == atual) n├úo move nada.
+    /// Dois casos, os dois preservam a entrada: se `atual` ├® finito,
     /// `gain_db = alvo - atual = 0` exato, `gain_linear = 10^0 = 1.0`. Se
-    /// `atual` é `-inf` (buffer curto/silencioso demais para formar bloco de
-    /// gating — `x` vazio incluso, `arb_pcm()` sorteia isso), `atual - atual`
-    /// seria `NaN` (forma indeterminada `-inf - (-inf)`, NÃO zero — cancelar
-    /// "algebricamente" é falso aqui), e é exatamente por isso que
+    /// `atual` ├® `-inf` (buffer curto/silencioso demais para formar bloco de
+    /// gating ÔÇö `x` vazio incluso, `arb_pcm()` sorteia isso), `atual - atual`
+    /// seria `NaN` (forma indeterminada `-inf - (-inf)`, N├âO zero ÔÇö cancelar
+    /// "algebricamente" ├® falso aqui), e ├® exatamente por isso que
     /// `apply_lufs_gain` verifica `current.is_finite()` antes de calcular
-    /// `gain_db` — devolve `UnmeasurableLoudness` sem tocar no buffer.
+    /// `gain_db` ÔÇö devolve `UnmeasurableLoudness` sem tocar no buffer.
     #[test]
     fn lufs_normalization_to_own_measurement_is_identity(x in arb_pcm()) {
         let sample_rate = 44_100u32;

@@ -13,6 +13,7 @@ mod sse;
 mod system;
 mod tenants;
 mod tools;
+pub mod proposals;
 
 pub fn health_router() -> Router<AppState> {
     Router::new()
@@ -35,13 +36,16 @@ pub fn api_router() -> Router<AppState> {
             get(tenants::get_consent).post(tenants::post_consent),
         )
         .route("/system/info", get(system::get_system_info))
+        .route("/jobs/{job_id}/proposals", get(proposals::ProposalHandlers::list_proposals))
+        .route("/jobs/{job_id}/proposals/{proposal_id}/approve", post(proposals::ProposalHandlers::approve_proposal))
+        .route("/jobs/{job_id}/proposals/{proposal_id}/reject", post(proposals::ProposalHandlers::reject_proposal))
 }
 
-/// Rotas de diagnóstico. **Só entram no router se `MIXLIROUS_DEV_SLICE=1`**
-/// (ver `main.rs`) — não existem por padrão.
+/// Rotas de diagn├│stico. **S├│ entram no router se `MIXLIROUS_DEV_SLICE=1`**
+/// (ver `main.rs`) ÔÇö n├úo existem por padr├úo.
 ///
-/// Ficam sem `AuthContext` de propósito: quem protege é o `auth_basic` do
-/// nginx à frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). Não exponha o vhost
+/// Ficam sem `AuthContext` de prop├│sito: quem protege ├® o `auth_basic` do
+/// nginx ├á frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). N├úo exponha o vhost
 /// sem ele.
 pub fn dev_router() -> Router<AppState> {
     Router::new()
@@ -50,6 +54,6 @@ pub fn dev_router() -> Router<AppState> {
             get(dev_slice::pagina).post(dev_slice::processar),
         )
         .route("/dev/slice/{id}", get(dev_slice::audio))
-        // O default do axum é 2 MB — uma faixa real em WAV passa de 50 MB.
+        // O default do axum ├® 2 MB ÔÇö uma faixa real em WAV passa de 50 MB.
         .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
 }

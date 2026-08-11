@@ -1,15 +1,15 @@
 use crate::domain::CrossfadeCurve;
 use std::f32::consts::FRAC_PI_2;
 
-/// Ganhos de A e B num ponto da transição (`alpha` 0..=1: 0 é só A, 1 é só
-/// B). docs/16 T2.2: o crossfade linear (`ConstantGain`) mantém
-/// `gain_a + gain_b = 1`, certo só para material correlacionado (o mesmo
-/// bloco sobreposto a si mesmo). Para blocos de trechos diferentes — o caso
-/// real do motor — o que soma é a **potência**, não a amplitude; ganho
-/// constante no meio da transição (`0.5 + 0.5`) dá `√(0.5² + 0.5²) ≈ 0.707`,
-/// uma queda audível de ~3 dB. `ConstantPower` mantém
-/// `gain_a² + gain_b² = 1` via `cos`/`sin` do mesmo ângulo — identidade
-/// trigonométrica, não calibração.
+/// Ganhos de A e B num ponto da transi├º├úo (`alpha` 0..=1: 0 ├® s├│ A, 1 ├® s├│
+/// B). docs/16 T2.2: o crossfade linear (`ConstantGain`) mant├®m
+/// `gain_a + gain_b = 1`, certo s├│ para material correlacionado (o mesmo
+/// bloco sobreposto a si mesmo). Para blocos de trechos diferentes ÔÇö o caso
+/// real do motor ÔÇö o que soma ├® a **pot├¬ncia**, n├úo a amplitude; ganho
+/// constante no meio da transi├º├úo (`0.5 + 0.5`) d├í `ÔêÜ(0.5┬▓ + 0.5┬▓) Ôëê 0.707`,
+/// uma queda aud├¡vel de ~3 dB. `ConstantPower` mant├®m
+/// `gain_a┬▓ + gain_b┬▓ = 1` via `cos`/`sin` do mesmo ├óngulo ÔÇö identidade
+/// trigonom├®trica, n├úo calibra├º├úo.
 fn compute_gains(alpha: f32, curve: CrossfadeCurve) -> (f32, f32) {
     let a = alpha.clamp(0.0, 1.0);
     match curve {
@@ -21,8 +21,8 @@ fn compute_gains(alpha: f32, curve: CrossfadeCurve) -> (f32, f32) {
     }
 }
 
-/// Realiza o crossfade entre dois buffers de áudio
-/// O segundo buffer é sobreposto ao final do primeiro
+/// Realiza o crossfade entre dois buffers de ├íudio
+/// O segundo buffer ├® sobreposto ao final do primeiro
 pub fn crossfade_buffers(
     buffer_a: &mut [f32],
     start_a: usize,
@@ -36,7 +36,7 @@ pub fn crossfade_buffers(
         .min(buffer_b.len() - start_b);
 
     for i in 0..overlap_len {
-        // Posição na transição: de 0 (início) para 1 (fim)
+        // Posi├º├úo na transi├º├úo: de 0 (in├¡cio) para 1 (fim)
         let alpha = (i as f32) / (overlap_len as f32 - 1.0).max(1.0);
         let (gain_a, gain_b) = compute_gains(alpha, curve);
 
@@ -60,10 +60,10 @@ pub fn crossfade_buffers(
 mod tests {
     use super::*;
 
-    /// I15 — nenhuma amostra pode ser NaN/infinita, para nenhuma curva.
-    /// Não confunde com "dentro de -1..=1": potência constante aplicada a
-    /// sinal correlacionado (abaixo) legitimamente ultrapassa 1.0 — é outra
-    /// propriedade, testada à parte.
+    /// I15 ÔÇö nenhuma amostra pode ser NaN/infinita, para nenhuma curva.
+    /// N├úo confunde com "dentro de -1..=1": pot├¬ncia constante aplicada a
+    /// sinal correlacionado (abaixo) legitimamente ultrapassa 1.0 ÔÇö ├® outra
+    /// propriedade, testada ├á parte.
     #[test]
     fn test_crossfade_output_is_always_finite() {
         for curve in [CrossfadeCurve::ConstantGain, CrossfadeCurve::ConstantPower] {
@@ -72,16 +72,16 @@ mod tests {
             crossfade_buffers(&mut a, 0, &b, 0, 50, curve);
             assert!(
                 a.iter().all(|v| v.is_finite()),
-                "{curve:?} produziu amostra não finita"
+                "{curve:?} produziu amostra n├úo finita"
             );
         }
     }
 
-    /// `gain_a + gain_b = 1` é combinação convexa: para `a == b` (sinal
+    /// `gain_a + gain_b = 1` ├® combina├º├úo convexa: para `a == b` (sinal
     /// correlacionado consigo mesmo), o resultado fica dentro dos limites de
-    /// `a`/`b` por construção — não é uma propriedade de `ConstantPower`
+    /// `a`/`b` por constru├º├úo ÔÇö n├úo ├® uma propriedade de `ConstantPower`
     /// (ver `test_constant_power_gains_satisfy_pythagorean_identity`, onde
-    /// `gain_a + gain_b` pode chegar a √2 no meio da transição).
+    /// `gain_a + gain_b` pode chegar a ÔêÜ2 no meio da transi├º├úo).
     #[test]
     fn test_constant_gain_crossfade_of_identical_signal_stays_within_bounds() {
         let mut a = vec![1.0f32; 100];
@@ -99,8 +99,8 @@ mod tests {
     }
 
     /// docs/16 T2.2, a identidade que fecha o argumento: emendar um bloco a
-    /// si mesmo com ganho constante tem que devolver o próprio bloco. Não é
-    /// valor medido — é `gain_a + gain_b = 1` aplicado a `a == b`.
+    /// si mesmo com ganho constante tem que devolver o pr├│prio bloco. N├úo ├®
+    /// valor medido ÔÇö ├® `gain_a + gain_b = 1` aplicado a `a == b`.
     #[test]
     fn test_constant_gain_crossfade_of_signal_with_itself_is_identity() {
         let x = vec![0.3f32, -0.6, 0.9, -0.2, 0.5];
@@ -112,11 +112,11 @@ mod tests {
         }
     }
 
-    /// Par do teste acima, e o que fecha a semântica dos dois curvas: para
-    /// sinal correlacionado consigo mesmo, potência constante **soma**
-    /// amplitude no meio — `cos(45°) + sin(45°) = 0,707 + 0,707 ≈ 1,414`,
-    /// um bump de +3 dB. Não é bug: é a razão de `ConstantGain` existir para
-    /// este caso. Os dois testes juntos travam a escolha contra alguém
+    /// Par do teste acima, e o que fecha a sem├óntica dos dois curvas: para
+    /// sinal correlacionado consigo mesmo, pot├¬ncia constante **soma**
+    /// amplitude no meio ÔÇö `cos(45┬░) + sin(45┬░) = 0,707 + 0,707 Ôëê 1,414`,
+    /// um bump de +3 dB. N├úo ├® bug: ├® a raz├úo de `ConstantGain` existir para
+    /// este caso. Os dois testes juntos travam a escolha contra algu├®m
     /// "consertar" o bump daqui a seis meses.
     #[test]
     fn test_constant_power_crossfade_of_signal_with_itself_produces_3db_bump_at_midpoint() {
@@ -126,7 +126,7 @@ mod tests {
 
         assert!(
             (out[50] - std::f32::consts::SQRT_2).abs() < 1e-3,
-            "potência constante em sinal correlacionado deveria somar a ~1.414 (+3 dB) no meio, obtido {}",
+            "pot├¬ncia constante em sinal correlacionado deveria somar a ~1.414 (+3 dB) no meio, obtido {}",
             out[50]
         );
     }
@@ -147,19 +147,19 @@ mod tests {
             let (a, b) = compute_gains(alpha, CrossfadeCurve::ConstantPower);
             assert!(
                 (a * a + b * b - 1.0).abs() < 1e-5,
-                "alpha={alpha}: a²+b²={}",
+                "alpha={alpha}: a┬▓+b┬▓={}",
                 a * a + b * b
             );
         }
     }
 
-    /// docs/16 T2.2, a queda de ~3 dB que motiva a correção, na matemática
-    /// em si (não num buffer — ver o módulo para por que sinal correlacionado
-    /// não a demonstra). No meio da transição, ganho constante dá
-    /// `gain_a = gain_b = 0.5`: soma de amplitude 1.0, mas para sinais **não
-    /// correlacionados** a potência resultante é `0.5² + 0.5² = 0.5`, RMS
-    /// caindo a √0,5 ≈ 0,707 (~3 dB). Potência constante mantém
-    /// `a² + b² = 1` no mesmo ponto — é a identidade que corrige a queda.
+    /// docs/16 T2.2, a queda de ~3 dB que motiva a corre├º├úo, na matem├ítica
+    /// em si (n├úo num buffer ÔÇö ver o m├│dulo para por que sinal correlacionado
+    /// n├úo a demonstra). No meio da transi├º├úo, ganho constante d├í
+    /// `gain_a = gain_b = 0.5`: soma de amplitude 1.0, mas para sinais **n├úo
+    /// correlacionados** a pot├¬ncia resultante ├® `0.5┬▓ + 0.5┬▓ = 0.5`, RMS
+    /// caindo a ÔêÜ0,5 Ôëê 0,707 (~3 dB). Pot├¬ncia constante mant├®m
+    /// `a┬▓ + b┬▓ = 1` no mesmo ponto ÔÇö ├® a identidade que corrige a queda.
     #[test]
     fn test_constant_gain_underpowers_relative_to_constant_power_at_midpoint() {
         let (gain_a, gain_b) = compute_gains(0.5, CrossfadeCurve::ConstantGain);
@@ -170,11 +170,11 @@ mod tests {
 
         assert!(
             (gain_power_sum - 0.5).abs() < 1e-5,
-            "ganho constante no meio deveria somar potência 0.5, obtido {gain_power_sum}"
+            "ganho constante no meio deveria somar pot├¬ncia 0.5, obtido {gain_power_sum}"
         );
         assert!(
             (power_power_sum - 1.0).abs() < 1e-5,
-            "potência constante no meio deveria somar potência 1.0, obtido {power_power_sum}"
+            "pot├¬ncia constante no meio deveria somar pot├¬ncia 1.0, obtido {power_power_sum}"
         );
     }
 }

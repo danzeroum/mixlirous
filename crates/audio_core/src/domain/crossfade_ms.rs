@@ -1,22 +1,22 @@
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
-/// Duração de crossfade, em milissegundos — validada na desserialização, não
+/// Dura├º├úo de crossfade, em milissegundos ÔÇö validada na desserializa├º├úo, n├úo
 /// numa camada por cima (`docs/16-CORRECOES-DSP` T0.0, I14).
 ///
-/// O ponto não é validar — é tornar `CrossfadeMs` fora da faixa
-/// **irrepresentável**. Isso só vale enquanto não houver porta dos fundos:
-/// sem `Default` (qual seria o crossfade "padrão" de ninguém ter pedido um?),
-/// sem `From<u32>` infalível, sem operador aritmético (`a + b` fora da faixa
-/// não erraria alto, erraria calado), sem construtor de teste que pule
-/// `TryFrom`. Se uma dessas for adicionada depois "só para um teste", a
-/// garantia inteira volta a valer nada — é exatamente o tipo de furo que não
-/// aparece em `git diff` a menos que alguém procure por ele.
+/// O ponto n├úo ├® validar ÔÇö ├® tornar `CrossfadeMs` fora da faixa
+/// **irrepresent├ível**. Isso s├│ vale enquanto n├úo houver porta dos fundos:
+/// sem `Default` (qual seria o crossfade "padr├úo" de ningu├®m ter pedido um?),
+/// sem `From<u32>` infal├¡vel, sem operador aritm├®tico (`a + b` fora da faixa
+/// n├úo erraria alto, erraria calado), sem construtor de teste que pule
+/// `TryFrom`. Se uma dessas for adicionada depois "s├│ para um teste", a
+/// garantia inteira volta a valer nada ÔÇö ├® exatamente o tipo de furo que n├úo
+/// aparece em `git diff` a menos que algu├®m procure por ele.
 ///
-/// `MIN`/`MAX` são a fonte canônica: `audio_agent::limits` deriva os limites
-/// do registry a partir daqui (não o contrário), e um teste de deriva em
-/// `audio_agent` prende os dois números juntos — fecha o terceiro lugar da
-/// regra do `CONTRIBUTING.md` (docs/05 §3, validador, schema da UI) sem
+/// `MIN`/`MAX` s├úo a fonte can├┤nica: `audio_agent::limits` deriva os limites
+/// do registry a partir daqui (n├úo o contr├írio), e um teste de deriva em
+/// `audio_agent` prende os dois n├║meros juntos ÔÇö fecha o terceiro lugar da
+/// regra do `CONTRIBUTING.md` (docs/05 ┬º3, validador, schema da UI) sem
 /// precisar redigitar `0`/`3000` numa quarta vez.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "u32")]
@@ -60,8 +60,8 @@ mod tests {
 
     #[test]
     fn test_rejects_below_min() {
-        // MIN é 0 (u32 não tem valor abaixo), então a borda real que importa
-        // testar é a construção com u32::MAX — a maior entrada possível do
+        // MIN ├® 0 (u32 n├úo tem valor abaixo), ent├úo a borda real que importa
+        // testar ├® a constru├º├úo com u32::MAX ÔÇö a maior entrada poss├¡vel do
         // tipo de origem, para provar que o teto realmente barra.
         assert!(CrossfadeMs::try_from(CrossfadeMs::MAX + 1).is_err());
         assert!(CrossfadeMs::try_from(u32::MAX).is_err());
@@ -75,9 +75,9 @@ mod tests {
 
     #[test]
     fn test_deserialize_rejects_out_of_range_value() {
-        // A garantia que T0.0 existe para dar: um valor inválido não
-        // sobrevive nem à desserialização, muito antes de qualquer camada de
-        // validação rodar por cima.
+        // A garantia que T0.0 existe para dar: um valor inv├ílido n├úo
+        // sobrevive nem ├á desserializa├º├úo, muito antes de qualquer camada de
+        // valida├º├úo rodar por cima.
         let err = serde_json::from_str::<CrossfadeMs>("50000").unwrap_err();
         assert!(err.to_string().contains("crossfade_ms"));
     }

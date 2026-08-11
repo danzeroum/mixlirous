@@ -1,10 +1,10 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
 
-/// Extrai o header `traceparent` (W3C Trace Context) da requisição, para
-/// correlacionar métricas/traces/logs (ver `docs/07-OBSERVABILIDADE.md` §1).
+/// Extrai o header `traceparent` (W3C Trace Context) da requisi├º├úo, para
+/// correlacionar m├®tricas/traces/logs (ver `docs/07-OBSERVABILIDADE.md` ┬º1).
 ///
-/// A integração completa com OpenTelemetry/OTLP fica para quando a Sprint de
-/// observabilidade entrar em pauta; por ora isto só extrai e propaga o
+/// A integra├º├úo completa com OpenTelemetry/OTLP fica para quando a Sprint de
+/// observabilidade entrar em pauta; por ora isto s├│ extrai e propaga o
 /// `trace_id` para os spans de `tracing`.
 #[derive(Debug, Clone, Default)]
 pub struct TraceParent {

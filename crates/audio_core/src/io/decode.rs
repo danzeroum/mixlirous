@@ -1,17 +1,17 @@
-//! Decodificação de áudio comprimido/container para PCM em memória.
+//! Decodifica├º├úo de ├íudio comprimido/container para PCM em mem├│ria.
 //!
 //! Fecha a lacuna apontada em `docs/13-ROADMAP-SPRINTS.md` (Sprint 2.1,
-//! "`decode_to_pcm` com symphonia + validação de magic bytes"): o `symphonia`
-//! era dependência desde o começo, mas nada chamava a API dele — só o tipo de
+//! "`decode_to_pcm` com symphonia + valida├º├úo de magic bytes"): o `symphonia`
+//! era depend├¬ncia desde o come├ºo, mas nada chamava a API dele ÔÇö s├│ o tipo de
 //! erro era usado (`crate::Error::Decode`). Os dois decodificadores que
 //! existiam eram shims privados via `hound`, um no example da fatia vertical e
-//! outro no teste de fixtures, ambos só WAV e ambos incoláveis de fora.
+//! outro no teste de fixtures, ambos s├│ WAV e ambos incol├íveis de fora.
 //!
-//! **Os canais são preservados.** `decode_to_pcm` devolve as amostras
-//! intercaladas com a contagem de canais; o downmix para mono é
-//! [`downmix_to_mono`], função à parte. Um decoder que só devolvesse mono não
-//! conseguiria alimentar o caminho estéreo nunca — e estéreo é o padrão de
-//! saída do produto —, e mudar a assinatura depois significaria mexer em todo
+//! **Os canais s├úo preservados.** `decode_to_pcm` devolve as amostras
+//! intercaladas com a contagem de canais; o downmix para mono ├®
+//! [`downmix_to_mono`], fun├º├úo ├á parte. Um decoder que s├│ devolvesse mono n├úo
+//! conseguiria alimentar o caminho est├®reo nunca ÔÇö e est├®reo ├® o padr├úo de
+//! sa├¡da do produto ÔÇö, e mudar a assinatura depois significaria mexer em todo
 //! call site.
 
 use crate::Error;
@@ -26,7 +26,7 @@ use symphonia::core::meta::MetadataOptions;
 /// PCM decodificado, com os canais preservados.
 #[derive(Debug, Clone)]
 pub struct DecodedAudio {
-    /// Amostras intercaladas (`[L0, R0, L1, R1, …]` para estéreo),
+    /// Amostras intercaladas (`[L0, R0, L1, R1, ÔÇª]` para est├®reo),
     /// normalizadas para -1.0..=1.0.
     pub interleaved: Vec<f32>,
     pub channels: u16,
@@ -34,9 +34,9 @@ pub struct DecodedAudio {
 }
 
 impl DecodedAudio {
-    /// Quadros, isto é, amostras por canal. `0` se `channels` for `0` — que
-    /// `decode_to_pcm` já recusa, mas o getter não pode dividir por zero se
-    /// alguém construir a struct na mão.
+    /// Quadros, isto ├®, amostras por canal. `0` se `channels` for `0` ÔÇö que
+    /// `decode_to_pcm` j├í recusa, mas o getter n├úo pode dividir por zero se
+    /// algu├®m construir a struct na m├úo.
     pub fn frames(&self) -> usize {
         if self.channels == 0 {
             return 0;
@@ -52,18 +52,18 @@ impl DecodedAudio {
     }
 }
 
-/// Formato reconhecido pelos magic bytes, antes de qualquer decodificação.
+/// Formato reconhecido pelos magic bytes, antes de qualquer decodifica├º├úo.
 ///
-/// Serve para dar erro legível ("isto é um OGG, que não está habilitado") em
-/// vez do erro genérico de probe do symphonia, e para recusar de cara o que
-/// nem áudio é.
+/// Serve para dar erro leg├¡vel ("isto ├® um OGG, que n├úo est├í habilitado") em
+/// vez do erro gen├®rico de probe do symphonia, e para recusar de cara o que
+/// nem ├íudio ├®.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormatoDetectado {
     Wav,
     Flac,
     Mp3,
     Aiff,
-    /// Container ISO-BMFF (`.m4a`, `.mp4`) — o `ftyp` na posição 4.
+    /// Container ISO-BMFF (`.m4a`, `.mp4`) ÔÇö o `ftyp` na posi├º├úo 4.
     IsoMp4,
     Ogg,
     Desconhecido,
@@ -83,7 +83,7 @@ impl FormatoDetectado {
     }
 }
 
-/// Inspeciona os primeiros bytes. Não decodifica nada — só classifica.
+/// Inspeciona os primeiros bytes. N├úo decodifica nada ÔÇö s├│ classifica.
 pub fn detectar_formato(bytes: &[u8]) -> FormatoDetectado {
     if bytes.len() < 12 {
         return FormatoDetectado::Desconhecido;
@@ -94,7 +94,7 @@ pub fn detectar_formato(bytes: &[u8]) -> FormatoDetectado {
     if head == b"RIFF" && form == b"WAVE" {
         return FormatoDetectado::Wav;
     }
-    // AIFF e AIFF-C: contêiner IFF big-endian, `FORM` + `AIFF`/`AIFC`.
+    // AIFF e AIFF-C: cont├¬iner IFF big-endian, `FORM` + `AIFF`/`AIFC`.
     if head == b"FORM" && (form == b"AIFF" || form == b"AIFC") {
         return FormatoDetectado::Aiff;
     }
@@ -107,8 +107,8 @@ pub fn detectar_formato(bytes: &[u8]) -> FormatoDetectado {
     if form == b"ftyp" {
         return FormatoDetectado::IsoMp4;
     }
-    // MP3: ou tem tag ID3v2 na frente, ou começa direto num frame sync
-    // (11 bits em 1). O segundo caso é o MP3 "cru", sem tag.
+    // MP3: ou tem tag ID3v2 na frente, ou come├ºa direto num frame sync
+    // (11 bits em 1). O segundo caso ├® o MP3 "cru", sem tag.
     if &bytes[0..3] == b"ID3" {
         return FormatoDetectado::Mp3;
     }
@@ -119,18 +119,18 @@ pub fn detectar_formato(bytes: &[u8]) -> FormatoDetectado {
     FormatoDetectado::Desconhecido
 }
 
-/// Decodifica um arquivo de áudio em memória para PCM `f32`.
+/// Decodifica um arquivo de ├íudio em mem├│ria para PCM `f32`.
 ///
 /// Aceita o que as features do `symphonia` habilitam (ver `Cargo.toml`):
-/// WAV, FLAC, AIFF, MP3, AAC e ISO-MP4/M4A. Formato não reconhecido pelos
-/// magic bytes é recusado antes de chegar no probe, com o nome do que foi
-/// detectado na mensagem — quem chama de uma rota HTTP transforma isso num
-/// 415 legível em vez de um 500 genérico.
+/// WAV, FLAC, AIFF, MP3, AAC e ISO-MP4/M4A. Formato n├úo reconhecido pelos
+/// magic bytes ├® recusado antes de chegar no probe, com o nome do que foi
+/// detectado na mensagem ÔÇö quem chama de uma rota HTTP transforma isso num
+/// 415 leg├¡vel em vez de um 500 gen├®rico.
 pub fn decode_to_pcm(bytes: &[u8]) -> Result<DecodedAudio, Error> {
     let formato = detectar_formato(bytes);
     if formato == FormatoDetectado::Desconhecido {
         return Err(Error::Validation(
-            "formato de áudio não reconhecido pelos magic bytes; \
+            "formato de ├íudio n├úo reconhecido pelos magic bytes; \
              aceitos: WAV, FLAC, AIFF, MP3, AAC, M4A/MP4"
                 .to_string(),
         ));
@@ -151,8 +151,8 @@ pub fn decode_to_pcm(bytes: &[u8]) -> Result<DecodedAudio, Error> {
         MetadataOptions::default(),
     )?;
 
-    // Primeira trilha de áudio com parâmetros de codec. Um MP4 pode trazer
-    // vídeo junto; pegar `tracks()[0]` cegamente escolheria a trilha errada.
+    // Primeira trilha de ├íudio com par├ómetros de codec. Um MP4 pode trazer
+    // v├¡deo junto; pegar `tracks()[0]` cegamente escolheria a trilha errada.
     let (track_id, params) = format
         .tracks()
         .iter()
@@ -162,7 +162,7 @@ pub fn decode_to_pcm(bytes: &[u8]) -> Result<DecodedAudio, Error> {
             _ => None,
         })
         .ok_or_else(|| {
-            Error::Validation("arquivo sem trilha de áudio decodificável".to_string())
+            Error::Validation("arquivo sem trilha de ├íudio decodific├ível".to_string())
         })?;
 
     let mut decoder =
@@ -179,8 +179,8 @@ pub fn decode_to_pcm(bytes: &[u8]) -> Result<DecodedAudio, Error> {
         }
         let decoded = decoder.decode(&packet)?;
         let spec = decoded.spec();
-        // O spec vem do buffer decodificado, não dos parâmetros do container:
-        // alguns formatos declaram o sample rate só no primeiro frame.
+        // O spec vem do buffer decodificado, n├úo dos par├ómetros do container:
+        // alguns formatos declaram o sample rate s├│ no primeiro frame.
         sample_rate = spec.rate();
         channels = spec.channels().count() as u16;
 
@@ -191,7 +191,7 @@ pub fn decode_to_pcm(bytes: &[u8]) -> Result<DecodedAudio, Error> {
 
     if channels == 0 || sample_rate == 0 || interleaved.is_empty() {
         return Err(Error::Validation(
-            "arquivo decodificou para zero amostras — truncado ou vazio".to_string(),
+            "arquivo decodificou para zero amostras ÔÇö truncado ou vazio".to_string(),
         ));
     }
 
@@ -206,9 +206,9 @@ fn default_opts() -> symphonia::core::codecs::audio::AudioDecoderOptions {
     symphonia::core::codecs::audio::AudioDecoderOptions::default()
 }
 
-/// Downmix por média aritmética dos canais. Mesma técnica dos shims que
-/// existiam no example e no teste de fixtures — mantida idêntica para não
-/// mudar, de lado, o resultado de nenhum teste acústico já calibrado.
+/// Downmix por m├®dia aritm├®tica dos canais. Mesma t├®cnica dos shims que
+/// existiam no example e no teste de fixtures ÔÇö mantida id├¬ntica para n├úo
+/// mudar, de lado, o resultado de nenhum teste ac├║stico j├í calibrado.
 pub fn downmix_to_mono(audio: &DecodedAudio) -> Array1<f32> {
     let canais = audio.channels as usize;
     if canais <= 1 {
@@ -245,8 +245,8 @@ mod tests {
     }
 
     /// Gera um WAV mono de verdade via `encode_wav_to_vec` e decodifica de
-    /// volta — fecha o ciclo encode→decode sem depender das fixtures
-    /// geradas, que não são commitadas.
+    /// volta ÔÇö fecha o ciclo encodeÔåÆdecode sem depender das fixtures
+    /// geradas, que n├úo s├úo commitadas.
     fn wav_mono(amostras: &[f32], sample_rate: u32) -> Vec<u8> {
         DefaultMixer
             .encode_wav_to_vec(
@@ -272,8 +272,8 @@ mod tests {
 
     #[test]
     fn arquivo_curto_demais_nao_estoura_indice() {
-        // Regressão: a detecção lê bytes[8..12]; entrada com menos de 12
-        // bytes precisa sair antes, não entrar em panic de slice.
+        // Regress├úo: a detec├º├úo l├¬ bytes[8..12]; entrada com menos de 12
+        // bytes precisa sair antes, n├úo entrar em panic de slice.
         assert_eq!(detectar_formato(b"RIF"), FormatoDetectado::Desconhecido);
         assert_eq!(detectar_formato(b""), FormatoDetectado::Desconhecido);
     }
@@ -311,8 +311,8 @@ mod tests {
         assert_eq!(downmix_to_mono(&audio).to_vec(), vec![0.1, 0.2, 0.3]);
     }
 
-    /// O ponto da correção de forma: os canais chegam preservados e o
-    /// downmix é passo separado, não embutido no decode.
+    /// O ponto da corre├º├úo de forma: os canais chegam preservados e o
+    /// downmix ├® passo separado, n├úo embutido no decode.
     #[test]
     fn downmix_de_estereo_tira_a_media_dos_canais() {
         let audio = DecodedAudio {
@@ -326,8 +326,8 @@ mod tests {
 
     #[test]
     fn duracao_vem_de_quadros_e_nao_de_amostras_intercaladas() {
-        // Um estéreo de 2 quadros a 4 Hz dura 0,5 s — não 1,0 s, que é o que
-        // sairia se alguém dividisse o comprimento intercalado pelo rate.
+        // Um est├®reo de 2 quadros a 4 Hz dura 0,5 s ÔÇö n├úo 1,0 s, que ├® o que
+        // sairia se algu├®m dividisse o comprimento intercalado pelo rate.
         let audio = DecodedAudio {
             interleaved: vec![0.0, 0.0, 0.0, 0.0],
             channels: 2,
