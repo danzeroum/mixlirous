@@ -2,17 +2,16 @@
 //! Usam fixtures sinteticas gerados por test_fixtures.
 //! Nao dependem de arquivos externos.
 
-use audio_core::dsp::analysis::test_fixtures::{
-    generate_sine, generate_drifted_sine, generate_bend, generate_chord, add_white_noise,
-};
-use audio_core::dsp::analysis::{
-    detect_pitch, detect_drift, detect_key,
-    aggregate_chroma_simple, chroma_vector,
-};
 use audio_core::dsp::analysis::quality_metrics::{
     compute_quality_report, total_harmonic_distortion,
 };
-use audio_core::{PipelineConfig, DefaultRemixPipeline, PipelineInput, RemixPipeline};
+use audio_core::dsp::analysis::test_fixtures::{
+    add_white_noise, generate_bend, generate_chord, generate_drifted_sine, generate_sine,
+};
+use audio_core::dsp::analysis::{
+    aggregate_chroma_simple, chroma_vector, detect_drift, detect_key, detect_pitch,
+};
+use audio_core::{DefaultRemixPipeline, PipelineConfig, PipelineInput, RemixPipeline};
 
 // T1: Deteccao de pitch em seno puro conhecido
 #[test]
@@ -22,8 +21,11 @@ fn test_pitch_detect_sine_a4_known() {
     let voiced: Vec<_> = frames.iter().filter(|f| f.is_voiced).collect();
     assert!(!voiced.is_empty(), "nenhum frame voiced detectado");
     for f in &voiced {
-        assert!((f.freq - 440.0).abs() < 5.0,
-            "freq esperada ~440 Hz, obteve {} Hz", f.freq);
+        assert!(
+            (f.freq - 440.0).abs() < 5.0,
+            "freq esperada ~440 Hz, obteve {} Hz",
+            f.freq
+        );
     }
 }
 
@@ -47,8 +49,16 @@ fn test_key_detection_c_major_chord() {
     let tonal = detect_key(&aggregated);
 
     // Tonica deve ser C (indice 0)
-    assert_eq!(tonal.root, 0, "tonal detectada deveria ser C (0), obteve {}", tonal.root);
-    assert!(tonal.confidence > 0.5, "confianca muito baixa: {}", tonal.confidence);
+    assert_eq!(
+        tonal.root, 0,
+        "tonal detectada deveria ser C (0), obteve {}",
+        tonal.root
+    );
+    assert!(
+        tonal.confidence > 0.5,
+        "confianca muito baixa: {}",
+        tonal.confidence
+    );
 }
 
 // T3: Deteccao de drift em seno com drift conhecido
@@ -59,8 +69,16 @@ fn test_drift_detection_linear_20cents() {
     let drift = detect_drift(&frames);
 
     // Drift deve ser positivo e proximo de 20 cents
-    assert!(drift > 10.0, "drift deveria ser >10 cents, obteve {}", drift);
-    assert!(drift < 30.0, "drift deveria ser <30 cents, obteve {}", drift);
+    assert!(
+        drift > 10.0,
+        "drift deveria ser >10 cents, obteve {}",
+        drift
+    );
+    assert!(
+        drift < 30.0,
+        "drift deveria ser <30 cents, obteve {}",
+        drift
+    );
 }
 
 // T4: Passthrough com tuning desabilitado — metricas perfeitas entre identicos
@@ -73,8 +91,14 @@ fn test_tuning_passthrough_disabled() {
     // Aqui testamos que as metricas de qualidade entre original e "processado"
     // (identico) sao perfeitas.
     let report = compute_quality_report(&original, &pcm, 44100, 440.0);
-    assert!(report.envelope_diff < 0.001, "passthrough deveria ter envelope_diff ~0");
-    assert!(report.snr_db > 100.0, "passthrough deveria ter SNR muito alto");
+    assert!(
+        report.envelope_diff < 0.001,
+        "passthrough deveria ter envelope_diff ~0"
+    );
+    assert!(
+        report.snr_db > 100.0,
+        "passthrough deveria ter SNR muito alto"
+    );
 }
 
 // T5: Metricas de qualidade — THD de seno puro
@@ -82,7 +106,11 @@ fn test_tuning_passthrough_disabled() {
 fn test_quality_metrics_pure_sine() {
     let pcm = generate_sine(440.0, 2.0, 44100, 0.8);
     let thd = total_harmonic_distortion(&pcm, 44100, 440.0);
-    assert!(thd < 0.01, "THD de seno puro deveria ser <1%, obteve {}", thd);
+    assert!(
+        thd < 0.01,
+        "THD de seno puro deveria ser <1%, obteve {}",
+        thd
+    );
 }
 
 // T6: Preservacao de bend — bend nao deve ser destruido
@@ -90,15 +118,22 @@ fn test_quality_metrics_pure_sine() {
 fn test_bend_signal_has_pitch_variation() {
     let pcm = generate_bend(440.0, 50.0, 0.5, 3.0, 44100, 0.8);
     let frames = detect_pitch(&pcm, 44100, 2048, 512);
-    let voiced: Vec<_> = frames.iter().filter(|f| f.is_voiced).map(|f| f.freq).collect();
+    let voiced: Vec<_> = frames
+        .iter()
+        .filter(|f| f.is_voiced)
+        .map(|f| f.freq)
+        .collect();
 
     // Deve haver variacao de frequencia
     if voiced.len() > 2 {
         let min_f = voiced.iter().cloned().fold(f32::MAX, f32::min);
         let max_f = voiced.iter().cloned().fold(f32::MIN, f32::max);
         let spread_cents = 1200.0 * (max_f / min_f).log2();
-        assert!(spread_cents > 10.0,
-            "bend deveria produzir variacao >10 cents, obteve {}", spread_cents);
+        assert!(
+            spread_cents > 10.0,
+            "bend deveria produzir variacao >10 cents, obteve {}",
+            spread_cents
+        );
     }
 }
 
@@ -113,7 +148,9 @@ fn test_key_detection_with_noise() {
     let mut chromas = Vec::new();
     for i in (0..noisy.len().saturating_sub(frame_size)).step_by(hop) {
         let end = (i + frame_size).min(noisy.len());
-        if end - i < frame_size { break; }
+        if end - i < frame_size {
+            break;
+        }
         let frame = noisy.slice(ndarray::s![i..end]);
         let c = chroma_vector(frame, 44100);
         chromas.push(c);
@@ -145,17 +182,24 @@ fn test_pipeline_e2e_with_synth_fixture() {
     // Pipeline deve completar sem erro
     match result {
         Ok(output) => {
-            assert!(!output.pcm.is_empty(), "saida do pipeline nao pode ser vazia");
+            assert!(
+                !output.pcm.is_empty(),
+                "saida do pipeline nao pode ser vazia"
+            );
             // Duracao deve ser preservada dentro de tolerancia
             let input_dur = pcm.len() as f32 / 44100.0;
             let output_dur = output.pcm.len() as f32 / 44100.0;
-            assert!((output_dur - input_dur).abs() < 0.1,
-                "duracao preservada: entrada {}s, saida {}s", input_dur, output_dur);
+            assert!(
+                (output_dur - input_dur).abs() < 0.1,
+                "duracao preservada: entrada {}s, saida {}s",
+                input_dur,
+                output_dur
+            );
         },
         Err(e) => {
             // Pipeline pode falhar com buffer curto (blocos insuficientes)
             // — isso e esperado para fixtures sinteticas simples
             println!("Pipeline falhou como esperado para fixture simples: {}", e);
-        }
+        },
     }
 }

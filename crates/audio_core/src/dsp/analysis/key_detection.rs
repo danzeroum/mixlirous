@@ -163,12 +163,17 @@ pub fn aggregate_chroma_simple(chroma_vectors: &[Vec<f32>]) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dsp::analysis::test_fixtures::generate_chord;
     use crate::dsp::analysis::chroma::chroma_vector;
+    use crate::dsp::analysis::test_fixtures::generate_chord;
     use ndarray::Array1;
 
     /// Gera vetores croma a partir de um sinal PCM usando janelas deslizantes.
-    fn extract_chroma_sequence(pcm: &Array1<f32>, sample_rate: u32, frame_size: usize, hop_size: usize) -> Vec<Vec<f32>> {
+    fn extract_chroma_sequence(
+        pcm: &Array1<f32>,
+        sample_rate: u32,
+        frame_size: usize,
+        hop_size: usize,
+    ) -> Vec<Vec<f32>> {
         let mut chromas = Vec::new();
         let mut start = 0;
         while start + frame_size <= pcm.len() {
@@ -195,7 +200,8 @@ mod tests {
             result.root
         );
         assert_eq!(
-            result.mode, KeyMode::Major,
+            result.mode,
+            KeyMode::Major,
             "Esperava modo Major, obteve {:?}",
             result.mode
         );
@@ -260,7 +266,9 @@ mod tests {
 
     #[test]
     fn test_pearson_correlation_identical_is_one() {
-        let a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0];
+        let a = [
+            1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+        ];
         let corr = pearson_correlation(&a, &a);
         assert!(
             (corr - 1.0).abs() < 1e-6,

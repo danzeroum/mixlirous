@@ -10,9 +10,7 @@
 //! Recebe PCM decodificado (mono) + `PipelineConfig` e devolve PCM processado.
 //! O decode (A) e encode (G) ficam de fora porque dependem de I/O de arquivo.
 
-use crate::domain::{
-    BeatBlock, BeatDetectionParams, PipelineConfig,
-};
+use crate::domain::{BeatBlock, BeatDetectionParams, PipelineConfig};
 use crate::dsp::analysis::DefaultAnalyzer;
 use crate::dsp::selection::{select_blocks, SelectionConfig as DspSelectionConfig};
 use crate::ports::AudioAnalyzer;
@@ -194,15 +192,10 @@ impl DefaultRemixPipeline {
             }
 
             // E.1: ajuste para zero-crossing
-            let _zc = crate::dsp::stitching::find_zero_crossing(
-                source_pcm,
-                block.start_sample,
-                200,
-            );
+            let _zc =
+                crate::dsp::stitching::find_zero_crossing(source_pcm, block.start_sample, 200);
 
-            let fade_samples = fade_samples_alvo
-                .min(montado.len())
-                .min(trecho.len());
+            let fade_samples = fade_samples_alvo.min(montado.len()).min(trecho.len());
 
             if fade_samples == 0 {
                 // Nao ha sobreposicao possivel -- concatena sem crossfade.
@@ -239,12 +232,10 @@ impl DefaultRemixPipeline {
                     let rms_a = crate::dsp::analysis::rms::calculate_rms(
                         ndarray::ArrayView1::from(prev_pcm),
                     );
-                    let rms_b = crate::dsp::analysis::rms::calculate_rms(
-                        ndarray::ArrayView1::from(trecho),
-                    );
+                    let rms_b =
+                        crate::dsp::analysis::rms::calculate_rms(ndarray::ArrayView1::from(trecho));
                     if rms_a > 1e-6 && rms_b > 1e-6 {
-                        let diff_db =
-                            20.0 * (rms_b / rms_a).abs().log10();
+                        let diff_db = 20.0 * (rms_b / rms_a).abs().log10();
                         if diff_db.abs() > 8.0 {
                             warnings.push(format!(
                                 "enenda brusca entre blocos {i} e {}: diff {:.1} dB",
@@ -292,11 +283,7 @@ impl DefaultRemixPipeline {
         // F.1: compressor (se habilitado via enable_limiting)
         if config.mastering.enable_limiting {
             let params = crate::dsp::mastering::CompressorParams::default();
-            let compressed = crate::dsp::mastering::apply_compression(
-                pcm,
-                &params,
-                sample_rate,
-            );
+            let compressed = crate::dsp::mastering::apply_compression(pcm, &params, sample_rate);
             pcm.clone_from(&compressed);
         }
 
@@ -316,8 +303,10 @@ impl DefaultRemixPipeline {
                 }
             },
             crate::dsp::mastering::LufsGainOutcome::UnmeasurableLoudness => {
-                warnings
-                    .push("loudness nao mensuravel (buffer curto/silencioso) -- sem normalizacao LUFS".to_string());
+                warnings.push(
+                    "loudness nao mensuravel (buffer curto/silencioso) -- sem normalizacao LUFS"
+                        .to_string(),
+                );
             },
         }
 
@@ -359,9 +348,8 @@ impl RemixPipeline for DefaultRemixPipeline {
             bpm_estimate = Some(bpm);
 
             if all_blocks.is_empty() {
-                warnings.push(
-                    "nenhum bloco detectado -- usando PCM bruto como fallback".to_string(),
-                );
+                warnings
+                    .push("nenhum bloco detectado -- usando PCM bruto como fallback".to_string());
                 // Fallback: nem tenta selecionar, vai direto para master.
                 Vec::new()
             } else {

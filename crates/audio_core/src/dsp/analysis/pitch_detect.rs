@@ -3,8 +3,7 @@
 /// O stub usa deteccao por zero-crossing + parabolizacao,
 /// suficiente para validar o pipeline de afinacao em testes.
 /// Limitacoes: funciona apenas para sinais monofonicos puros.
-
-use ndarray::{Array1, s};
+use ndarray::{s, Array1};
 
 /// Resultado da deteccao de pitch frame-a-frame.
 #[derive(Debug, Clone)]
@@ -52,10 +51,7 @@ pub fn detect_pitch_frame(pcm: &[f32], sample_rate: u32) -> PitchFrame {
 
     // Calcula periodos entre crossings consecutivos (meios-ciclos)
     // Frequencia = 1 / (2 * periodo medio de meio-ciclo)
-    let half_periods: Vec<f32> = crossings
-        .windows(2)
-        .map(|w| w[1] - w[0])
-        .collect();
+    let half_periods: Vec<f32> = crossings.windows(2).map(|w| w[1] - w[0]).collect();
 
     let avg_half_period: f32 = half_periods.iter().sum::<f32>() / half_periods.len() as f32;
     let avg_period = avg_half_period * 2.0;
@@ -233,10 +229,7 @@ mod tests {
         let drift = detect_drift(&frames);
 
         // O drift deve ser positivo e razoavelmente proximo de 100 cents
-        assert!(
-            drift > 0.0,
-            "Drift deveria ser positivo, obteve {drift}"
-        );
+        assert!(drift > 0.0, "Drift deveria ser positivo, obteve {drift}");
         // Tolerancia de 30%: 100 * 0.3 = 30
         assert!(
             (drift - 100.0).abs() < 30.0,

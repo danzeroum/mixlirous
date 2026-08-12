@@ -1,9 +1,9 @@
 use crate::state::AppState;
 use audio_core::decode_to_pcm;
+use audio_core::domain::AudioCodec;
 use audio_core::downmix_to_mono;
 use audio_core::ports::repo_trait::JobStatus;
 use audio_core::{DefaultRemixPipeline, PipelineConfig, PipelineInput, RemixPipeline};
-use audio_core::domain::AudioCodec;
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::interval;
@@ -227,11 +227,7 @@ impl Worker {
         for warning in &pipeline_result.warnings {
             self.state
                 .hub
-                .publish(
-                    job.id,
-                    "job.warning",
-                    json!({ "message": warning }),
-                )
+                .publish(job.id, "job.warning", json!({ "message": warning }))
                 .await;
         }
 
@@ -259,11 +255,9 @@ impl Worker {
         export_config.format.bit_depth = 32;
         export_config.format.codec = AudioCodec::WAV;
 
-        let wav_bytes = audio_core::dsp::DefaultMixer.encode_wav_to_vec(
-            &pipeline_result.pcm,
-            &export_config,
-        )
-        .map_err(|e| format!("encode: {e}"))?;
+        let wav_bytes = audio_core::dsp::DefaultMixer
+            .encode_wav_to_vec(&pipeline_result.pcm, &export_config)
+            .map_err(|e| format!("encode: {e}"))?;
 
         let artifact_key = format!("tenant-{}/artifacts/{}/remix.wav", job.tenant_id, job.id);
 

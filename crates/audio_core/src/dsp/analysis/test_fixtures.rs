@@ -4,7 +4,12 @@
 use ndarray::Array1;
 
 /// Seno puro em frequencia e amplitude especificadas.
-pub fn generate_sine(freq: f32, duration_sec: f32, sample_rate: u32, amplitude: f32) -> Array1<f32> {
+pub fn generate_sine(
+    freq: f32,
+    duration_sec: f32,
+    sample_rate: u32,
+    amplitude: f32,
+) -> Array1<f32> {
     let n_samples = (duration_sec * sample_rate as f32) as usize;
     let two_pi = std::f32::consts::TAU;
     Array1::from_iter((0..n_samples).map(|i| {
@@ -104,7 +109,9 @@ pub fn add_white_noise(signal: &Array1<f32>, snr_db: f32) -> Array1<f32> {
     let mut seed: u64 = 42;
     let mut next_rand = move || -> f32 {
         // LCG: x_{n+1} = (a * x_n + c) mod m
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         // Normaliza para -1..1
         (seed >> 33) as i32 as f32 / (i32::MAX as f32)
     };
@@ -120,7 +127,11 @@ pub fn add_white_noise(signal: &Array1<f32>, snr_db: f32) -> Array1<f32> {
     // Escala fator para atingir a potencia de ruido alvo
     let scale = (noise_power / raw_power).sqrt();
 
-    signal.iter().zip(raw_noise.iter()).map(|(&s, &n)| s + n * scale).collect()
+    signal
+        .iter()
+        .zip(raw_noise.iter())
+        .map(|(&s, &n)| s + n * scale)
+        .collect()
 }
 
 /// Impulso percussivo com envelope Attack-Decay.
@@ -245,7 +256,14 @@ mod tests {
         let bend_duration = 0.5f32;
         let total_duration = 1.0f32;
         let sr = 44100u32;
-        let sine = generate_bend(base_freq, bend_cents, bend_duration, total_duration, sr, 0.9);
+        let sine = generate_bend(
+            base_freq,
+            bend_cents,
+            bend_duration,
+            total_duration,
+            sr,
+            0.9,
+        );
 
         // Verifica que apos o bend, a frequencia volta ao valor base
         let start_idx = sine.len() - 4096;
@@ -316,9 +334,6 @@ mod tests {
 
         // Amplitude maxima absoluta deve estar <= 1.0
         let max_abs = max_amp.abs().max(min_amp.abs());
-        assert!(
-            max_abs <= 1.0,
-            "Amplitude maxima {max_abs} excede 1.0"
-        );
+        assert!(max_abs <= 1.0, "Amplitude maxima {max_abs} excede 1.0");
     }
 }

@@ -1,8 +1,7 @@
 /// Metricas objetivas de qualidade auditiva.
 /// Fontes: ITU-R BS.1770 (LUFS), DAFX Zolzer (THD),
 /// literatura de avaliacao de pitch (jitter).
-
-use ndarray::{Array1, s};
+use ndarray::{s, Array1};
 
 /// Distorcao harmonica total: sqrt(sum A_k^2 for k>=2) / A_1
 /// Usa FFT para encontrar harmonicos. Retorna 0.0 para silencio.
@@ -65,11 +64,21 @@ pub fn jitter_ratio(
     sample_rate: u32,
     frame_size: usize,
 ) -> f32 {
-    let pitches_orig = super::pitch_detect::detect_pitch(original, sample_rate, frame_size, frame_size / 2);
-    let pitches_proc = super::pitch_detect::detect_pitch(processed, sample_rate, frame_size, frame_size / 2);
+    let pitches_orig =
+        super::pitch_detect::detect_pitch(original, sample_rate, frame_size, frame_size / 2);
+    let pitches_proc =
+        super::pitch_detect::detect_pitch(processed, sample_rate, frame_size, frame_size / 2);
 
-    let voiced_orig: Vec<f32> = pitches_orig.iter().filter(|p| p.is_voiced).map(|p| p.freq).collect();
-    let voiced_proc: Vec<f32> = pitches_proc.iter().filter(|p| p.is_voiced).map(|p| p.freq).collect();
+    let voiced_orig: Vec<f32> = pitches_orig
+        .iter()
+        .filter(|p| p.is_voiced)
+        .map(|p| p.freq)
+        .collect();
+    let voiced_proc: Vec<f32> = pitches_proc
+        .iter()
+        .filter(|p| p.is_voiced)
+        .map(|p| p.freq)
+        .collect();
 
     // Se ambos vazios (silencio), retorna 1.0
     if voiced_orig.is_empty() && voiced_proc.is_empty() {
@@ -196,7 +205,8 @@ fn stddev(values: &[f32]) -> f32 {
         return 0.0;
     }
     let mean = values.iter().sum::<f32>() / values.len() as f32;
-    let variance = values.iter().map(|&x| (x - mean) * (x - mean)).sum::<f32>() / values.len() as f32;
+    let variance =
+        values.iter().map(|&x| (x - mean) * (x - mean)).sum::<f32>() / values.len() as f32;
     variance.sqrt()
 }
 
@@ -211,17 +221,14 @@ mod tests {
         let sine = generate_sine(440.0, 1.0, sr, 0.9);
         let thd = total_harmonic_distortion(&sine, sr, 440.0);
         // Seno puro ideal: THD deve ser proximo de zero
-        assert!(
-            thd < 0.05,
-            "THD de seno puro deveria ser ~0, obteve {thd}"
-        );
+        assert!(thd < 0.05, "THD de seno puro deveria ser ~0, obteve {thd}");
     }
 
     #[test]
     fn test_thd_clipped_sine_is_high() {
         let sr = 44100u32;
         let sine = generate_sine(440.0, 1.0, sr, 2.0); // amplitude 2.0 sera clipada
-        // Clipa manualmente para simular distorcao
+                                                       // Clipa manualmente para simular distorcao
         let clipped: Array1<f32> = sine.iter().map(|&x| x.clamp(-1.0, 1.0)).collect();
         let thd = total_harmonic_distortion(&clipped, sr, 440.0);
         assert!(
@@ -247,7 +254,8 @@ mod tests {
         let signal = generate_sine(440.0, 1.0, sr, 0.8);
         let snr = signal_to_noise(&signal, &signal);
         assert_eq!(
-            snr, f32::MAX,
+            snr,
+            f32::MAX,
             "SNR de sinal identico deveria ser f32::MAX, obteve {snr}"
         );
     }
@@ -281,7 +289,11 @@ mod tests {
             report.thd
         );
         // SNR identico = MAX
-        assert_eq!(report.snr_db, f32::MAX, "SNR deveria ser MAX para sinal identico");
+        assert_eq!(
+            report.snr_db,
+            f32::MAX,
+            "SNR deveria ser MAX para sinal identico"
+        );
         // Envelope identico = 0
         assert!(
             report.envelope_diff.abs() < 1e-10,

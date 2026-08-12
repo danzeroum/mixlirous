@@ -2,12 +2,12 @@
 //! Complementam os testes unitarios do modulo quality_metrics.rs
 //! com cenarios mais realistas usando fixtures sinteticas.
 
-use audio_core::dsp::analysis::test_fixtures::{
-    generate_sine, generate_chord, add_white_noise, generate_drifted_sine,
-};
 use audio_core::dsp::analysis::quality_metrics::{
-    total_harmonic_distortion, signal_to_noise, envelope_difference,
-    spectral_centroid_shift, compute_quality_report,
+    compute_quality_report, envelope_difference, signal_to_noise, spectral_centroid_shift,
+    total_harmonic_distortion,
+};
+use audio_core::dsp::analysis::test_fixtures::{
+    add_white_noise, generate_chord, generate_drifted_sine, generate_sine,
 };
 
 #[test]
@@ -33,8 +33,16 @@ fn test_snr_degrades_with_noise() {
     let snr_20 = signal_to_noise(&clean, &noisy_20db);
     let snr_6 = signal_to_noise(&clean, &noisy_6db);
 
-    assert!(snr_20 > snr_6, "SNR 20dB deveria ser > SNR 6dB: {} > {}", snr_20, snr_6);
-    assert!(snr_6 < 20.0, "SNR medida deveria ser < 20 para sinal com 6dB de ruido");
+    assert!(
+        snr_20 > snr_6,
+        "SNR 20dB deveria ser > SNR 6dB: {} > {}",
+        snr_20,
+        snr_6
+    );
+    assert!(
+        snr_6 < 20.0,
+        "SNR medida deveria ser < 20 para sinal com 6dB de ruido"
+    );
 }
 
 #[test]
@@ -45,8 +53,14 @@ fn test_envelope_diff_with_different_signals() {
     let diff = envelope_difference(&sig_a, &sig_b, 44100, 50.0);
     let diff_same = envelope_difference(&sig_a, &sig_a, 44100, 50.0);
 
-    assert!(diff > diff_same, "envelope de sinais diferentes deveria ser maior");
-    assert!(diff_same < 0.001, "envelope de sinal identico deveria ser ~0");
+    assert!(
+        diff > diff_same,
+        "envelope de sinais diferentes deveria ser maior"
+    );
+    assert!(
+        diff_same < 0.001,
+        "envelope de sinal identico deveria ser ~0"
+    );
 }
 
 #[test]
@@ -55,7 +69,11 @@ fn test_spectral_centroid_shift_higher_freq() {
     let high = generate_sine(880.0, 2.0, 44100, 0.8);
 
     let shift = spectral_centroid_shift(&low, &high, 44100);
-    assert!(shift.abs() > 10.0, "mudanca de 220->880 Hz deveria dar shift >10%: {}", shift);
+    assert!(
+        shift.abs() > 10.0,
+        "mudanca de 220->880 Hz deveria dar shift >10%: {}",
+        shift
+    );
 }
 
 #[test]
@@ -67,8 +85,14 @@ fn test_quality_report_noisy_signal() {
 
     assert!(report.thd >= 0.0, "THD deve ser >= 0");
     assert!(report.snr_db < 100.0, "SNR com ruido deve ser finito");
-    assert!(report.envelope_diff > 0.0, "envelope com ruido deve diferir");
-    assert!(report.centroid_shift_pct >= 0.0, "centroid shift deve ser >= 0");
+    assert!(
+        report.envelope_diff > 0.0,
+        "envelope com ruido deve diferir"
+    );
+    assert!(
+        report.centroid_shift_pct >= 0.0,
+        "centroid shift deve ser >= 0"
+    );
 }
 
 #[test]
@@ -79,5 +103,8 @@ fn test_quality_report_drifted_vs_original() {
     let report = compute_quality_report(&original, &drifted, 44100, 440.0);
 
     // Sinal com drift deve ter diferencas espectrais mensuraveis
-    assert!(report.envelope_diff > 0.0, "sinal com drift deve ter envelope diferente");
+    assert!(
+        report.envelope_diff > 0.0,
+        "sinal com drift deve ter envelope diferente"
+    );
 }

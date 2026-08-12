@@ -1,5 +1,5 @@
-use crate::domain::{BlockSizeBeats, CompressionRatio, CrossfadeMs, LufsTarget, Percentile};
 use crate::domain::tuning_config::TuningConfig;
+use crate::domain::{BlockSizeBeats, CompressionRatio, CrossfadeMs, LufsTarget, Percentile};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

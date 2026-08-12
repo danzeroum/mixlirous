@@ -26,16 +26,15 @@ pub use ndarray;
 pub use domain::{
     AttackMs, AudioCodec, AudioFingerprint, AudioFormat, BeatBlock, BeatCandidate,
     BeatDetectionParams, BlockEnergy, BlockSizeBeats, CompressionRatio, CrossfadeConfig,
-    CrossfadeCurve, CrossfadeMs, EnergyProfile, EqGainDb, LufsTarget, MasteringConfig, OnsetMethod,
-    OnsetStrength, Percentile, PipelineConfig, ReleaseMs, SelectionConfig, ThresholdDb,
-    TimeStretchFactor, TuningConfig, TuningMode, MinConfidence, MaxCorrectionCents,
+    CrossfadeCurve, CrossfadeMs, EnergyProfile, EqGainDb, LufsTarget, MasteringConfig,
+    MaxCorrectionCents, MinConfidence, OnsetMethod, OnsetStrength, Percentile, PipelineConfig,
+    ReleaseMs, SelectionConfig, ThresholdDb, TimeStretchFactor, TuningConfig, TuningMode,
 };
 pub use dsp::pipeline::{DefaultRemixPipeline, PipelineInput, PipelineResult, RemixPipeline};
 pub use dsp::stitching::FadeCurve;
 pub use dsp::{
-    TonalContext, KeyMode, detect_key, aggregate_chroma,
-    PitchFrame, detect_pitch, detect_drift,
-    QualityReport, compute_quality_report,
+    aggregate_chroma, compute_quality_report, detect_drift, detect_key, detect_pitch, KeyMode,
+    PitchFrame, QualityReport, TonalContext,
 };
 pub use io::{decode_to_pcm, downmix_to_mono, DecodedAudio};
 pub use ports::{AudioAnalyzer, AudioMixer, AudioRepo};
