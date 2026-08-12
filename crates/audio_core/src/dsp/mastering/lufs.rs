@@ -48,8 +48,13 @@ pub fn measure_true_peak(pcm: &[f32], channels: u32, sample_rate: u32) -> f32 {
 #[must_use]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LufsGainOutcome {
-    /// Ganho aplicado; `gain_db` ├® o quanto foi ajustado.
-    Applied { gain_db: f32 },
+    /// Ganho aplicado; `gain_db` ├® o quanto foi ajustado e `limited_samples`
+    /// (#37) conta quantas amostras excederam ±1.0 ap├│s a aplica├º├úo do ganho
+    /// ÔÇö permite ao chamador decidir se emite aviso ou corrige com o limiter.
+    Applied {
+        gain_db: f32,
+        limited_samples: usize,
+    },
     /// `measure_lufs` devolveu um valor n├úo finito (buffer curto ou
     /// silencioso demais para formar um bloco de gating da BS.1770 ÔÇö retorno
     /// v├ílido de `loudness_global()`, n├úo erro). Sem loudness mensur├ível n├úo
@@ -73,10 +78,17 @@ pub fn apply_lufs_gain(pcm: &mut [f32], sample_rate: u32, target_lufs: f32) -> L
         return LufsGainOutcome::UnmeasurableLoudness;
     }
 
+    let mut limited_samples = 0usize;
     for sample in pcm.iter_mut() {
         *sample *= gain_linear;
+        if sample.abs() > 1.0 {
+            limited_samples += 1;
+        }
     }
-    LufsGainOutcome::Applied { gain_db }
+    LufsGainOutcome::Applied {
+        gain_db,
+        limited_samples,
+    }
 }
 
 #[cfg(test)]
@@ -138,5 +150,51 @@ mod tests {
     fn test_measure_true_peak_of_silence_is_negative_infinity() {
         let pcm = vec![0.0f32; 44100];
         assert_eq!(measure_true_peak(&pcm, 1, 44100), f32::NEG_INFINITY);
+    }
+
+    /// #37 — quando o ganho é alto o bastante para empurrar amostras
+    /// acima de ±1.0, `limited_samples` deve ser > 0.
+    #[test]
+    fn test_apply_lufs_gain_reports_limited_samples() {
+        // Senoide de amplitude 0.9 (~-3..-5 LUFS). Pedir alvo acima do atual
+        // (0.0 LUFS) força ganho POSITIVO, que empurra os picos para fora de
+        // ±1.0 — é o que clipa. Alvo -6 estaria abaixo do medido e atenuaria.
+        let sr = 44100;
+        let mut pcm: Vec<f32> = (0..sr)
+            .map(|i| 0.9 * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / sr as f32).sin())
+            .collect();
+        let outcome = apply_lufs_gain(&mut pcm, sr, 0.0);
+        if let LufsGainOutcome::Applied {
+            limited_samples, ..
+        } = outcome
+        {
+            assert!(
+                limited_samples > 0,
+                "sinal forte com alvo acima do medido deveria clipar"
+            );
+        }
+    }
+
+    /// #37 — sinal fraco com alvo moderado não deve clipar.
+    #[test]
+    fn test_apply_lufs_gain_no_clipping_on_quiet_signal() {
+        // Senoide de amplitude 0.01 (~-43 LUFS). Normalizar para -14 LUFS
+        // aplica ganho ~+29 dB: 0.01 * ~28 = ~0.28, ainda dentro de ±1.0.
+        // (DC puro não é um sinal representativo — o medidor de BS.1770 é
+        // calibrado para música/voz, não para nível DC.)
+        let sr = 44100;
+        let mut pcm: Vec<f32> = (0..sr)
+            .map(|i| 0.01 * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / sr as f32).sin())
+            .collect();
+        let outcome = apply_lufs_gain(&mut pcm, sr, -14.0);
+        if let LufsGainOutcome::Applied {
+            limited_samples, ..
+        } = outcome
+        {
+            assert_eq!(
+                limited_samples, 0,
+                "sinal fraco normalizado não deveria clipar"
+            );
+        }
     }
 }

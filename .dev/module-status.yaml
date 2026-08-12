@@ -3,10 +3,11 @@
 
 audio_core: 100%
   domain: MFCC real, JobRecord, PipelineConfig
-  dsp/analysis: onset, beat_tracking, rms, fft, chroma+seções
+  dsp/analysis: onset, beat_tracking (limiar adaptativo #27), rms, fft, chroma+seções
   dsp/stitching: crossfade, fades, zero_cross
-  dsp/mastering: compressor, lufs, limiter, stretch
+  dsp/mastering: compressor, lufs (limited_samples #37), limiter, stretch
   dsp/selection: knapsack DP, continuous
+  dsp/post_process: invariantes I1 (clipping) + I4 (estalos)
   ports: AudioRepo completo (claim/beat/retry)
 
 audio_agent: 95%
@@ -35,5 +36,5 @@ sprints:
   S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend
   S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
 
-tests: 300+ (41 api + 53 agent + 206 core)
+tests: 380+ (41 api + 53 agent + ~290 core)
 build: OK

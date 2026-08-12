@@ -293,7 +293,7 @@ impl DefaultRemixPipeline {
         // F.3: normalizacao LUFS
         let target_lufs = config.mastering.lufs_target.get();
         match crate::dsp::mastering::apply_lufs_gain(pcm, sample_rate, target_lufs) {
-            crate::dsp::mastering::LufsGainOutcome::Applied { gain_db } => {
+            crate::dsp::mastering::LufsGainOutcome::Applied { gain_db, .. } => {
                 // Aviso se o ganho for > 3 dB (sinal muito comprimido na origem).
                 if gain_db.abs() > 3.0 {
                     warnings.push(format!(

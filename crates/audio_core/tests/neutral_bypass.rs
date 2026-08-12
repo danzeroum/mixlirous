@@ -105,7 +105,7 @@ proptest! {
         let mut y = x.clone();
         let outcome = apply_lufs_gain(&mut y, sample_rate, atual);
         let outcome_esperado = match outcome {
-            LufsGainOutcome::Applied { gain_db } => gain_db == 0.0,
+            LufsGainOutcome::Applied { gain_db, .. } => gain_db == 0.0,
             LufsGainOutcome::UnmeasurableLoudness => true,
         };
         prop_assert!(outcome_esperado, "outcome inesperado: {outcome:?}");
