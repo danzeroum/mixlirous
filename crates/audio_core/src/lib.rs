@@ -31,6 +31,7 @@ pub use domain::{
     ReleaseMs, SelectionConfig, ThresholdDb, TimeStretchFactor, TuningConfig, TuningMode,
 };
 pub use dsp::pipeline::{DefaultRemixPipeline, PipelineInput, PipelineResult, RemixPipeline};
+pub use dsp::post_process::{check_invariants, post_process, PostProcessReport};
 pub use dsp::stitching::FadeCurve;
 pub use dsp::{
     aggregate_chroma, compute_quality_report, detect_drift, detect_key, detect_pitch, KeyMode,

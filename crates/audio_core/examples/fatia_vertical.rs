@@ -245,7 +245,7 @@ fn main() -> ExitCode {
     let mut pcm_final = esticado.to_vec();
     let target_lufs = config.mastering.lufs_target.get();
     match apply_lufs_gain(&mut pcm_final, sample_rate, target_lufs) {
-        LufsGainOutcome::Applied { gain_db } => {
+        LufsGainOutcome::Applied { gain_db, .. } => {
             println!("LUFS: ganho de {gain_db:.2} dB aplicado (alvo {target_lufs} LUFS)")
         },
         LufsGainOutcome::UnmeasurableLoudness => {
