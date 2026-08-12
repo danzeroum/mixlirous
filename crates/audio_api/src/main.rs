@@ -11,12 +11,16 @@ mod recovery;
 mod routes;
 mod sse;
 mod state;
+mod storage;
 mod worker;
 
-use adapters::InMemoryRepo;
+use adapters::{InMemoryRepo, SqliteRepo};
 use audio_agent::{llm::mock::MockLlm, validator::ValidationLayer, ReActOrchestrator};
+use audio_core::ports::{AudioRepo, Storage};
 use config::AppConfig;
+use middleware::rate_limit::RateLimiter;
 use state::AppState;
+use storage::LocalFsStorage;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,7 +36,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("JWT_SECRET").is_ok(),
     );
 
-    let repo = InMemoryRepo::new();
+    // --- Repo: SQLite default, InMemory for tests ---
+    let repo: Arc<dyn AudioRepo> = match app_config.database.type_db.as_str() {
+        "sqlite" => {
+            // Ensure data/ directory exists
+            if let Some(db_dir) = app_config.database.url.strip_prefix("sqlite:") {
+                let db_path = std::path::Path::new(db_dir);
+                if let Some(parent) = db_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+            let sqlite = SqliteRepo::new(&app_config.database.url).await?;
+            Arc::new(sqlite)
+        },
+        _ => {
+            tracing::warn!(db_type = %app_config.database.type_db, "unknown db type, using InMemory");
+            InMemoryRepo::new() as Arc<dyn AudioRepo>
+        },
+    };
+
+    // --- Storage: local_fs ---
+    let storage_base = std::path::PathBuf::from("data/storage");
+    let storage: Arc<dyn Storage> = Arc::new(LocalFsStorage::new(storage_base)?);
+
+    // --- Orchestrator (MockLlm for now; Ollama adapter exists for future) ---
     let validator = Arc::new(ValidationLayer::new());
     let mock = Arc::new(MockLlm::new());
     let orchestrator = Arc::new(ReActOrchestrator::<MockLlm>::new(
@@ -42,31 +69,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     let hub = Arc::new(sse::EventHub::new());
 
-    let state = AppState::new(repo, orchestrator, Arc::new(app_config), hub.clone());
+    let state = AppState::new(
+        repo.clone(),
+        orchestrator,
+        Arc::new(app_config.clone()),
+        hub.clone(),
+        storage,
+    );
 
     let dev_slice = std::env::var("MIXLIROUS_DEV_SLICE").as_deref() == Ok("1");
     let mut api = routes::api_router();
     if dev_slice && config_env != "production" {
         tracing::warn!(
-            "MIXLIROUS_DEV_SLICE=1 — rota de diagnóstico ATIVA em /api/v1/dev/slice. \
-             Ela aceita upload sem autenticação de aplicação; não exponha esta porta \
-             sem auth_basic à frente (docs/18-DEPLOY-PUBLICO-NGINX.md)."
+            "MIXLIROUS_DEV_SLICE=1 -- rota de diagnostico ATIVA em /api/v1/dev/slice. \
+             Ela aceita upload sem autenticacao de aplicacao; nao exponha esta porta \
+             sem auth_basic a frente (docs/18-DEPLOY-PUBLICO-NGINX.md)."
         );
         api = api.merge(routes::dev_router());
     } else if dev_slice {
         tracing::error!(
-            "MIXLIROUS_DEV_SLICE=1 ignorado sob CONFIG_ENV=production — \
-             rota de diagnóstico não registrada"
+            "MIXLIROUS_DEV_SLICE=1 ignorado sob CONFIG_ENV=production -- \
+             rota de diagnostico nao registrada"
         );
     }
 
-    let app = Router::new()
-        .merge(routes::health_router())
+    // Build the app: health routes (no state) + API routes (with state)
+    let health = routes::health_router();
+    let mut app = Router::new()
+        .merge(health)
         .nest("/api/v1", api)
         .with_state(state.clone());
 
+    // Rate limiter middleware (optional via config)
+    if app_config.features.rate_limit {
+        let limiter = Arc::new(RateLimiter::new(60));
+        let mw = middleware::rate_limit::rate_limit_middleware(limiter);
+        app = app.layer(axum::middleware::from_fn(mw));
+    }
+
+    // Boot recovery
     recovery::run_recovery(&state).await.unwrap_or_default();
 
+    // Spawn worker
     let worker_state = state.clone();
     tokio::spawn(async move {
         worker::start_worker(worker_state).await;

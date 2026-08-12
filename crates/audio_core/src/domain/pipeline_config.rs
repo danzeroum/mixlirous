@@ -1,3 +1,4 @@
+use crate::domain::tuning_config::TuningConfig;
 use crate::domain::{BlockSizeBeats, CompressionRatio, CrossfadeMs, LufsTarget, Percentile};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -9,6 +10,7 @@ pub struct PipelineConfig {
     pub mastering: MasteringConfig,
     pub selection: SelectionConfig,
     pub format: AudioFormat,
+    pub tuning: TuningConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +109,7 @@ impl Default for PipelineConfig {
                 bit_depth: 24,
                 codec: AudioCodec::WAV,
             },
+            tuning: TuningConfig::default(),
         }
     }
 }

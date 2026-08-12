@@ -143,21 +143,48 @@ impl<P: LlmProvider> ReActOrchestrator<P> {
     }
 
     async fn execute_tool(&self, tool: &AudioToolDef) -> Result<Value, ReActError> {
-        let tool_name = match tool {
-            AudioToolDef::Compression(_) => "compression",
-            AudioToolDef::DynamicEq(_) => "dynamic_eq",
-            AudioToolDef::Crossfade(_) => "crossfade",
-            AudioToolDef::FadeIn(_) => "fade_in",
-            AudioToolDef::FadeOut(_) => "fade_out",
-            AudioToolDef::TimeStretch(_) => "time_stretch",
-            AudioToolDef::LufsNormalization(_) => "lufs_normalization",
-            AudioToolDef::StemSeparation(_) => "stem_separation",
+        // The agent emits a recipe, not actual DSP execution.
+        // The worker will consume these tool_calls and execute the DSP pipeline.
+        let (tool_name, params) = match tool {
+            AudioToolDef::Compression(p) => (
+                "compression",
+                json!({
+                    "ratio": p.ratio,
+                    "threshold_db": p.threshold_db,
+                    "attack_ms": p.attack_ms,
+                    "release_ms": p.release_ms,
+                    "makeup_gain_db": p.makeup_gain_db,
+                    "knee_db": p.knee_db,
+                }),
+            ),
+            AudioToolDef::DynamicEq(p) => ("dynamic_eq", json!({ "bands": p.bands })),
+            AudioToolDef::Crossfade(p) => (
+                "crossfade",
+                json!({ "duration_ms": p.duration_ms, "curve": p.curve }),
+            ),
+            AudioToolDef::FadeIn(p) => (
+                "fade_in",
+                json!({ "duration_ms": p.duration_ms, "curve": p.curve }),
+            ),
+            AudioToolDef::FadeOut(p) => (
+                "fade_out",
+                json!({ "duration_ms": p.duration_ms, "curve": p.curve }),
+            ),
+            AudioToolDef::TimeStretch(p) => ("time_stretch", json!({ "factor": p.factor })),
+            AudioToolDef::LufsNormalization(p) => (
+                "lufs_normalization",
+                json!({ "target_lufs": p.target_lufs, "max_true_peak_db": p.max_true_peak_db }),
+            ),
+            AudioToolDef::StemSeparation(p) => (
+                "stem_separation",
+                json!({ "model": p.model, "stems": p.stems }),
+            ),
         };
 
         Ok(json!({
             "tool": tool_name,
-            "status": "executed",
-            "result": "Tool execution placeholder",
+            "status": "queued",
+            "params": params,
         }))
     }
 

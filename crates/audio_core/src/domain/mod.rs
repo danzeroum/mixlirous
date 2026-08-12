@@ -12,6 +12,7 @@ pub mod pipeline_config;
 pub mod release_ms;
 pub mod threshold_db;
 pub mod time_stretch_factor;
+pub mod tuning_config;
 
 pub use attack_ms::AttackMs;
 pub use beat::{BeatCandidate, BeatDetectionParams, OnsetMethod, OnsetStrength};
@@ -30,3 +31,4 @@ pub use pipeline_config::{
 pub use release_ms::ReleaseMs;
 pub use threshold_db::ThresholdDb;
 pub use time_stretch_factor::TimeStretchFactor;
+pub use tuning_config::*;
