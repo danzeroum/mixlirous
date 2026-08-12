@@ -1,6 +1,9 @@
 use crate::state::AppState;
 use audio_core::decode_to_pcm;
+use audio_core::domain::AudioCodec;
+use audio_core::downmix_to_mono;
 use audio_core::ports::repo_trait::JobStatus;
+use audio_core::{DefaultRemixPipeline, PipelineConfig, PipelineInput, RemixPipeline};
 use serde_json::json;
 use std::time::Duration;
 use tokio::time::interval;
@@ -39,7 +42,7 @@ impl Worker {
         };
         let job_id = job.id;
 
-        // Start heartbeat task
+        // Inicia tarefa de heartbeat em background.
         let repo = self.state.repo.clone();
         let hb_job = job_id;
         let hb_wid = worker_id;
@@ -96,7 +99,7 @@ impl Worker {
         &self,
         job: &audio_core::ports::repo_trait::JobRecord,
     ) -> Result<String, String> {
-        // 1. Load audio from storage via track_id/object_key
+        // 1. Carrega audio do storage via track_id/object_key.
         let object_key = if let Some(track_id) = job.track_id {
             self.state
                 .repo
@@ -129,7 +132,7 @@ impl Worker {
             .await
             .map_err(|e| format!("storage get: {e}"))?;
 
-        // 2. Decode to PCM (CPU-bound, spawn_blocking)
+        // 2. Decodifica para PCM (CPU-bound, spawn_blocking).
         self.state
             .hub
             .publish(
@@ -144,7 +147,7 @@ impl Worker {
             .map_err(|e| format!("decode join: {e}"))?
             .map_err(|e| format!("decode: {e}"))?;
 
-        // 3. If assisted mode, run ReAct orchestrator to get recipe
+        // 3. Se modo assistido, executa o orquestrador ReAct para obter a receita.
         if job.mode.as_deref() == Some("assisted") {
             if let Some(ref prompt) = job.user_prompt {
                 self.state
@@ -165,9 +168,6 @@ impl Worker {
                     }
                 });
 
-                // The orchestrator type is ReActOrchestrator<MockLlm> at compile time.
-                // In a real deploy, the state would hold a dyn dispatch or generic.
-                // For now, we attempt to run and if it errors, we fall back to manual.
                 let _recipe = self
                     .state
                     .orchestrator
@@ -176,8 +176,6 @@ impl Worker {
                     .map_err(|e| format!("agent error (non-fatal, falling back to manual): {e}"))
                     .ok();
 
-                // The recipe's tool_calls will be consumed by the DSP pipeline.
-                // For now, the recipe is logged for visibility.
                 if let Some(ref r) = _recipe {
                     tracing::info!(
                         job_id = %job.id,
@@ -188,7 +186,8 @@ impl Worker {
             }
         }
 
-        // 4. DSP pipeline (CPU-bound, spawn_blocking)
+        // 4. Pipeline DSP (CPU-bound, spawn_blocking).
+        // Usa o pipeline estruturado (ADR-0012) em vez de operacoes ad-hoc.
         self.state
             .hub
             .publish(
@@ -198,24 +197,49 @@ impl Worker {
             )
             .await;
 
-        let artifact_key = format!("tenant-{}/artifacts/{}/remix.wav", job.tenant_id, job.id);
+        let sample_rate = decoded.sample_rate;
+        let pipeline_result = tokio::task::spawn_blocking(move || {
+            // Downmix para mono -- o pipeline opera em mono.
+            let mono_pcm = downmix_to_mono(&decoded);
 
-        // The full DSP chain from fatia_vertical goes here.
-        // For now, produce a placeholder WAV using the decoded audio.
-        let wav_bytes = tokio::task::spawn_blocking(move || {
-            // Placeholder: encode the decoded audio back to WAV.
-            // The real pipeline would be: beats -> blocks -> stitch -> fades -> master -> encode.
-            // This is a no-op pass-through to validate the end-to-end flow.
-            audio_core::dsp::DefaultMixer.encode_wav_to_vec(
-                &audio_core::ndarray::Array1::from(decoded.interleaved),
-                &audio_core::PipelineConfig::default(),
-            )
+            // Monta a configuracao do pipeline, forçando mono para encode.
+            let mut config = PipelineConfig::default();
+            config.format.sample_rate = sample_rate;
+            config.format.channels = 1;
+            config.format.bit_depth = 32;
+            config.format.codec = AudioCodec::WAV;
+
+            let pipeline = DefaultRemixPipeline::new();
+            let input = PipelineInput {
+                pcm: mono_pcm,
+                sample_rate,
+                config,
+                pre_selected_blocks: None,
+            };
+            pipeline.run(input)
         })
         .await
-        .map_err(|e| format!("dsp join: {e}"))?
-        .map_err(|e| format!("dsp: {e}"))?;
+        .map_err(|e| format!("pipeline join: {e}"))?;
 
-        // 5. Store artifact
+        let pipeline_result = pipeline_result.map_err(|e| format!("pipeline: {e}"))?;
+
+        // Publica avisos do pipeline como eventos SSE.
+        for warning in &pipeline_result.warnings {
+            self.state
+                .hub
+                .publish(job.id, "job.warning", json!({ "message": warning }))
+                .await;
+        }
+
+        tracing::info!(
+            job_id = %job.id,
+            blocks_used = pipeline_result.blocks_used.len(),
+            duration_sec = %pipeline_result.duration_sec(),
+            bpm = ?pipeline_result.bpm_estimate,
+            "pipeline completed"
+        );
+
+        // 5. Codifica para WAV e armazena o artefato.
         self.state
             .hub
             .publish(
@@ -224,6 +248,18 @@ impl Worker {
                 json!({ "status": "processing", "stage": "storing_artifact" }),
             )
             .await;
+
+        let mut export_config = PipelineConfig::default();
+        export_config.format.sample_rate = sample_rate;
+        export_config.format.channels = 1;
+        export_config.format.bit_depth = 32;
+        export_config.format.codec = AudioCodec::WAV;
+
+        let wav_bytes = audio_core::dsp::DefaultMixer
+            .encode_wav_to_vec(&pipeline_result.pcm, &export_config)
+            .map_err(|e| format!("encode: {e}"))?;
+
+        let artifact_key = format!("tenant-{}/artifacts/{}/remix.wav", job.tenant_id, job.id);
 
         self.state
             .storage

@@ -39,6 +39,11 @@ audioadapter-buffers = "=4.0.0"
 # Movida de dev-dependencies: `DefaultMixer::export_wav` (default_mixer.rs)
 # agora escreve WAV de verdade, n├úo s├│ os testes de fixture leem com isto.
 hound = "3.5"
+ort = { version = "2.0.0-rc.13", optional = true }
+
+[features]
+default = []
+onnx = ["dep:ort"]
 
 [dev-dependencies]
 proptest = "1"
