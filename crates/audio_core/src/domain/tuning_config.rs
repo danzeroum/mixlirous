@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Configuracao de afinacao (correcao de pitch).
 /// Opt-in por padrao (enabled: false) — ver ADR-0012.
 /// Model_path NAO fica aqui (e concern de AppConfig/infraestrutura).
-
+///
 /// Newtype para confianca minima de deteccao tonal (0.0..=1.0).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct MinConfidence(f32);

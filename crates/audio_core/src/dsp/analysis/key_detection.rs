@@ -1,6 +1,6 @@
-/// Deteccao de tonalidade via algoritmo de Krumhansl-Schmuckler.
-/// Requer croma agregado temporalmente (nao frame-a-frame).
-/// Referencia: Krumhansl & Schmuckler (1986).
+//! Deteccao de tonalidade via algoritmo de Krumhansl-Schmuckler.
+//! Requer croma agregado temporalmente (nao frame-a-frame).
+//! Referencia: Krumhansl & Schmuckler (1986).
 
 /// Perfis de chave tonal maiores e menores (Krumhansl-Kessler).
 pub const MAJOR_PROFILE: [f32; 12] = [
@@ -101,7 +101,7 @@ pub fn detect_key(aggregated_chroma: &[f32]) -> TonalContext {
     all_scores.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
     // Pega o melhor resultado
-    let (best_root, best_mode, best_corr) = all_scores[0].clone();
+    let (best_root, best_mode, best_corr) = all_scores[0];
     // Pega os top-3
     let candidates = all_scores.into_iter().take(3).collect();
 
@@ -120,7 +120,7 @@ pub fn aggregate_chroma(chroma_vectors: &[Vec<f32>], rms_values: &[f32]) -> Vec<
         return vec![0.0; 12];
     }
 
-    let mut weighted_sum = vec![0.0f32; 12];
+    let mut weighted_sum = [0.0f32; 12];
     let mut total_weight = 0.0f32;
 
     for (i, chroma) in chroma_vectors.iter().enumerate() {
@@ -149,7 +149,7 @@ pub fn aggregate_chroma_simple(chroma_vectors: &[Vec<f32>]) -> Vec<f32> {
         return vec![0.0; 12];
     }
 
-    let mut sum = vec![0.0f32; 12];
+    let mut sum = [0.0f32; 12];
     for chroma in chroma_vectors {
         for (j, &v) in chroma.iter().enumerate().take(12) {
             sum[j] += v;
