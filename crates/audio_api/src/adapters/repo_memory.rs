@@ -1,5 +1,7 @@
+#[cfg(test)]
+use audio_core::ports::repo_trait::TrackStatus;
 use audio_core::ports::repo_trait::{
-    AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError,
+    AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError, TrackRecord,
 };
 use audio_core::{AudioFingerprint, BeatBlock, PipelineConfig};
 use chrono::Utc;
@@ -11,6 +13,7 @@ use uuid::Uuid;
 #[derive(Default)]
 struct InMemoryState {
     jobs: HashMap<Uuid, JobRecord>,
+    tracks: HashMap<Uuid, TrackRecord>,
     audit: Vec<AuditRecord>,
     consent: HashMap<Uuid, ConsentRecord>,
 }
@@ -39,6 +42,7 @@ impl AudioRepo for InMemoryRepo {
         blocks: &[BeatBlock],
     ) -> Result<(), RepoError> {
         let mut state = self.state.write().await;
+        let now = Utc::now();
         let record = JobRecord {
             id: job_id,
             tenant_id,
@@ -49,8 +53,11 @@ impl AudioRepo for InMemoryRepo {
             worker_id: None,
             attempts: 0,
             last_heartbeat: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: now,
+            updated_at: now,
+            mode: None,
+            user_prompt: None,
+            track_id: None,
         };
         state.jobs.insert(job_id, record);
         Ok(())
@@ -149,7 +156,7 @@ impl AudioRepo for InMemoryRepo {
 
         match job_id {
             Some(id) => {
-                let job = state.jobs.get_mut(&id).unwrap();
+                let job = state.jobs.get_mut(&id).expect("job exists");
                 job.status = JobStatus::Processing;
                 job.worker_id = Some(worker_id);
                 job.last_heartbeat = Some(now);
@@ -213,6 +220,46 @@ impl AudioRepo for InMemoryRepo {
             });
         }
         Ok(())
+    }
+
+    // --- Tracks ---
+
+    async fn save_track(&self, track: &TrackRecord) -> Result<(), RepoError> {
+        let mut state = self.state.write().await;
+        state.tracks.insert(track.id, track.clone());
+        Ok(())
+    }
+
+    async fn get_track(&self, track_id: Uuid, tenant_id: Uuid) -> Result<TrackRecord, RepoError> {
+        let state = self.state.read().await;
+        state
+            .tracks
+            .get(&track_id)
+            .filter(|t| t.tenant_id == tenant_id)
+            .cloned()
+            .ok_or(RepoError::NotFound(track_id))
+    }
+
+    async fn list_tracks(&self, tenant_id: Uuid) -> Result<Vec<TrackRecord>, RepoError> {
+        let state = self.state.read().await;
+        Ok(state
+            .tracks
+            .values()
+            .filter(|t| t.tenant_id == tenant_id)
+            .cloned()
+            .collect())
+    }
+
+    // --- System (no tenant) ---
+
+    async fn list_processing_jobs(&self) -> Result<Vec<JobRecord>, RepoError> {
+        let state = self.state.read().await;
+        Ok(state
+            .jobs
+            .values()
+            .filter(|r| r.status == JobStatus::Processing)
+            .cloned()
+            .collect())
     }
 }
 
@@ -406,5 +453,73 @@ mod tests {
         let audit = repo.list_audit_records(job_id).await.unwrap();
         assert_eq!(audit.len(), 1);
         assert_eq!(audit[0].action, "JOB_CLAIMED");
+    }
+
+    #[tokio::test]
+    async fn test_save_and_get_track() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let track = TrackRecord {
+            id: Uuid::new_v4(),
+            tenant_id,
+            project_id: None,
+            object_key: "tenant-abc/raw/test.wav".to_string(),
+            display_name: "Test Track".to_string(),
+            status: TrackStatus::Uploaded,
+            duration_sec: Some(120.0),
+            sample_rate: Some(44100),
+            channels: Some(2),
+            sha256: None,
+            analysis: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.save_track(&track).await.unwrap();
+        let fetched = repo.get_track(track.id, tenant_id).await.unwrap();
+        assert_eq!(fetched.id, track.id);
+        assert_eq!(fetched.display_name, "Test Track");
+    }
+
+    #[tokio::test]
+    async fn test_list_tracks_scoped_to_tenant() {
+        let repo = InMemoryRepo::new();
+        let t1 = Uuid::new_v4();
+        let t2 = Uuid::new_v4();
+        let track = TrackRecord {
+            id: Uuid::new_v4(),
+            tenant_id: t1,
+            project_id: None,
+            object_key: "a.wav".to_string(),
+            display_name: "A".to_string(),
+            status: TrackStatus::Uploaded,
+            duration_sec: None,
+            sample_rate: None,
+            channels: None,
+            sha256: None,
+            analysis: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.save_track(&track).await.unwrap();
+        assert_eq!(repo.list_tracks(t1).await.unwrap().len(), 1);
+        assert_eq!(repo.list_tracks(t2).await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_processing_jobs_finds_stale() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        repo.save_job(
+            Uuid::new_v4(),
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(Uuid::new_v4()).await.unwrap();
+        let processing = repo.list_processing_jobs().await.unwrap();
+        assert_eq!(processing.len(), 1);
     }
 }

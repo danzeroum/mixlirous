@@ -1,10 +1,10 @@
 //! Core Domain + DSP Engine for Remix AI
 //!
 //! # Architecture
-//! - `domain/`: Entidades de neg├│cio (BeatBlock, EnergyProfile, SourceTrack)
-//! - `dsp/`: Algoritmos de processamento de ├íudio (FFT, RMS, Crossfade)
-//! - `io/`: Decodifica├º├úo de arquivo de ├íudio para PCM
-//! - `ports/`: Abstra├º├Áes de I/O (Storage, Analyzer, Repo)
+//! - `domain/`: Entidades de negocio (BeatBlock, EnergyProfile, SourceTrack)
+//! - `dsp/`: Algoritmos de processamento de audio (FFT, RMS, Crossfade, Pipeline)
+//! - `io/`: Decodificacao de arquivo de audio para PCM
+//! - `ports/`: Abstracoes de I/O (Storage, Analyzer, Repo)
 
 pub mod domain;
 pub mod dsp;
@@ -17,19 +17,25 @@ pub use error::Error;
 /// Re-export do `ndarray` para quem consome este crate.
 ///
 /// Toda a API de DSP fala `Array1<f32>`. Sem isto, cada crate consumidor
-/// precisaria declarar a pr├│pria depend├¬ncia de `ndarray` ÔÇö e uma diverg├¬ncia
-/// de vers├úo faria os tipos deixarem de unificar, com erro de "expected
-/// `Array1`, found `Array1`". Aqui s├│ existe uma vers├úo poss├¡vel.
+/// precisaria declarar a propria dependencia de `ndarray` -- e uma divergencia
+/// de versao faria os tipos deixarem de unificar, com erro de "expected
+/// `Array1`, found `Array1`". Aqui so existe uma versao possivel.
 pub use ndarray;
 
-// Re-exports seletivos para conveni├¬ncia do API layer
+// Re-exports seletivos para conveniencia do API layer
 pub use domain::{
     AttackMs, AudioCodec, AudioFingerprint, AudioFormat, BeatBlock, BeatCandidate,
     BeatDetectionParams, BlockEnergy, BlockSizeBeats, CompressionRatio, CrossfadeConfig,
     CrossfadeCurve, CrossfadeMs, EnergyProfile, EqGainDb, LufsTarget, MasteringConfig, OnsetMethod,
     OnsetStrength, Percentile, PipelineConfig, ReleaseMs, SelectionConfig, ThresholdDb,
-    TimeStretchFactor,
+    TimeStretchFactor, TuningConfig, TuningMode, MinConfidence, MaxCorrectionCents,
 };
+pub use dsp::pipeline::{DefaultRemixPipeline, PipelineInput, PipelineResult, RemixPipeline};
 pub use dsp::stitching::FadeCurve;
-pub use io::{decode_to_pcm, DecodedAudio};
+pub use dsp::{
+    TonalContext, KeyMode, detect_key, aggregate_chroma,
+    PitchFrame, detect_pitch, detect_drift,
+    QualityReport, compute_quality_report,
+};
+pub use io::{decode_to_pcm, downmix_to_mono, DecodedAudio};
 pub use ports::{AudioAnalyzer, AudioMixer, AudioRepo};

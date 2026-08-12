@@ -1,5 +1,6 @@
 use crate::domain::{AudioFingerprint, BeatBlock, PipelineConfig};
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use uuid::Uuid;
 
 #[async_trait::async_trait]
@@ -35,6 +36,14 @@ pub trait AudioRepo: Send + Sync {
     async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError>;
     async fn heartbeat(&self, job_id: Uuid, worker_id: Uuid) -> Result<(), RepoError>;
     async fn fail_and_retry(&self, job_id: Uuid, max_attempts: u8) -> Result<(), RepoError>;
+
+    // --- Tracks ---
+    async fn save_track(&self, track: &TrackRecord) -> Result<(), RepoError>;
+    async fn get_track(&self, track_id: Uuid, tenant_id: Uuid) -> Result<TrackRecord, RepoError>;
+    async fn list_tracks(&self, tenant_id: Uuid) -> Result<Vec<TrackRecord>, RepoError>;
+
+    // --- System (no tenant) ---
+    async fn list_processing_jobs(&self) -> Result<Vec<JobRecord>, RepoError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -65,6 +74,42 @@ pub struct JobRecord {
     pub last_heartbeat: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// "manual" | "assisted"
+    pub mode: Option<String>,
+    pub user_prompt: Option<String>,
+    pub track_id: Option<Uuid>,
+}
+
+/// Status de uma faixa de áudio.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, Serialize)]
+pub enum TrackStatus {
+    Uploaded,
+    Analyzing,
+    Ready,
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+pub struct TrackRecord {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub project_id: Option<Uuid>,
+    pub object_key: String,
+    pub display_name: String,
+    pub status: TrackStatus,
+    pub duration_sec: Option<f64>,
+    pub sample_rate: Option<u32>,
+    pub channels: Option<u16>,
+    pub sha256: Option<String>,
+    pub analysis: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum JobMode {
+    Manual,
+    Assisted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

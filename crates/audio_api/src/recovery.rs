@@ -1,13 +1,13 @@
-#![allow(dead_code)]
 use crate::state::AppState;
-use audio_core::ports::repo_trait::JobStatus;
 use chrono::Utc;
 
 #[derive(Debug, Default)]
 pub struct RecoveryReport {
+    #[allow(dead_code)]
     pub recovered: usize,
     pub requeued: usize,
     pub lost: usize,
+    #[allow(dead_code)]
     pub proposals_expired: usize,
 }
 
@@ -15,16 +15,14 @@ pub async fn run_recovery(state: &AppState) -> Result<RecoveryReport, String> {
     let mut report = RecoveryReport::default();
     let cutoff = Utc::now() - chrono::Duration::minutes(2);
 
-    let all_jobs = state
+    // Use list_processing_jobs (no tenant filter) to find all stale jobs.
+    let processing_jobs = state
         .repo
-        .list_jobs(uuid::Uuid::nil())
+        .list_processing_jobs()
         .await
-        .map_err(|e| format!("recovery list failed: {e}"))?;
+        .map_err(|e| format!("recovery list_processing failed: {e}"))?;
 
-    for job in all_jobs {
-        if job.status != JobStatus::Processing {
-            continue;
-        }
+    for job in processing_jobs {
         let is_stale = match &job.last_heartbeat {
             Some(hb) => *hb < cutoff,
             None => true,
@@ -57,6 +55,7 @@ mod tests {
     use crate::config::{
         AppConfig, AudioConfig, DatabaseConfig, LlmConfig, ObservabilityConfig, StorageConfig,
     };
+    use crate::storage::LocalFsStorage;
     use audio_agent::llm::mock::MockLlm;
     use audio_agent::validator::ValidationLayer;
     use audio_agent::ReActOrchestrator;
@@ -88,15 +87,15 @@ mod tests {
             llm: LlmConfig {
                 provider: "mock".to_string(),
                 model: "mock".to_string(),
-                base_url: "".to_string(),
+                base_url: String::new(),
                 temperature: 0.7,
                 max_tools: 5,
                 timeout_sec: 30,
             },
             observability: ObservabilityConfig {
-                otel_collector_endpoint: "".to_string(),
+                otel_collector_endpoint: String::new(),
                 prometheus_port: 9090,
-                grafana_url: "".to_string(),
+                grafana_url: String::new(),
             },
             features: Default::default(),
         };
@@ -105,7 +104,9 @@ mod tests {
         let m = Arc::new(MockLlm::new());
         let o = Arc::new(ReActOrchestrator::<MockLlm>::new(v, m, 5));
         let hub = Arc::new(crate::sse::EventHub::new());
-        AppState::new(repo, o, Arc::new(config), hub)
+        let storage: Arc<dyn audio_core::ports::Storage> =
+            Arc::new(LocalFsStorage::new(tempfile::tempdir().unwrap().keep()).unwrap());
+        AppState::new(repo, o, Arc::new(config), hub, storage)
     }
 
     #[tokio::test]
