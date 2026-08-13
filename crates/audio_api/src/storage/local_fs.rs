@@ -57,6 +57,14 @@ impl Storage for LocalFsStorage {
 
         Ok(Bytes::from(data))
     }
+
+    async fn exists(&self, object_key: &str) -> bool {
+        if validate_object_key(object_key).is_err() {
+            return false;
+        }
+        let path = self.resolve(object_key);
+        path.exists() && path.metadata().map(|m| m.len() > 0).unwrap_or(false)
+    }
 }
 
 #[cfg(test)]
@@ -94,5 +102,30 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, StorageError::InvalidKey(_)));
+    }
+
+    #[tokio::test]
+    async fn test_exists_true() {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = LocalFsStorage::new(dir.path().to_path_buf()).unwrap();
+        storage
+            .put("tenant-1/raw/test.wav", Bytes::from_static(b"data"))
+            .await
+            .unwrap();
+        assert!(storage.exists("tenant-1/raw/test.wav").await);
+    }
+
+    #[tokio::test]
+    async fn test_exists_false() {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = LocalFsStorage::new(dir.path().to_path_buf()).unwrap();
+        assert!(!storage.exists("no/such/file.wav").await);
+    }
+
+    #[tokio::test]
+    async fn test_exists_invalid_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let storage = LocalFsStorage::new(dir.path().to_path_buf()).unwrap();
+        assert!(!storage.exists("../etc/passwd").await);
     }
 }
