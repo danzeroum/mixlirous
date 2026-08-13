@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use audio_agent::{LlmError, ProposalDecision, ReActCallbacks, ReActOutput};
 use audio_core::decode_to_pcm;
 use audio_core::domain::AudioCodec;
 use audio_core::downmix_to_mono;
@@ -8,6 +9,76 @@ use serde_json::json;
 use std::time::Duration;
 use tokio::time::interval;
 use uuid::Uuid;
+
+/// Liga os callbacks do loop ReAct ao `EventHub` (task 3.9 — streaming de
+/// raciocínio via SSE). `tool_requires_proposal` retorna `false` porque o
+/// ciclo HITL é acionado pelo usuário via `POST /proposals/{id}/approve` —
+/// o worker automático segue a receita; a pausa explícita do job fica para a
+/// Sprint 4 (detecção de job travado).
+struct HubCallbacks {
+    job_id: Uuid,
+    hub: std::sync::Arc<crate::sse::hub::EventHub>,
+}
+
+#[async_trait::async_trait]
+impl ReActCallbacks for HubCallbacks {
+    async fn on_thought(&self, delta: &str) {
+        self.hub
+            .publish(self.job_id, "agent.thought", json!({ "delta": delta }))
+            .await;
+    }
+    async fn on_tool_call(&self, tool: &audio_agent::AudioToolDef) {
+        self.hub
+            .publish(
+                self.job_id,
+                "agent.tool",
+                json!({ "tool": format!("{tool:?}") }),
+            )
+            .await;
+    }
+    async fn on_validation_error(&self, error: &str) {
+        self.hub
+            .publish(
+                self.job_id,
+                "agent.error",
+                json!({ "type": "validation", "message": error }),
+            )
+            .await;
+    }
+    async fn on_replan(&self, reason: &str) {
+        self.hub
+            .publish(self.job_id, "agent.replan", json!({ "reason": reason }))
+            .await;
+    }
+    async fn on_llm_error(&self, error: &LlmError) {
+        self.hub
+            .publish(
+                self.job_id,
+                "agent.error",
+                json!({ "type": "llm", "message": error.to_string() }),
+            )
+            .await;
+    }
+    async fn on_finished(&self, output: &ReActOutput) {
+        self.hub
+            .publish(
+                self.job_id,
+                "agent.finished",
+                json!({
+                    "llm_call_failed": output.llm_call_failed,
+                    "tools_used": output.tool_calls.len(),
+                }),
+            )
+            .await;
+    }
+    fn tool_requires_proposal(&self, _tool: &audio_agent::AudioToolDef) -> bool {
+        false
+    }
+    async fn await_proposal_decision(&self) -> ProposalDecision {
+        ProposalDecision::Approved
+    }
+    async fn on_proposal_created(&self, _proposal: &serde_json::Value) {}
+}
 
 pub struct Worker {
     id: Uuid,
@@ -168,10 +239,15 @@ impl Worker {
                     }
                 });
 
+                let callbacks = HubCallbacks {
+                    job_id: job.id,
+                    hub: self.state.hub.clone(),
+                };
+
                 let _recipe = self
                     .state
                     .orchestrator
-                    .run(prompt, &context)
+                    .run(prompt, &context, &callbacks)
                     .await
                     .map_err(|e| format!("agent error (non-fatal, falling back to manual): {e}"))
                     .ok();
