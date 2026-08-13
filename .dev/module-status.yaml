@@ -11,16 +11,17 @@ audio_core: 100%
   ports: AudioRepo completo (claim/beat/retry)
 
 audio_agent: 95%
-  react_kernel: ReAct funcional + MockLlm
-  llm: MockLlm, Ollama adapter
+  react_kernel: ReAct c/ budget, retry, propostas HITL, replan, observações, fallback, streaming (A1-A10)
+  llm: MockLlm (stream+errors+sequence), Ollama adapter, OpenAI adapter
+  prompt_loader: minijinja templating (render_prompt + RenderedPrompt)
   prompt_guard: regex + 4096 limit
   validator+limits: completos (pré-existente)
 
 audio_api: 95%
-  routes: jobs, tracks, uploads, proposals
-  sse: EventHub broadcast + async-stream
+  routes: jobs, tracks, uploads, proposals (TTL, replan)
+  sse: EventHub broadcast conectado ao job_stream (agent.*/job.*)
   adapters: InMemoryRepo, SqliteRepo
-  worker: pipeline DSP real + heartbeat
+  worker: pipeline DSP real + heartbeat + callbacks SSE (agent.thought/error/replan)
   middleware: auth JWT, rate_limit
   resiliência: atomic_write, recovery loop
 
@@ -33,8 +34,8 @@ ui: 95%
 sprints:
   S1: 100% — fila, persistência, rotas, SSE, worker
   S2: 100% — compressor, knapsack, chroma, MFCC, worker↔DSP
-  S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend
+  S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend (backend tasks 3.1-3.11)
   S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
 
-tests: 380+ (41 api + 53 agent + ~290 core)
+tests: 410+ (71 agent + 59 api + ~280 core)
 build: OK

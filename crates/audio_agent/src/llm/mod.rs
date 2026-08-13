@@ -16,7 +16,14 @@ pub struct LlmResponse {
     pub raw_json: String,
 }
 
-#[derive(Debug, thiserror::Error)]
+/// Um chunk de streaming — o delta de texto emitido pelo provedor.
+#[derive(Debug, Clone)]
+pub struct LlmChunk {
+    pub delta: String,
+    pub done: bool,
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum LlmError {
     #[error("HTTP error: {0}")]
     Http(String),
@@ -41,6 +48,8 @@ pub trait LlmProvider: Send + Sync {
 
 pub mod mock;
 mod ollama;
+pub mod openai;
 
 pub use mock::MockLlm;
 pub use ollama::OllamaProvider;
+pub use openai::OpenAiProvider;

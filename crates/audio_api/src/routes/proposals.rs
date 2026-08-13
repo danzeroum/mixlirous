@@ -70,6 +70,41 @@ impl ProposalStore {
             None
         }
     }
+
+    /// Task 3.8 — existe proposta pendente para o job? O worker usa para
+    /// saber se deve pausar esperando decisão humana.
+    pub async fn has_pending(&self, job_id: Uuid) -> bool {
+        self.proposals
+            .values()
+            .any(|p| p.job_id == job_id && p.status == ProposalStatus::Pending)
+    }
+
+    /// Task 3.7 — propostas pendentes com TTL expirado viram `Expired`.
+    /// Chamado pelo worker antes de aguardar decisão.
+    pub async fn expire_stale(&mut self, job_id: Uuid, ttl_sec: i64) -> usize {
+        let now = chrono::Utc::now();
+        let mut expired = 0usize;
+        let ids: Vec<Uuid> = self
+            .proposals
+            .values()
+            .filter(|p| {
+                p.job_id == job_id
+                    && p.status == ProposalStatus::Pending
+                    && now.signed_duration_since(p.created_at).num_seconds() > ttl_sec
+            })
+            .map(|p| p.proposal_id)
+            .collect();
+        for id in ids {
+            if self
+                .update_status(id, ProposalStatus::Expired)
+                .await
+                .is_some()
+            {
+                expired += 1;
+            }
+        }
+        expired
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,6 +275,49 @@ impl ProposalHandlers {
             "proposal_id": proposal_id.to_string(),
             "status": "rejected",
             "agent_will_replan": true,
+        })))
+    }
+
+    /// POST /api/v1/jobs/{job_id}/proposals/{proposal_id}/replan
+    ///
+    /// Task 3.8 — marca a proposta como `Replanned` e avisa via SSE que o
+    /// agente vai replanejar a partir da observação de rejeição/expiração.
+    pub async fn replan_proposal(
+        _auth: AuthContext,
+        State(state): State<AppState>,
+        Path((job_id, proposal_id)): Path<(Uuid, Uuid)>,
+    ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+        let mut store = state.proposal_store.write().await;
+
+        let proposal = store
+            .get(proposal_id)
+            .await
+            .ok_or((StatusCode::NOT_FOUND, "proposal_not_found".to_string()))?;
+
+        if proposal.job_id != job_id {
+            return Err((StatusCode::NOT_FOUND, "proposal_not_found".to_string()));
+        }
+
+        store
+            .update_status(proposal_id, ProposalStatus::Replanned)
+            .await;
+
+        state
+            .hub
+            .publish(
+                job_id,
+                "agent.replan",
+                serde_json::json!({
+                    "job_id": job_id,
+                    "proposal_id": proposal_id.to_string(),
+                    "status": "replanning",
+                }),
+            )
+            .await;
+
+        Ok(Json(serde_json::json!({
+            "proposal_id": proposal_id.to_string(),
+            "status": "replanned",
         })))
     }
 }

@@ -50,6 +50,10 @@ pub fn api_router() -> Router<AppState> {
             "/jobs/{job_id}/proposals/{proposal_id}/reject",
             post(proposals::ProposalHandlers::reject_proposal),
         )
+        .route(
+            "/jobs/{job_id}/proposals/{proposal_id}/replan",
+            post(proposals::ProposalHandlers::replan_proposal),
+        )
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
         .route("/uploads/{object_key}", put(uploads::upload_put))
