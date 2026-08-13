@@ -4,8 +4,11 @@ use tokio::net::TcpListener;
 
 mod adapters;
 mod atomic;
+mod audit;
+mod cleanup;
 mod config;
 mod instrument;
+mod metrics;
 mod middleware;
 mod recovery;
 mod routes;

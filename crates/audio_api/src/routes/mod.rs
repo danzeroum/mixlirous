@@ -8,6 +8,7 @@ use axum::{
 mod dev_slice;
 mod health;
 mod jobs;
+mod metrics_endpoint;
 mod prompts;
 pub mod proposals;
 mod sse;
@@ -21,6 +22,7 @@ pub fn health_router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
+        .route("/metrics", get(metrics_endpoint::prometheus_metrics))
 }
 
 pub fn api_router() -> Router<AppState> {

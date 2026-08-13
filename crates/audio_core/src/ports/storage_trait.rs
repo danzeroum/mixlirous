@@ -9,6 +9,9 @@ pub trait Storage: Send + Sync {
 
     /// Lê os bytes de `object_key`. Retorna erro se não existir.
     async fn get(&self, object_key: &str) -> Result<bytes::Bytes, StorageError>;
+
+    /// Verifica se `object_key` existe no storage. Usado pelo recovery loop.
+    async fn exists(&self, object_key: &str) -> bool;
 }
 
 #[derive(Debug, thiserror::Error)]
