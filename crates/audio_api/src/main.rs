@@ -2,11 +2,14 @@ use axum::Router;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
+mod first_boot;
+
 mod adapters;
 mod atomic;
 mod audit;
 mod cleanup;
 mod config;
+mod embed;
 mod instrument;
 mod metrics;
 mod middleware;
@@ -42,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // --- Repo: SQLite default, InMemory for tests ---
     let repo: Arc<dyn AudioRepo> = match app_config.database.type_db.as_str() {
         "sqlite" => {
-            // Ensure data/ directory exists
             if let Some(db_dir) = app_config.database.url.strip_prefix("sqlite:") {
                 let db_path = std::path::Path::new(db_dir);
                 if let Some(parent) = db_path.parent() {
@@ -119,8 +121,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         worker::start_worker(worker_state).await;
     });
 
-    let listener = TcpListener::bind("0.0.0.0:8080").await?;
-    tracing::info!("Remix AI API listening on 0.0.0.0:8080");
+    // First boot setup (cria ~/.mixlirous/, migra DB, detecta LLM)
+    first_boot::ensure_first_boot_setup(&app_config).await?;
+
+    let port: u16 = std::env::var("MIXLIROUS_PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse()
+        .unwrap_or(8080);
+
+    let listener = TcpListener::bind(format!("0.0.0.0:{port}")).await?;
+    tracing::info!(port, "Mixlirous listening on 0.0.0.0:{port}");
+
+    // Abrir navegador no primeiro boot (desktop, não Docker)
+    let should_open = std::env::var("MIXLIROUS_NO_BROWSER").is_err()
+        && config_env != "production"
+        && !first_boot::is_running_in_docker();
+    if should_open {
+        let open_port = port;
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            if let Err(e) = webbrowser::open(&format!("http://localhost:{open_port}")) {
+                tracing::warn!(?e, "Não foi possível abrir o navegador automaticamente");
+            }
+        });
+    }
+
+    // Embed frontend (SPA fallback)
+    let app = app.fallback(embed::serve_ui);
+
     axum::serve(listener, app).await?;
 
     Ok(())

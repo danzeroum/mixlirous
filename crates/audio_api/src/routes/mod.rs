@@ -56,7 +56,6 @@ pub fn api_router() -> Router<AppState> {
             "/jobs/{job_id}/proposals/{proposal_id}/replan",
             post(proposals::ProposalHandlers::replan_proposal),
         )
-        // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
         .route("/uploads/{object_key}", put(uploads::upload_put))
         .route(
@@ -68,11 +67,6 @@ pub fn api_router() -> Router<AppState> {
 }
 
 /// Rotas de diagnostico. **So entram no router se `MIXLIROUS_DEV_SLICE=1`**
-/// (ver `main.rs`) -- nao existem por padrao.
-///
-/// Ficam sem `AuthContext` de proposito: quem protege e o `auth_basic` do
-/// nginx a frente (`docs/18-DEPLOY-PUBLICO-NGINX.md`). Nao exponha o vhost
-/// sem ele.
 pub fn dev_router() -> Router<AppState> {
     Router::new()
         .route(
@@ -80,6 +74,5 @@ pub fn dev_router() -> Router<AppState> {
             get(dev_slice::pagina).post(dev_slice::processar),
         )
         .route("/dev/slice/{id}", get(dev_slice::audio))
-        // O default do axum e 2 MB -- uma faixa real em WAV passa de 50 MB.
         .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
 }
