@@ -2,28 +2,20 @@ use axum::Router;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-mod adapters;
-mod atomic;
-mod audit;
-mod cleanup;
-mod config;
-mod instrument;
-mod metrics;
-mod middleware;
-mod recovery;
-mod routes;
-mod sse;
-mod state;
-mod storage;
-mod worker;
-
-use adapters::{InMemoryRepo, SqliteRepo};
+// Items do `audio_api` (lib) — ver `src/lib.rs`. Antes eram `mod` inline
+// no binário; movidos para a lib para integration tests conseguirem
+// importar (`use audio_api::worker::Worker;` em tests/e2e.rs).
 use audio_agent::{llm::mock::MockLlm, validator::ValidationLayer, ReActOrchestrator};
+use audio_api::{
+    adapters::{InMemoryRepo, SqliteRepo},
+    config::AppConfig,
+    middleware::{self, rate_limit::RateLimiter},
+    recovery, routes, sse,
+    state::AppState,
+    storage::LocalFsStorage,
+    worker,
+};
 use audio_core::ports::{AudioRepo, Storage};
-use config::AppConfig;
-use middleware::rate_limit::RateLimiter;
-use state::AppState;
-use storage::LocalFsStorage;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,7 +1,7 @@
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub storage: StorageConfig,
@@ -12,26 +12,31 @@ pub struct AppConfig {
     pub features: FeaturesConfig,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct DatabaseConfig {
     #[serde(rename = "type")]
     pub type_db: String,
     pub url: String,
+    #[serde(default)]
     pub max_connections: u32,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct StorageConfig {
     #[serde(rename = "type")]
     pub type_storage: String,
+    #[serde(default)]
     pub endpoint: Option<String>,
     pub bucket: String,
+    #[serde(default)]
     pub access_key: Option<String>,
+    #[serde(default)]
     pub secret_key: Option<String>,
+    #[serde(default)]
     pub region: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct AudioConfig {
     pub sample_rate: u32,
     pub channels: u16,
@@ -43,7 +48,7 @@ pub struct AudioConfig {
     pub rms_window_ms: u32,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct LlmConfig {
     pub provider: String,
     pub model: String,
@@ -60,9 +65,11 @@ fn default_max_tools() -> usize {
     5
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ObservabilityConfig {
+    #[serde(default)]
     pub otel_collector_endpoint: String,
+    #[serde(default)]
     pub prometheus_port: u16,
     #[serde(default)]
     pub grafana_url: String,
