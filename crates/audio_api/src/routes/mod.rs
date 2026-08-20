@@ -29,6 +29,7 @@ pub fn api_router() -> Router<AppState> {
     Router::new()
         .route("/jobs", post(jobs::create_job).get(jobs::list_jobs))
         .route("/jobs/{job_id}", get(jobs::get_job))
+        .route("/jobs/{job_id}/artifact", get(jobs::download_artifact))
         .route("/jobs/{job_id}/cancel", post(jobs::cancel_job))
         .route("/jobs/{job_id}/events", get(sse::job_stream))
         .route("/prompts", get(prompts::list_prompts))

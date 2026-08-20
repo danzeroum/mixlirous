@@ -150,6 +150,12 @@ pub struct ProposalHandlers {
     pub store: Arc<RwLock<ProposalStore>>,
 }
 
+impl Default for ProposalHandlers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProposalHandlers {
     pub fn new() -> Self {
         Self {

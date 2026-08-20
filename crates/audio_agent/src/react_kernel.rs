@@ -458,6 +458,7 @@ impl<P: LlmProvider> ReActOrchestrator<P> {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ReActOutput {
     pub thoughts: Vec<String>,
     pub tool_calls: Vec<AudioToolDef>,
