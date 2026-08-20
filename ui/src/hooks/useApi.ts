@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react'
 import type {
+  ApiError,
+  ApiRequestError,
+  ApproveRequestBody,
+  JobMode,
   JobRequest,
   JobResponse,
+  PipelineConfig,
   PresignRequest,
   PresignResponse,
   ProposalResponse,
@@ -13,6 +18,12 @@ import type {
 
 const BASE_URL = '/api/v1'
 
+/**
+ * Tenta parsear o body como RFC 7807 (ApiError). Se não for JSON, ou se
+ * faltar campos obrigatórios, devolve um ApiError mínimo com o status code.
+ * Item C1 do mapa: o `fetchJson` é o ponto único onde o erro estruturado
+ * é materializado — chamadas específicas só precisam passar o campo esperado.
+ */
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const resp = await fetch(url, {
     ...options,
@@ -21,16 +32,30 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
       ...options?.headers,
     },
   })
+
   if (!resp.ok) {
-    const body = await resp.text()
-    throw new Error(`HTTP ${resp.status}: ${body}`)
+    const body = await resp.text().catch(() => '')
+    let apiError: ApiError | undefined
+    try {
+      const parsed = JSON.parse(body) as ApiError
+      if (parsed && typeof parsed.status === 'number') {
+        apiError = parsed
+      }
+    } catch {
+      // Body não é JSON — provavelmente é uma string de erro do axum
+      // (quando o handler retorna `(StatusCode, String)` em vez de
+      // `application/problem+json`). Construímos um ApiError sintético.
+    }
+    const message = apiError?.detail ?? apiError?.title ?? body ?? `HTTP ${resp.status}`
+    throw new ApiRequestError(resp.status, message, apiError)
   }
+
   return resp.json() as Promise<T>
 }
 
 export function useApi() {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ApiRequestError | null>(null)
 
   const withLoading = useCallback(async <T>(fn: () => Promise<T>): Promise<T> => {
     setLoading(true)
@@ -38,82 +63,109 @@ export function useApi() {
     try {
       return await fn()
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error'
-      setError(msg)
-      throw e
+      const err =
+        e instanceof ApiRequestError
+          ? e
+          : new ApiRequestError(0, e instanceof Error ? e.message : 'Unknown error')
+      setError(err)
+      throw err
     } finally {
       setLoading(false)
     }
   }, [])
 
   const createJob = useCallback(
-    (req: JobRequest) => withLoading(() =>
-      fetchJson<JobResponse>(`${BASE_URL}/jobs`, {
-        method: 'POST',
-        body: JSON.stringify(req),
-      })
-    ),
+    (
+      trackId: string,
+      mode: JobMode,
+      prompt: string,
+      pipelineConfig?: PipelineConfig
+    ) =>
+      withLoading(() => {
+        const req: JobRequest = {
+          track_id: trackId,
+          mode,
+          // Só enviamos `user_prompt` quando o usuário digitou algo. Para
+          // modo manual, é opcional; para assisted, o backend ignora se
+          // não houver (com warning — ver worker.rs:400).
+          user_prompt: prompt || undefined,
+          pipeline_config: pipelineConfig,
+        }
+        return fetchJson<JobResponse>(`${BASE_URL}/jobs`, {
+          method: 'POST',
+          body: JSON.stringify(req),
+        })
+      }),
     [withLoading]
   )
 
   const getJob = useCallback(
-    (jobId: string) => withLoading(() =>
-      fetchJson<JobResponse>(`${BASE_URL}/jobs/${jobId}`)
-    ),
+    (jobId: string) =>
+      withLoading(() => fetchJson<JobResponse>(`${BASE_URL}/jobs/${jobId}`)),
     [withLoading]
   )
 
   const listJobs = useCallback(
-    () => withLoading(() =>
-      fetchJson<{ items: JobResponse[] }>(`${BASE_URL}/jobs`)
-    ),
+    () =>
+      withLoading(() =>
+        fetchJson<{ items: JobResponse[] }>(`${BASE_URL}/jobs`)
+      ),
     [withLoading]
   )
 
   const createTrack = useCallback(
-    (req: TrackRequest) => withLoading(() =>
-      fetchJson<TrackResponse>(`${BASE_URL}/tracks`, {
-        method: 'POST',
-        body: JSON.stringify(req),
-      })
-    ),
+    (req: TrackRequest) =>
+      withLoading(() =>
+        fetchJson<TrackResponse>(`${BASE_URL}/tracks`, {
+          method: 'POST',
+          body: JSON.stringify(req),
+        })
+      ),
     [withLoading]
   )
 
   const getPresignUrl = useCallback(
-    (req: PresignRequest) => withLoading(() =>
-      fetchJson<PresignResponse>(`${BASE_URL}/uploads/presign`, {
-        method: 'POST',
-        body: JSON.stringify(req),
-      })
-    ),
+    (req: PresignRequest) =>
+      withLoading(() =>
+        fetchJson<PresignResponse>(`${BASE_URL}/uploads/presign`, {
+          method: 'POST',
+          body: JSON.stringify(req),
+        })
+      ),
     [withLoading]
   )
 
   const listProposals = useCallback(
-    (jobId: string) => withLoading(() =>
-      fetchJson<ProposalResponse[]>(`${BASE_URL}/jobs/${jobId}/proposals`)
-    ),
+    (jobId: string) =>
+      withLoading(() =>
+        fetchJson<ProposalResponse[]>(`${BASE_URL}/jobs/${jobId}/proposals`)
+      ),
     [withLoading]
   )
 
+  /**
+   * Item C3: `approve` agora aceita `parameters` (para o overlay editável).
+   * Antes mandava `{}` — agora manda os ajustes do usuário.
+   */
   const approveProposal = useCallback(
-    (jobId: string, proposalId: string) => withLoading(() =>
-      fetchJson<unknown>(`${BASE_URL}/jobs/${jobId}/proposals/${proposalId}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
-    ),
+    (jobId: string, proposalId: string, body?: ApproveRequestBody) =>
+      withLoading(() =>
+        fetchJson<unknown>(
+          `${BASE_URL}/jobs/${jobId}/proposals/${proposalId}/approve`,
+          { method: 'POST', body: JSON.stringify(body ?? {}) }
+        )
+      ),
     [withLoading]
   )
 
   const rejectProposal = useCallback(
-    (jobId: string, proposalId: string) => withLoading(() =>
-      fetchJson<unknown>(`${BASE_URL}/jobs/${jobId}/proposals/${proposalId}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
-    ),
+    (jobId: string, proposalId: string, reason?: string) =>
+      withLoading(() =>
+        fetchJson<unknown>(
+          `${BASE_URL}/jobs/${jobId}/proposals/${proposalId}/reject`,
+          { method: 'POST', body: JSON.stringify({ reason: reason ?? undefined }) }
+        )
+      ),
     [withLoading]
   )
 
@@ -123,7 +175,8 @@ export function useApi() {
   )
 
   const listTools = useCallback(
-    () => withLoading(() => fetchJson<{ tools: ToolInfo[] }>(`${BASE_URL}/tools`)),
+    () =>
+      withLoading(() => fetchJson<{ tools: ToolInfo[] }>(`${BASE_URL}/tools`)),
     [withLoading]
   )
 
