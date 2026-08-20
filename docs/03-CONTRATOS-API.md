@@ -382,8 +382,18 @@ Só válido em `queued`, `running`, `awaiting_approval`.
 **`POST /api/v1/jobs/:job_id/retry`** → `202` com **novo** `job_id`.
 Só válido em `failed`. Reusa a mesma receita e o mesmo `track_id`.
 
+> **Status (2026-08-20):** endpoint `retry` ainda não implementado no
+> router (`crates/audio_api/src/routes/mod.rs`). Ver `CHANGELOG.md`.
+
 **`GET /api/v1/jobs/:job_id/artifact`** → `302` para URL assinada, ou
 `?redirect=false` para receber `{ "download_url": "...", "expires_at": "..." }`.
+
+> **Status (2026-08-20):** implementado em modo local (storage em disco).
+> O handler faz stream dos bytes diretamente com `Content-Type: audio/wav`
+> e `Content-Disposition: attachment`. Em modo SaaS futuro, retornará `302`
+> para URL assinada do storage externo. Restrição: só disponível quando
+> `status == completed` — outro estado devolve `409 job_not_editable`.
+> Ver `crates/audio_api/src/routes/jobs.rs::download_artifact`.
 
 ---
 
