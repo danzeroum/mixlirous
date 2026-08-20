@@ -83,102 +83,6 @@ fn apply_recipe_to_config(recipe: &ReActOutput, config: &mut PipelineConfig) {
     }
 }
 
-#[cfg(test)]
-mod recipe_tests {
-    use super::*;
-    use audio_agent::{
-        tools::{CompressionParams, CrossfadeParams, LufsNormalizationParams},
-        ReActOutput,
-    };
-
-    fn empty_output() -> ReActOutput {
-        ReActOutput {
-            thoughts: Vec::new(),
-            tool_calls: Vec::new(),
-            final_context: serde_json::Value::Null,
-            llm_call_failed: false,
-        }
-    }
-
-    #[test]
-    fn aplica_crossfade_da_receita() {
-        let mut config = PipelineConfig::default();
-        let initial_curve = config.crossfade.curve;
-        let mut recipe = empty_output();
-        recipe
-            .tool_calls
-            .push(AudioToolDef::Crossfade(CrossfadeParams {
-                duration_ms: 1500,
-                curve: "constant_gain".to_string(),
-            }));
-        apply_recipe_to_config(&recipe, &mut config);
-        assert_eq!(config.crossfade.max_duration_ms.get(), 1500);
-        assert!(config.crossfade.enabled);
-        assert_ne!(config.crossfade.curve, initial_curve);
-        assert_eq!(config.crossfade.curve, CrossfadeCurve::ConstantGain);
-    }
-
-    #[test]
-    fn ignora_crossfade_fora_de_limite() {
-        let mut config = PipelineConfig::default();
-        let original_ms = config.crossfade.max_duration_ms.get();
-        let mut recipe = empty_output();
-        recipe
-            .tool_calls
-            .push(AudioToolDef::Crossfade(CrossfadeParams {
-                duration_ms: 50000, // acima de CrossfadeMs::MAX
-                curve: "constant_power".to_string(),
-            }));
-        apply_recipe_to_config(&recipe, &mut config);
-        // O newtype rejeita — valor original permanece.
-        assert_eq!(config.crossfade.max_duration_ms.get(), original_ms);
-    }
-
-    #[test]
-    fn aplica_lufs_e_compression() {
-        let mut config = PipelineConfig::default();
-        let mut recipe = empty_output();
-        recipe
-            .tool_calls
-            .push(AudioToolDef::LufsNormalization(LufsNormalizationParams {
-                target_lufs: -16.0,
-                max_true_peak_db: -0.5,
-            }));
-        recipe
-            .tool_calls
-            .push(AudioToolDef::Compression(CompressionParams {
-                ratio: 4.0,
-                threshold_db: -14.5,
-                attack_ms: 30,
-                release_ms: 250,
-                makeup_gain_db: 0.0,
-                knee_db: 6.0,
-            }));
-        apply_recipe_to_config(&recipe, &mut config);
-        // LufsTarget::try_from(-16.0) deve funcionar (dentro do range).
-        // O teste real é que o campo foi alterado de -14 para -16.
-        assert!((config.mastering.lufs_target.get() - (-16.0)).abs() < 0.01);
-        assert!((config.mastering.peak_db - (-0.5)).abs() < 0.01);
-        // CompressionRatio::try_from(4.0) deve funcionar.
-        assert!((config.mastering.compression_ratio.get() - 4.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn receita_vazia_nao_altera_config() {
-        let mut config = PipelineConfig::default();
-        let original = config.clone();
-        apply_recipe_to_config(&empty_output(), &mut config);
-        // Sem tool_calls, nada muda (exceto campos derivados de clone).
-        assert_eq!(
-            config.mastering.lufs_target.get(),
-            original.mastering.lufs_target.get()
-        );
-        assert_eq!(
-            config.crossfade.max_duration_ms.get(),
-            original.crossfade.max_duration_ms.get()
-        );
-    }
-}
 use uuid::Uuid;
 
 /// Liga os callbacks do loop ReAct ao `EventHub` (task 3.9 — streaming de
@@ -589,4 +493,101 @@ impl Worker {
 
 pub async fn start_worker(state: AppState) {
     Worker::new(state).run().await;
+}
+
+#[cfg(test)]
+mod recipe_tests {
+    use super::*;
+    use audio_agent::{
+        tools::{CompressionParams, CrossfadeParams, LufsNormalizationParams},
+        ReActOutput,
+    };
+
+    fn empty_output() -> ReActOutput {
+        ReActOutput {
+            thoughts: Vec::new(),
+            tool_calls: Vec::new(),
+            final_context: serde_json::Value::Null,
+            llm_call_failed: false,
+        }
+    }
+
+    #[test]
+    fn aplica_crossfade_da_receita() {
+        let mut config = PipelineConfig::default();
+        let initial_curve = config.crossfade.curve;
+        let mut recipe = empty_output();
+        recipe
+            .tool_calls
+            .push(AudioToolDef::Crossfade(CrossfadeParams {
+                duration_ms: 1500,
+                curve: "constant_gain".to_string(),
+            }));
+        apply_recipe_to_config(&recipe, &mut config);
+        assert_eq!(config.crossfade.max_duration_ms.get(), 1500);
+        assert!(config.crossfade.enabled);
+        assert_ne!(config.crossfade.curve, initial_curve);
+        assert_eq!(config.crossfade.curve, CrossfadeCurve::ConstantGain);
+    }
+
+    #[test]
+    fn ignora_crossfade_fora_de_limite() {
+        let mut config = PipelineConfig::default();
+        let original_ms = config.crossfade.max_duration_ms.get();
+        let mut recipe = empty_output();
+        recipe
+            .tool_calls
+            .push(AudioToolDef::Crossfade(CrossfadeParams {
+                duration_ms: 50000, // acima de CrossfadeMs::MAX
+                curve: "constant_power".to_string(),
+            }));
+        apply_recipe_to_config(&recipe, &mut config);
+        // O newtype rejeita — valor original permanece.
+        assert_eq!(config.crossfade.max_duration_ms.get(), original_ms);
+    }
+
+    #[test]
+    fn aplica_lufs_e_compression() {
+        let mut config = PipelineConfig::default();
+        let mut recipe = empty_output();
+        recipe
+            .tool_calls
+            .push(AudioToolDef::LufsNormalization(LufsNormalizationParams {
+                target_lufs: -16.0,
+                max_true_peak_db: -0.5,
+            }));
+        recipe
+            .tool_calls
+            .push(AudioToolDef::Compression(CompressionParams {
+                ratio: 4.0,
+                threshold_db: -14.5,
+                attack_ms: 30,
+                release_ms: 250,
+                makeup_gain_db: 0.0,
+                knee_db: 6.0,
+            }));
+        apply_recipe_to_config(&recipe, &mut config);
+        // LufsTarget::try_from(-16.0) deve funcionar (dentro do range).
+        // O teste real é que o campo foi alterado de -14 para -16.
+        assert!((config.mastering.lufs_target.get() - (-16.0)).abs() < 0.01);
+        assert!((config.mastering.peak_db - (-0.5)).abs() < 0.01);
+        // CompressionRatio::try_from(4.0) deve funcionar.
+        assert!((config.mastering.compression_ratio.get() - 4.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn receita_vazia_nao_altera_config() {
+        let mut config = PipelineConfig::default();
+        let original = config.clone();
+        apply_recipe_to_config(&empty_output(), &mut config);
+        // Sem tool_calls, nada muda (exceto campos derivados de clone).
+        assert_eq!(
+            config.mastering.lufs_target.get(),
+            original.mastering.lufs_target.get()
+        );
+        assert_eq!(
+            config.crossfade.max_duration_ms.get(),
+            original.crossfade.max_duration_ms.get()
+        );
+    }
 }

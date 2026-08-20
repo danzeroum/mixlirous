@@ -37,12 +37,14 @@ use uuid::Uuid;
 fn gerar_wav_silencio(sample_rate: u32, duracao_seg: f32) -> Vec<u8> {
     let n_samples = (duracao_seg * sample_rate as f32) as usize;
     let pcm: Vec<f32> = vec![0.0; n_samples];
-    let mut config = PipelineConfig::default();
-    config.format = AudioFormat {
-        sample_rate,
-        channels: 1,
-        bit_depth: 32,
-        codec: AudioCodec::WAV,
+    let config = PipelineConfig {
+        format: AudioFormat {
+            sample_rate,
+            channels: 1,
+            bit_depth: 32,
+            codec: AudioCodec::WAV,
+        },
+        ..PipelineConfig::default()
     };
     DefaultMixer
         .encode_wav_to_vec(&Array1::from_vec(pcm), &config)

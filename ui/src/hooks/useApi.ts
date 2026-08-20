@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
+import { ApiRequestError } from '../types/api'
 import type {
   ApiError,
-  ApiRequestError,
   ApproveRequestBody,
   JobMode,
   JobRequest,
