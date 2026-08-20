@@ -9,13 +9,19 @@ a faixa em blocos alinhados às batidas, remonta e masteriza.
 > `main` (5 workflows). O motor de DSP tem testes acústicos reais sobre
 > fixtures sintéticas, e os bugs que eles encontram ficam abertos como
 > issues, não escondidos — ver o [rastreador de
-> issues](https://github.com/danzeroum/mixlirous/issues). No backend ainda
-> não há fila, worker nem execução de pipeline ligada à API, e o loop ReAct
-> é `unimplemented!()`: o caminho para ouvir um resultado hoje é a rota de
-> diagnóstico de [`docs/18-DEPLOY-PUBLICO-NGINX.md`](docs/18-DEPLOY-PUBLICO-NGINX.md)
-> §8, não o produto. A UI (`ui/`) tem canvas, overlay de proposta e hook de
-> SSE já implementados, mas ainda sem fluxo de upload/criação de job — não há
-> como chegar a um remix de ponta a ponta pela interface hoje.
+> issues](https://github.com/danzeroum/mixlirous/issues). O loop ReAct
+> está implementado em `crates/audio_agent/src/react_kernel.rs` e é
+> invocado pelo worker quando `mode: "assisted"` — a receita gerada é
+> aplicada ao `PipelineConfig` via `apply_recipe_to_config`. A rota
+> `GET /api/v1/jobs/{id}/artifact` entrega o WAV remixado. A UI (`ui/`)
+> tem canvas, overlay de proposta, hook de SSE (com eventos nomeados via
+> `addEventListener`), player comparativo A/B e seletor de modo
+> (manual/assisted). Para teste de som sem subir o produto, use a rota
+> de diagnóstico de [`docs/18-DEPLOY-PUBLICO-NGINX.md`](docs/18-DEPLOY-PUBLICO-NGINX.md)
+> §8 (gated por `MIXLIROUS_DEV_SLICE=1`). Ainda pendentes: HITL de
+> propostas (store nunca populado), replay SSE via `Last-Event-ID`, e
+> 9 endpoints REST documentados mas não implementados (ver
+> `CHANGELOG.md` e `analise-arquitetural-mixlirous.md`).
 > [`docs/14-AUDITORIA-KIT.md`](docs/14-AUDITORIA-KIT.md) é o registro
 > histórico da auditoria do kit original (Sprint 0), não o estado atual.
 

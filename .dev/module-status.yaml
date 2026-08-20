@@ -1,7 +1,11 @@
 # module-status — Mixlirous
 # Atualizar após cada tarefa concluída
+#
+# Item D1 do mapa de ação: status agora reflete integração real, não
+# apenas code-complete. Cada módulo tem duas colunas: `code` (a peça
+# existe?) e `integration` (a peça está conectada à ponta a ponta?).
 
-audio_core: 100%
+audio_core: code 100%, integration 100%
   domain: MFCC real, JobRecord, PipelineConfig
   dsp/analysis: onset, beat_tracking (limiar adaptativo #27), rms, fft, chroma+seções
   dsp/stitching: crossfade, fades, zero_cross
@@ -10,32 +14,71 @@ audio_core: 100%
   dsp/post_process: invariantes I1 (clipping) + I4 (estalos)
   ports: AudioRepo completo (claim/beat/retry)
 
-audio_agent: 95%
+audio_agent: code 95%, integration 80%
   react_kernel: ReAct c/ budget, retry, propostas HITL, replan, observações, fallback, streaming (A1-A10)
   llm: MockLlm (stream+errors+sequence), Ollama adapter, OpenAI adapter
   prompt_loader: minijinja templating (render_prompt + RenderedPrompt)
   prompt_guard: regex + 4096 limit
   validator+limits: completos (pré-existente)
+  # INTEGRATION GAP (fechado por B1 nesta iteração):
+  # ReActOutput agora serializa (derive Serialize/Deserialize) e o worker
+  # aplica a receita ao PipelineConfig via apply_recipe_to_config.
+  # Próximo passo: system_prompt hardcoded em build_llm_request deve vir
+  # do prompt_loader (item M2 do relatório — não fechado).
 
-audio_api: 95%
-  routes: jobs, tracks, uploads, proposals (TTL, replan)
-  sse: EventHub broadcast conectado ao job_stream (agent.*/job.*)
+audio_api: code 95%, integration 70%
+  routes:
+    jobs: create/list/get + NOVO download_artifact (B4)
+    tracks: create/get/list + peaks (TODO hardcoded)
+    uploads: presign + PUT
+    proposals: list/approve/reject/replan (store morto — B5 pendente)
+    prompts: list/get (lê catalog.json)
+    tools: list (espelha limits::tool_registry)
+    tenants: quota + consent (mock)
+    system: info (sem resources nem scale)
+    sse: job_stream (sem Last-Event-ID — B7 pendente)
+    dev_slice: diagnóstico (gated MIXLIROUS_DEV_SLICE=1)
+  sse: EventHub broadcast conectado ao job_stream
   adapters: InMemoryRepo, SqliteRepo
   worker: pipeline DSP real + heartbeat + callbacks SSE (agent.thought/error/replan)
+    # B1 FECHADO: apply_recipe_to_config aplica tool_calls ao PipelineConfig
+    # B4 FECHADO: download_url agora aponta para /api/v1/jobs/{id}/artifact
+    # C4 FECHADO: erro do agente vira agent.error estruturado em vez de panic
+    # M7 FECHADO: job.warning segue schema do contrato (code/severity/hint)
   middleware: auth JWT, rate_limit
   resiliência: atomic_write, recovery loop
 
-ui: 95%
-  components: UploadPanel, ProposalOverlay, RemixCanvas
-  hooks: useParamStream, useApi
+ui: code 95%, integration 80%
+  components:
+    UploadPanel: modo manual/assisted selecionável (B3)
+    ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
+    RemixCanvas: DAG React Flow (nós estáticos — pendente integração com
+      graph do backend quando get_job retornar JobResponse completo)
+    Player: player A/B comparativo (C2)
+  hooks:
+    useSSE (NOVO): addEventListener para eventos nomeados (B2);
+      useParamStream virou re-export para compat
+    useApi: ApiRequestError estruturado (C1) + approveProposal com body
   store: graphStore (Zustand)
-  types: api.ts
+  types: api.ts reescrito com PipelineConfig mirror do Rust (B3) +
+    defaultPipelineConfig() helper + ApiError RFC 7807
 
 sprints:
   S1: 100% — fila, persistência, rotas, SSE, worker
   S2: 100% — compressor, knapsack, chroma, MFCC, worker↔DSP
   S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend (backend tasks 3.1-3.11)
   S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
+  # Sprint de integração (esta iteração): B1, B2, B3, B4, C1, C2, C3, C4 — fechados
+  # Próxima sprint (pendentes): B5 (HITL store populado), B7 (Last-Event-ID replay),
+  # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
+  # C12 (9 endpoints documentados mas não implementados)
 
-tests: 410+ (71 agent + 59 api + ~280 core)
+tests: 430+ (199 core + 71 agent + 96 api + 4 e2e + 4 contract_ts_rust + 5 ui/vitest)
 build: OK
+clippy: OK (-D warnings)
+fmt: OK (--check)
+
+# Histórico de mudanças (detalhes em CHANGELOG.md):
+# 2026-08-20: B1 (recipe aplicada), B2 (SSE hook fix), B3 (contract sync),
+#             B4 (artifact endpoint), C1-C4 (UI), T1/T2/T3 (tests),
+#             D1-D4 (docs)
