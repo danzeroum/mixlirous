@@ -103,7 +103,7 @@ fn crossfade_nao_desloca_o_impulso() {
 #[test]
 fn limiter_nao_desloca_o_impulso() {
     let mut x = impulso();
-    brickwall_limiter(&mut x, -6.0); // abaixo do pico de 0.9 (~-0.9 dBFS): for├ºa a escalar
+    brickwall_limiter(&mut x, -6.0, SAMPLE_RATE as u32); // abaixo do pico de 0.9 (~-0.9 dBFS): for├ºa a escalar
     assert_eq!(
         argmax_abs(&x) as isize - IMPULSE_IDX as isize,
         LATENCIA_LIMITER as isize,

@@ -71,7 +71,7 @@ fn apply_lufs_gain_nao_distorce() {
 #[test]
 fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -3.0); // teto acima do pico: n├úo deveria escalar
+    brickwall_limiter(&mut pcm, -3.0, SAMPLE_RATE); // teto acima do pico: n├úo deveria escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,
@@ -83,7 +83,7 @@ fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
 #[test]
 fn brickwall_limiter_nao_distorce_ao_escalar() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -12.0); // teto abaixo do pico: for├ºa escalar
+    brickwall_limiter(&mut pcm, -12.0, SAMPLE_RATE); // teto abaixo do pico: for├ºa escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,

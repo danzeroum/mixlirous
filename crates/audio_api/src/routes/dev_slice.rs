@@ -363,7 +363,7 @@ fn rodar_pipeline(bytes: &[u8], estiramento: f32) -> Result<(SliceResposta, Vec<
     ) {
         avisos.push("unmeasurable_loudness");
     }
-    brickwall_limiter(&mut pcm_final, config.mastering.peak_db);
+    brickwall_limiter(&mut pcm_final, config.mastering.peak_db, sample_rate);
 
     // 7. Exporta├º├úo em mem├│ria
     let mut export = config;

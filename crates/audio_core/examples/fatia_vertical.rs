@@ -254,7 +254,7 @@ fn main() -> ExitCode {
             )
         },
     }
-    brickwall_limiter(&mut pcm_final, config.mastering.peak_db);
+    brickwall_limiter(&mut pcm_final, config.mastering.peak_db, sample_rate);
     println!(
         "limiter: pico alvo {} dBFS (normalizador de pico simples, n├úo look-ahead ÔÇö docs/16 T3.2)",
         config.mastering.peak_db

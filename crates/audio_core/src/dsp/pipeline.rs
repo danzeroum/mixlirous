@@ -288,7 +288,7 @@ impl DefaultRemixPipeline {
         }
 
         // F.2: limiter brickwall
-        crate::dsp::mastering::brickwall_limiter(pcm, config.mastering.peak_db);
+        crate::dsp::mastering::brickwall_limiter(pcm, config.mastering.peak_db, sample_rate);
 
         // F.3: normalizacao LUFS
         let target_lufs = config.mastering.lufs_target.get();
@@ -311,7 +311,24 @@ impl DefaultRemixPipeline {
         }
 
         // F.2 novamente apos LUFS: o ganho pode ter estourado o teto.
-        crate::dsp::mastering::brickwall_limiter(pcm, config.mastering.peak_db);
+        // Limiter de pico (fix #37): ataca so os picos, preserva o
+        // loudness integrado — a escala uniforme antiga desfazia o ganho
+        // de LUFS em material percussivo (-17 LU medidos na issue).
+        crate::dsp::mastering::brickwall_limiter(pcm, config.mastering.peak_db, sample_rate);
+
+        // F.4 (docs/03-ADENDO-R2 §1): confere o loudness FINAL e emite
+        // `loudness_target_conflict` quando o alvo não foi alcançável com
+        // o teto de pico — aviso não-bloqueante, o usuário decide.
+        let measured = crate::dsp::mastering::measure_lufs(
+            &ndarray::Array1::from_vec(pcm.clone()),
+            sample_rate,
+        );
+        if measured.is_finite() && (measured - target_lufs).abs() > 2.0 {
+            warnings.push(format!(
+                "loudness_target_conflict: saiu em {measured:.1} LUFS (alvo {target_lufs:.1}); \
+                 material dinâmico/curto demais para o alvo com o teto de pico atual"
+            ));
+        }
 
         Ok(())
     }

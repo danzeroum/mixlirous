@@ -42,7 +42,7 @@ proptest! {
         prop_assume!(!x.is_empty());
         de_media(&mut x);
         let mut y = x.clone();
-        brickwall_limiter(&mut y, -3.0);
+        brickwall_limiter(&mut y, -3.0, SAMPLE_RATE as u32);
         prop_assert!(media(&y).abs() < 1e-4, "limiter introduziu DC: {}", media(&y));
     }
 
