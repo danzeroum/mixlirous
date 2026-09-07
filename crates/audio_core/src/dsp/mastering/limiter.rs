@@ -1,35 +1,35 @@
-/// Limiter brickwall com lookahead e release — correção da issue #37
-/// (Lote 3 do plano Pareto).
-///
-/// ## Por que a versão anterior era o bug da #37
-///
-/// A implementação antiga media o pico do buffer INTEIRO e, se ele
-/// passasse do teto, escalava **todas** as amostras pelo mesmo ganho.
-/// Depois do `apply_lufs_gain` normalizar para −14 LUFS, material
-/// percussivo (fator de crista alto: picos raros e altos, média baixa)
-/// estourava o teto — e a escala uniforme derrubava o loudness integrado
-/// junto com os picos: saía ~−17 LU onde o alvo era −14 (medido na issue).
-/// O "limiter" era, de fato, um botão de volume que desfazia a
-/// normalização.
-///
-/// ## O que este faz
-///
-/// Limiter de pico de verdade: cada amostra recebe o ganho que ela
-/// **individualmente** exige (`ceiling/|x|`, teto em 1.0), o ganho é
-/// antecipado por uma janela de lookahead (mínimo deslizante — sem
-/// overshoot de ataque) e recupera exponencialmente após o transiente
-/// (release). Amostras abaixo do teto não são tocadas além do ganho de
-/// pico vizinho — o loudness integrado sobrevive à limitação.
-///
-/// Garantia de teto: em toda amostra com |x| > ceiling, o ganho aplicado é
-/// exatamente `ceiling/|x|` (o mínimo da janela que contém a amostra é ≤
-/// requerido, e o release só recupera **em direção ao env**, nunca acima
-/// dele); em toda amostra com |x| ≤ ceiling, o ganho aplicado é ≤ 1. Logo
-/// `|y| ≤ ceiling` para todo n.
+//! Limiter brickwall com lookahead e release — correção da issue #37
+//! (Lote 3 do plano Pareto).
+//!
+//! ## Por que a versão anterior era o bug da #37
+//!
+//! A implementação antiga media o pico do buffer INTEIRO e, se ele
+//! passasse do teto, escalava **todas** as amostras pelo mesmo ganho.
+//! Depois do `apply_lufs_gain` normalizar para −14 LUFS, material
+//! percussivo (fator de crista alto: picos raros e altos, média baixa)
+//! estourava o teto — e a escala uniforme derrubava o loudness integrado
+//! junto com os picos: saía ~−17 LU onde o alvo era −14 (medido na issue).
+//! O "limiter" era, de fato, um botão de volume que desfazia a
+//! normalização.
+//!
+//! ## O que este faz
+//!
+//! Limiter de pico de verdade: cada amostra recebe o ganho que ela
+//! **individualmente** exige (`ceiling/|x|`, teto em 1.0), o ganho é
+//! antecipado por uma janela de lookahead (mínimo deslizante — sem
+//! overshoot de ataque) e recupera exponencialmente após o transiente
+//! (release). Amostras abaixo do teto não são tocadas além do ganho de
+//! pico vizinho — o loudness integrado sobrevive à limitação.
+//!
+//! Garantia de teto: em toda amostra com |x| > ceiling, o ganho aplicado é
+//! exatamente `ceiling/|x|` (o mínimo da janela que contém a amostra é ≤
+//! requerido, e o release só recupera **em direção ao env**, nunca acima
+//! dele); em toda amostra com |x| ≤ ceiling, o ganho aplicado é ≤ 1. Logo
+//! `|y| ≤ ceiling` para todo n.
 
-// Constantes de tempo do envelope.
-///
-/// Janela de lookahead (ms). Pega o transiente antes de ele acontecer —
+// Constantes de tempo do envelope:
+//
+// Janela de lookahead (ms). Pega o transiente antes de ele acontecer —
 /// 2 ms é o padrão de limiters de pico; maior engoliria transientes.
 const LOOKAHEAD_MS: f32 = 2.0;
 /// Constante de tempo de release (ms). Recuperação rápida o bastante para
