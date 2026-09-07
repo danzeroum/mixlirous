@@ -28,7 +28,7 @@ volumes:
 
 services:
   # Postgres e MinIO só falam com remix_api pela rede interna do compose
-  # (`networks: [mixlirous]`) — não têm por que aceitar conexão de fora do
+  # (rede interna `mixlirous`) — não têm por que aceitar conexão de fora do
   # host. Publicar em 0.0.0.0 (a forma antiga, sem endereço explícito) deixa
   # as duas portas alcançáveis pela internet inteira se o firewall da VPS
   # não bloquear, com credenciais padrão de exemplo por trás. Achado real,

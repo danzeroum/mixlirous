@@ -1,11 +1,12 @@
 name: Frontend CI
 
+# Roda INCONDICIONALMENTE em todo PR e em todo push para main (issue #5):
+# sem `paths:`, nenhum PR escapa do gate de lint/build do frontend — o gate
+# só é confiável se rodar sempre, não só quando os paths batem.
 on:
   pull_request:
-    paths: ["ui/**"]
   push:
     branches: [main]
-    paths: ["ui/**"]
 
 defaults:
   run:
