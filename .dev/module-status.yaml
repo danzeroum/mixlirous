@@ -88,7 +88,7 @@ sprints:
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 461+ rust (nextest, com fixtures; +testes do Lote 2) + 13 ui/vitest
+tests: 490 rust (nextest, com fixtures) + 13 ui/vitest
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
