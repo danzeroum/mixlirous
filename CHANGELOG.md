@@ -4,6 +4,82 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Lote 3 do plano Pareto (canvas executável + qualidade sonora)
+
+### Adicionado
+
+- **Item 1 (canvas executável): `ui/src/lib/graphToPipeline.ts`** — o
+  grafo montado no canvas (`graphStore`) é serializado para o
+  `PipelineConfig` que o backend executa; `App.tsx` deixa de enviar
+  `defaultPipelineConfig()` fixo. Mapeamento: crossfade →
+  `crossfade.enabled/max_duration_ms`; lufs_normalization →
+  `mastering.enable_limiting/lufs_target`; time_stretch/fades
+  registrados como unmapped; ghost tools (compression, dynamic_eq,
+  stem_separation) **nunca** serializadas — regra do plano. Grafo
+  cíclico → erro `invalid_graph` antes de gastar um job; grafo vazio →
+  fallback para o `defaultPipelineConfig()` explícito (opção prevista no
+  próprio contrato de `graphToPipelineConfig`): enquanto a paleta do
+  Lote 1 (PR #55) não estiver no build, o canvas vazio se comporta como
+  antes do Lote 3 — job sempre criável, sem dead end na UI.
+- **Testes de contrato do grafo** — `graphToPipeline.spec.ts` (11
+  testes, golden canônico) espelhado em
+  `contract_ts_rust.rs::grafo_canonico_do_canvas_desserializa_no_rust`
+  e `grafo_sem_crossfade_desabilita_crossfade_no_rust`: se um campo
+  mudar de um lado, um dos dois testes quebra primeiro.
+- **Item 4: `ui/e2e/full-flow.spec.ts` + `playwright.config.ts`** — 1
+  spec Playwright do fluxo feliz completo (upload → criação de job →
+  aprovação de proposta HITL quando existir → download do artefato
+  validando RIFF/audio-wav via cookie de sessão). Auto-pula sem a
+  stack de pé. `data-testid` adicionados aos controles do fluxo.
+- **Sessão local na app** — `App.tsx` faz o bootstrap
+  (`GET /auth/local-session` → token no localStorage + cookie);
+  `useApi.fetchJson` e `UploadPanel` mandam o Bearer (`authHeaders()`).
+
+### Corrigido
+
+- **Item 2 (#37): limiter de pico real** — `brickwall_limiter` troca a
+  escala uniforme do buffer inteiro (que desfazia o ganho de LUFS em
+  material percussivo: −17 LU medidos na issue) por ganho por amostra
+  com lookahead (mínimo deslizante O(n), deque monótono) e release
+  exponencial. Garantia de teto provada no comentário e testada:
+  pico ≤ teto em todos os casos; regressão #37
+  (`limiter_preserva_loudness_em_material_percussivo`: |final−alvo| ≤
+  1,5 LU onde a versão antiga ficava a ~7 LU); cauda recuperada pós
+  transiente; NaN não silencia o buffer.
+- **Pipeline masterização**: cadeia passa `sample_rate` ao limiter e
+  confere o loudness FINAL — emite aviso `loudness_target_conflict`
+  (docs/03-ADENDO-R2 §1) quando o alvo não é alcançável com o teto
+  (>2 LU de distância).
+- **Item 3 (#27): limiar de onset híbrido local** — complemento do fix
+  parcial de f400fad (que era global: p75 do onset inteiro). Falhava em
+  crescendo (batidas da parte baixa somem sob o p75 global) e em
+  material denso (p75 ≈ pico). Agora: p75 da janela local (~2 s,
+  centrada) + 10% do range local (p95−p75), piso absoluto 1e-4. Testes:
+  crescendo, denso, ruído de fundo e regressão do f400fad.
+
+### Modificado
+
+- **worker.rs**: `on_proposal_created` publica `agent.proposal` no hub
+  SSE — é o que a UI espera para abrir o overlay (a decisão continua
+  automática; pausar no ProposalStore é o item B5, fora dos lotes).
+- `.dev/module-status.yaml` — ui 80→88 (canvas executável + E2E).
+- **Suítes de propriedade DSP realinhadas ao limiter pós-#37** —
+  `dc_offset.rs` deixa de afirmar média zero para o `brickwall_limiter`
+  (a propriedade valia por linearidade de ganho UNIFORME; com o ganho
+  por amostra do #37 ela deixa de valer por construção — DC residual
+  medido ~7e-4, inaudível) e `thd.rs` documenta o novo regime (teto de
+  0,1% em vez de piso numérico; THD medido ~1.6e-6 escalando). Garantias
+  reais do limiter seguem com cobertura dedicada em
+  `dsp::mastering::limiter`. docs/17.1 §3.1 e §7 atualizados em consonância.
+- **`ui/e2e/full-flow.spec.ts`** — bootstrap de sessão determinístico:
+  fulfill de `GET /auth/local-session` com JWT assinado em-processo
+  (HS256, segredo de dev do modo local) + cookie de SSE pela rota REAL
+  `POST /auth/sse-session` (Lote 2); auto-pula com motivo explícito em
+  backend sem a rota.
+- **`ui/package-lock.json`** — ressincronizado com o `package.json`
+  (entrada de `@tailwindcss/vite` trouxe platform packages ausentes do
+  lock; `npm ci` — gate do Frontend CI — quebrava).
+
 ## [Unreleased] — Lote 2 do plano Pareto (UX de job essencial)
 
 ### Adicionado
@@ -63,6 +139,32 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
 - `docs/03-CONTRATOS-API.md` — nota de status do `retry` atualizada.
 - `docs/ADENDO-PARETO-PRODUCAO.md` — divergência do `save_job` registrada
   na tabela da seção 1 (item 7).
+
+## [Unreleased] — Lote 1 do plano Pareto (docs, CI e paleta de ferramentas)
+
+### Corrigido
+
+- **README/docs sincronizados com o estado real** — removidas as
+  afirmações de que "9 endpoints REST documentados mas não implementados"
+  e de pendências já resolvidas; `docs/08-SEGURANCA-MULTITENANCY.md` e
+  `docs/14-AUDITORIA-KIT.md` alinhados ao código.
+- **CI incondicional em todo PR (issue #5)** — `ci-rust.yml` e
+  `ci-frontend.yml` sem filtro de `paths:`; um PR que só toca docs/UI
+  não escapa do gate Rust. Branches dos triggers de push reparadas
+  (`branches: [main]`).
+- **Redes dos Docker Compose** — serviços referenciam a rede declarada
+  `mixlirous` (`docker-compose.yml`, `docker-compose.observability.yml`,
+  `docker-compose.ingress.yml`).
+
+### Adicionado
+
+- **ToolPalette (`ui/src/components/ToolPalette.tsx`)** — paleta
+  alimentada por `GET /api/v1/tools`; ghost tools (`available: false`,
+  ex. compression, dynamic_eq) desabilitadas com motivo no tooltip via
+  `ui/src/lib/toolFilter.ts` (testes em `toolFilter.spec.ts`).
+- **`graphStore.addToolNode`** — adiciona nó de efeito por ferramenta
+  (um nó por ferramenta, posição em grade); `NodeData.tool?` preservado.
+- `.dev/module-status.yaml` — ui 80→85.
 
 ## [Unreleased] — 2026-08-20
 

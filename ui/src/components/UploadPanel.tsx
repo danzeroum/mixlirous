@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import type { JobMode } from '../types/api'
+import { authHeaders } from '../lib/authHeaders'
 
 interface Props {
   onUploadComplete: (trackId: string) => void
@@ -27,7 +28,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
       // Step 1: Get presigned URL
       const presignResp = await fetch('/api/v1/uploads/presign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           filename: file.name,
           size_bytes: file.size,
@@ -43,7 +44,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
       // Step 2: PUT the file bytes to the upload URL
       const uploadResp = await fetch(upload_url, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'audio/wav' },
+        headers: { 'Content-Type': file.type || 'audio/wav', ...authHeaders() },
         body: file,
       })
       if (!uploadResp.ok) throw new Error('Failed to upload file')
@@ -51,7 +52,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
       // Step 3: Register the track (once)
       const trackResp = await fetch('/api/v1/tracks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           object_key,
           display_name: file.name.replace(/\.[^.]+$/, ''),
@@ -85,6 +86,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
           ref={fileRef}
           type="file"
           accept="audio/*,.wav,.flac,.aiff,.mp3,.m4a,.aac"
+          data-testid="upload-input"
           className="w-full text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded file:bg-green-600 file:text-white file:border-0"
         />
       </div>
@@ -126,6 +128,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          data-testid="prompt-input"
           placeholder={
             mode === 'assisted'
               ? 'ex: versão de 30s para Reels, agressiva, foco na bateria'
@@ -140,6 +143,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
         <button
           onClick={handleUpload}
           disabled={status === 'uploading'}
+          data-testid="upload-button"
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
         >
           {status === 'uploading' ? 'Enviando...' : 'Upload'}
@@ -148,6 +152,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
           <button
             onClick={handleCreateJob}
             disabled={status === 'uploading'}
+            data-testid="create-job"
             className={`px-4 py-2 rounded text-white disabled:opacity-50 ${
               mode === 'assisted' ? 'bg-purple-600 hover:bg-purple-500' : 'bg-green-600 hover:bg-green-500'
             }`}
@@ -158,7 +163,10 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
       </div>
 
       {message && (
-        <p className={`mt-3 text-sm ${status === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+        <p
+          data-testid="upload-status"
+          className={`mt-3 text-sm ${status === 'error' ? 'text-red-400' : 'text-green-400'}`}
+        >
           {message}
         </p>
       )}

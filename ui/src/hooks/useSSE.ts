@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { ensureLocalSession } from '../lib/authHeaders'
 
 /**
  * Evento SSE normalizado. O campo `type` vem do campo `event:` do frame SSE
@@ -71,21 +72,11 @@ export interface UseSSEOptions {
  */
 export async function ensureSseSession(): Promise<void> {
   try {
-    let token: string | undefined
-    const local = await fetch('/api/v1/auth/local-session', {
-      credentials: 'same-origin',
-    })
-    if (local.ok) {
-      const body = (await local.json()) as { token?: string }
-      token = body?.token
-      if (token) {
-        try {
-          localStorage.setItem('mixlirous_token', token)
-        } catch {
-          // localStorage indisponível (privacy mode) — o cookie basta para SSE.
-        }
-      }
-    }
+    // Sessão como singleton (authHeaders): reutiliza o token já gravado —
+    // chamar `local-session` de novo criaria OUTRO tenant e desalinharia o
+    // Bearer (upload/job) do cookie de SSE (handshake/download). Ver o
+    // comentário de `ensureLocalSession`.
+    const token = await ensureLocalSession()
     await fetch('/api/v1/auth/sse-session', {
       method: 'POST',
       credentials: 'same-origin',

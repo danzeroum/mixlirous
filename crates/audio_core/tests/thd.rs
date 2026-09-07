@@ -5,18 +5,22 @@
 //! ou erro de quantiza├º├úo.
 //!
 //! **S├│ para as fun├º├Áes cujo ganho ├® um ├║nico escalar aplicado ao buffer
-//! inteiro, n├úo uma curva no tempo.** `apply_lufs_gain` e
-//! `brickwall_limiter` calculam **um** fator de ganho (da medi├º├úo de LUFS ou
-//! do pico global) e multiplicam todas as amostras por ele ÔÇö matematicamente
-//! n├úo pode introduzir harm├┤nicos novos, s├│ reescalar os que j├í existem.
-//! `fade_in`/`fade_out`/`crossfade` aplicam ganho **vari├ível no tempo**: medir
-//! THD com FFT de janela ├║nica sobre um sinal cuja envolt├│ria est├í mudando
-//! dentro da pr├│pria janela mistura modula├º├úo de amplitude (esperada, n├úo ├®
-//! distor├º├úo) com distor├º├úo harm├┤nica de verdade ÔÇö o mesmo problema de
-//! "espalhamento" que descartou o chirp como sinal de teste em
-//! `aliasing.rs`. N├úo testado aqui por esse motivo, n├úo por lacuna.
-//! `time_stretch` em fator 1,0 ├® bypass puro (`stretch.rs` j├í testa a
-//! identidade) ÔÇö inclu├¡do como caso trivial de refer├¬ncia.
+//! inteiro, n├úo uma curva no tempo.** `apply_lufs_gain` calcula **um** fator
+//! de ganho (da medi├º├úo de LUFS) e multiplica todas as amostras por ele ÔÇö
+//! matematicamente n├úo pode introduzir harm├┤nicos novos, s├│ reescalar os
+//! que j├í existem. `brickwall_limiter`, ap├│s o fix da #37, usa ganho por
+//! amostra (lookahead + release): limitar distorce por defini├º├úo quando
+//! escala, ent├úo ali o teto n├úo ├® o piso num├®rico ÔÇö ├® o teto de 0,1%
+//! (THD_MAX), e a curva cumpre com folga: em tom cont├¡nuo o ganho converge
+//! para constante e o THD medido fica em ~1.6e-6 (escalando) e ~8e-7
+//! (abaixo do teto). `fade_in`/`fade_out`/`crossfade` aplicam ganho
+//! **vari├ível no tempo**: medir THD com FFT de janela ├║nica sobre um sinal
+//! cuja envolt├│ria est├í mudando dentro da pr├│pria janela mistura modula├º├úo
+//! de amplitude (esperada, n├úo ├® distor├º├úo) com distor├º├úo harm├┤nica de
+//! verdade ÔÇö o mesmo problema de "espalhamento" que descartou o chirp como
+//! sinal de teste em `aliasing.rs`. N├úo testado aqui por esse motivo, n├úo
+//! por lacuna. `time_stretch` em fator 1,0 ├® bypass puro (`stretch.rs` j├í
+//! testa a identidade) ÔÇö inclu├¡do como caso trivial de refer├¬ncia.
 
 use audio_core::dsp::analysis::fft::magnitude_spectrum;
 use audio_core::dsp::mastering::limiter::brickwall_limiter;
@@ -71,7 +75,7 @@ fn apply_lufs_gain_nao_distorce() {
 #[test]
 fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -3.0); // teto acima do pico: n├úo deveria escalar
+    brickwall_limiter(&mut pcm, -3.0, SAMPLE_RATE); // teto acima do pico: n├úo deveria escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,
@@ -83,7 +87,7 @@ fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
 #[test]
 fn brickwall_limiter_nao_distorce_ao_escalar() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -12.0); // teto abaixo do pico: for├ºa escalar
+    brickwall_limiter(&mut pcm, -12.0, SAMPLE_RATE); // teto abaixo do pico: for├ºa escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,

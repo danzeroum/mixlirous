@@ -92,7 +92,10 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
   }, [effectiveOriginalUrl])
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 bg-gray-800/95 backdrop-blur p-4 rounded-lg border border-gray-700 shadow-lg z-10">
+    <div
+      data-testid="player"
+      className="absolute bottom-4 left-4 right-4 bg-gray-800/95 backdrop-blur p-4 rounded-lg border border-gray-700 shadow-lg z-10"
+    >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-white">
           Pronto — Job {jobId.slice(0, 8)}...
@@ -101,6 +104,7 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
           <a
             href={downloadUrl}
             download={`remix-${jobId}.wav`}
+            data-testid="download-link"
             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
           >
             ⬇ Baixar WAV
