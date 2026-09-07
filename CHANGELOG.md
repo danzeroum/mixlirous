@@ -4,6 +4,63 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Lote 3 do plano Pareto (canvas executável + qualidade sonora)
+
+### Adicionado
+
+- **Item 1 (canvas executável): `ui/src/lib/graphToPipeline.ts`** — o
+  grafo montado no canvas (`graphStore`) é serializado para o
+  `PipelineConfig` que o backend executa; `App.tsx` deixa de enviar
+  `defaultPipelineConfig()` fixo. Mapeamento: crossfade →
+  `crossfade.enabled/max_duration_ms`; lufs_normalization →
+  `mastering.enable_limiting/lufs_target`; time_stretch/fades
+  registrados como unmapped; ghost tools (compression, dynamic_eq,
+  stem_separation) **nunca** serializadas — regra do plano. Grafo
+  cíclico → erro `invalid_graph` antes de gastar um job; grafo vazio →
+  erro explícito pedindo ferramenta da paleta.
+- **Testes de contrato do grafo** — `graphToPipeline.spec.ts` (11
+  testes, golden canônico) espelhado em
+  `contract_ts_rust.rs::grafo_canonico_do_canvas_desserializa_no_rust`
+  e `grafo_sem_crossfade_desabilita_crossfade_no_rust`: se um campo
+  mudar de um lado, um dos dois testes quebra primeiro.
+- **Item 4: `ui/e2e/full-flow.spec.ts` + `playwright.config.ts`** — 1
+  spec Playwright do fluxo feliz completo (upload → criação de job →
+  aprovação de proposta HITL quando existir → download do artefato
+  validando RIFF/audio-wav via cookie de sessão). Auto-pula sem a
+  stack de pé. `data-testid` adicionados aos controles do fluxo.
+- **Sessão local na app** — `App.tsx` faz o bootstrap
+  (`GET /auth/local-session` → token no localStorage + cookie);
+  `useApi.fetchJson` e `UploadPanel` mandam o Bearer (`authHeaders()`).
+
+### Corrigido
+
+- **Item 2 (#37): limiter de pico real** — `brickwall_limiter` troca a
+  escala uniforme do buffer inteiro (que desfazia o ganho de LUFS em
+  material percussivo: −17 LU medidos na issue) por ganho por amostra
+  com lookahead (mínimo deslizante O(n), deque monótono) e release
+  exponencial. Garantia de teto provada no comentário e testada:
+  pico ≤ teto em todos os casos; regressão #37
+  (`limiter_preserva_loudness_em_material_percussivo`: |final−alvo| ≤
+  1,5 LU onde a versão antiga ficava a ~7 LU); cauda recuperada pós
+  transiente; NaN não silencia o buffer.
+- **Pipeline masterização**: cadeia passa `sample_rate` ao limiter e
+  confere o loudness FINAL — emite aviso `loudness_target_conflict`
+  (docs/03-ADENDO-R2 §1) quando o alvo não é alcançável com o teto
+  (>2 LU de distância).
+- **Item 3 (#27): limiar de onset híbrido local** — complemento do fix
+  parcial de f400fad (que era global: p75 do onset inteiro). Falhava em
+  crescendo (batidas da parte baixa somem sob o p75 global) e em
+  material denso (p75 ≈ pico). Agora: p75 da janela local (~2 s,
+  centrada) + 10% do range local (p95−p75), piso absoluto 1e-4. Testes:
+  crescendo, denso, ruído de fundo e regressão do f400fad.
+
+### Modificado
+
+- **worker.rs**: `on_proposal_created` publica `agent.proposal` no hub
+  SSE — é o que a UI espera para abrir o overlay (a decisão continua
+  automática; pausar no ProposalStore é o item B5, fora dos lotes).
+- `.dev/module-status.yaml` — ui 80→88 (canvas executável + E2E).
+
 ## [Unreleased] — 2026-08-20
 
 ### Adicionado

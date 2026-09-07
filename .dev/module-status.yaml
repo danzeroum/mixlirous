@@ -7,9 +7,11 @@
 
 audio_core: code 100%, integration 100%
   domain: MFCC real, JobRecord, PipelineConfig
-  dsp/analysis: onset, beat_tracking (limiar adaptativo #27), rms, fft, chroma+seções
+  dsp/analysis: onset, beat_tracking (limiar híbrido LOCAL #27, Lote 3),
+    rms, fft, chroma+seções
   dsp/stitching: crossfade, fades, zero_cross
-  dsp/mastering: compressor, lufs (limited_samples #37), limiter, stretch
+  dsp/mastering: compressor, lufs (limited_samples #37), limiter DE PICO
+    c/ lookahead+release (#37 fechado no Lote 3), stretch
   dsp/selection: knapsack DP, continuous
   dsp/post_process: invariantes I1 (clipping) + I4 (estalos)
   ports: AudioRepo completo (claim/beat/retry)
@@ -48,7 +50,10 @@ audio_api: code 95%, integration 70%
   middleware: auth JWT, rate_limit
   resiliência: atomic_write, recovery loop
 
-ui: code 95%, integration 80%
+ui: code 95%, integration 88%
+  # Lote 3: canvas EXECUTÁVEL — graphStore serializa para o
+  # pipeline_config do job (graphToPipeline.ts, contrato duplo com Rust);
+  # spec Playwright do fluxo feliz; sessão local na app (token+cookie).
   components:
     UploadPanel: modo manual/assisted selecionável (B3)
     ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
@@ -59,7 +64,11 @@ ui: code 95%, integration 80%
     useSSE (NOVO): addEventListener para eventos nomeados (B2);
       useParamStream virou re-export para compat
     useApi: ApiRequestError estruturado (C1) + approveProposal com body
-  store: graphStore (Zustand)
+  store: graphStore (Zustand) — fonte do pipeline_config (Lote 3)
+  lib:
+    graphToPipeline (NOVO): serialização grafo→PipelineConfig + validações
+      (ciclo, ghost tools, empty) — 11 testes Vitest
+    authHeaders (NOVO): Bearer da sessão local para REST
   types: api.ts reescrito com PipelineConfig mirror do Rust (B3) +
     defaultPipelineConfig() helper + ApiError RFC 7807
 
@@ -73,7 +82,8 @@ sprints:
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 430+ (199 core + 71 agent + 96 api + 4 e2e + 4 contract_ts_rust + 5 ui/vitest)
+tests: 480+ (Lote 3: +6 limiter, +4 onset, +2 contrato do grafo,
+  +11 ui/vitest graphToPipeline, +1 spec Playwright)
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -82,3 +92,5 @@ fmt: OK (--check)
 # 2026-08-20: B1 (recipe aplicada), B2 (SSE hook fix), B3 (contract sync),
 #             B4 (artifact endpoint), C1-C4 (UI), T1/T2/T3 (tests),
 #             D1-D4 (docs)
+# Lote 3 Pareto: canvas executável (grafo→pipeline_config), #37 (limiter
+#             de pico), #27 (limiar local), spec Playwright do fluxo
