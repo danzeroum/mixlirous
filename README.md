@@ -18,10 +18,16 @@ a faixa em blocos alinhados às batidas, remonta e masteriza.
 > `addEventListener`), player comparativo A/B e seletor de modo
 > (manual/assisted). Para teste de som sem subir o produto, use a rota
 > de diagnóstico de [`docs/18-DEPLOY-PUBLICO-NGINX.md`](docs/18-DEPLOY-PUBLICO-NGINX.md)
-> §8 (gated por `MIXLIROUS_DEV_SLICE=1`). Ainda pendentes: HITL de
-> propostas (store nunca populado), replay SSE via `Last-Event-ID`, e
-> 9 endpoints REST documentados mas não implementados (ver
-> `CHANGELOG.md` e `analise-arquitetural-mixlirous.md`).
+> §8 (gated por `MIXLIROUS_DEV_SLICE=1`). Ainda pendentes (estado real,
+> ver `CHANGELOG.md`): cancelamento de job é placeholder (C6),
+> `get_track_peaks` retorna array vazio (C9), endpoint `retry` de job
+> ausente, autenticação do SSE via cookie de sessão (#33), replay SSE
+> via `Last-Event-ID` (B7) e 9 endpoints REST documentados mas não
+> implementados (C12). O canvas ainda não serializa o grafo montado para
+> o `pipeline_config` executado — jobs hoje partem de um config default.
+> O HITL de propostas **não** está pendente: o overlay consome o evento
+> `agent.proposal` com Aprovar/Recusar/Aprovar-com-ajuste (ver
+> `ui/src/App.tsx`).
 > [`docs/14-AUDITORIA-KIT.md`](docs/14-AUDITORIA-KIT.md) é o registro
 > histórico da auditoria do kit original (Sprint 0), não o estado atual.
 
@@ -174,7 +180,7 @@ mixlirous/
 │   │   └── tests/          Testes acústicos e o harness dirigido pelo manifesto de fixtures
 │   ├── audio_agent/        Loop ReAct, registry de ferramentas, Validation Layer
 │   └── audio_api/          Axum: rotas, SSE, middleware, config
-├── ui/                     React Flow canvas, overlay de proposta, hook de SSE — sem fluxo de upload/job ainda
+├── ui/                     React Flow canvas, overlay de proposta, hook de SSE, fluxo de upload/job, player A/B
 ├── prompts/                Prompts versionados como código (.prompt)
 ├── config/                 default.yaml · local.yaml · production.yaml
 ├── fixtures/               Áudio sintético gerado por scripts/generate_fixtures.py (gitignored, não comitado)

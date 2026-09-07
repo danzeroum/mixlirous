@@ -88,7 +88,7 @@ sprints:
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 436+ (199 core + 71 agent + 96 api + 4 e2e + 4 contract_ts_rust + 9 ui/vitest)
+tests: 461+ rust (nextest, com fixtures; +testes do Lote 2) + 13 ui/vitest
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -97,8 +97,8 @@ fmt: OK (--check)
 # 2026-08-20: B1 (recipe aplicada), B2 (SSE hook fix), B3 (contract sync),
 #             B4 (artifact endpoint), C1-C4 (UI), T1/T2/T3 (tests),
 #             D1-D4 (docs)
+# Lote 1 Pareto: docs (adendo §1), CI incondicional (#5), compose [mixlirous],
+#             ToolPalette + toolFilter (ui 80→85)
 # Lote 2 Pareto: C9 (peaks), C6 (cancel), C12-parcial (retry), #33 (SSE
 #             auth via cookie), raw por track_id, save_job com JobMeta
 #             (divergência adendo §1.7)
-# Lote 1 Pareto: docs (adendo §1), CI incondicional (#5), compose [mixlirous],
-#             ToolPalette + toolFilter (ui 80→85)

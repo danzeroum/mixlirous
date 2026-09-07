@@ -1,11 +1,12 @@
 name: Rust CI
 
+# Roda INCONDICIONALMENTE em todo PR e em todo push para main (issue #5):
+# sem `paths:`, nenhum PR escapa do gate de fmt/clippy/test/audit — um PR
+# que só toca docs, UI ou compose não pode mergear sem o Rust CI passar.
 on:
   pull_request:
-    paths: ["crates/**", "Cargo.*", "config/**", "fixtures/**", "scripts/**"]
   push:
     branches: [main]
-    paths: ["crates/**", "Cargo.*", "config/**", "fixtures/**", "scripts/**"]
 
 jobs:
   lint:
