@@ -162,28 +162,59 @@ pub async fn get_job(
     }))
 }
 
-/// `POST /api/v1/jobs/{job_id}/cancel` — cancelamento real chega no Lote 2
-/// (este commit só fecha o gap do `save_job`; ver CHANGELOG C6).
+/// `POST /api/v1/jobs/{job_id}/cancel` — cancelamento real (CHANGELOG C6,
+/// Lote 2 do plano Pareto).
+///
+/// - Transição validada no adapter (`AudioRepo::cancel_job`): só
+///   `Queued`/`Processing` → `Cancelled`, com registro de auditoria
+///   `JOB_CANCELLED` atômico. Estado terminal devolve 409
+///   `job_not_editable`; job de outro tenant devolve 404 (mesma regra do
+///   `get_job` — vazio de informação).
+/// - Publica `job.cancelled` no hub SSE (contrato docs/03 §5) para a UI
+///   parar de acompanhar.
+/// - O worker coopera: ao terminar a execução, reconfere o estado e
+///   **não** sobrescreve um cancelamento com `completed`/`failed`
+///   (`worker.rs::process_next_job`).
 pub async fn cancel_job(
     State(state): State<AppState>,
     TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Placeholder: cancelamento real (mudar status e liberar a fila) precisa
-    // do estado de fila de verdade (Sprint 1+). Mesmo como placeholder, a
-    // rota já é escopada por tenant — nunca cancela (nem finge cancelar) um
-    // job que não pertence a quem chamou.
-    let job = state
-        .repo
-        .get_job(job_id, tenant_id)
-        .await
-        .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
+    let job = state.repo.cancel_job(job_id, tenant_id).await.map_err(|e| match e {
+        audio_core::ports::repo_trait::RepoError::NotFound(_) => {
+            (StatusCode::NOT_FOUND, "not_found".to_string())
+        },
+        audio_core::ports::repo_trait::RepoError::InvalidState(_) => (
+            StatusCode::CONFLICT,
+            "job_not_editable: só jobs em queued/processing podem ser cancelados".to_string(),
+        ),
+        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+    })?;
+
+    tracing::info!(%job_id, "job cancelado pelo usuário");
+
+    state
+        .hub
+        .publish(
+            job_id,
+            "job.cancelled",
+            serde_json::json!({ "job_id": job_id.to_string() }),
+        )
+        .await;
 
     Ok(Json(
         serde_json::json!({ "job_id": job.id, "status": "cancelled" }),
     ))
 }
 
+/// `POST /api/v1/jobs/{job_id}/retry` — requeue simples (contrato docs/03
+/// §3.3; o endpoint era um dos 9 documentados mas ausentes do router —
+/// CHANGELOG C12).
+///
+/// Contrato: só válido em `failed`; cria um **novo** `job_id` reusando a
+/// mesma receita (`config`) e o mesmo `track_id`/modo/prompt. Blocks não
+/// são reaproveitados — a seleção é refeita pelo pipeline. O job original
+/// permanece em `failed` como histórico.
 /// `GET /api/v1/jobs/{job_id}/artifact` — download do WAV masterizado.
 ///
 /// Item B4 do mapa de ação: o worker publica `download_url` para esta rota
