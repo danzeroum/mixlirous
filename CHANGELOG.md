@@ -4,6 +4,112 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Plano de design centrado no usuário (etapa única vertical)
+
+### Adicionado
+
+- **Política de privacidade auditável** (`GET /api/v1/system/privacy-policy`,
+  `crates/audio_api/src/routes/system.rs`) — provider/model ativos,
+  `audio_sent_to_provider` (false, com contraprova estrutural: o contexto do
+  LLM é só metadados numéricos via `worker.rs::agent_context_for_track`),
+  `prompt_sent_to_provider`, `analysis_metadata_sent_to_provider`,
+  `retention_policy`, `training_opt_out` e `region` descrevendo o que a
+  instalação faz de fato. Testes unit + HTTP de integração.
+- **Revogação real de consentimento** (`DELETE /api/v1/tenants/me/consent`,
+  `crates/audio_api/src/routes/tenants.rs` + `AudioRepo::revoke_consent`
+  nos adapters InMemory/SQLite) — idempotente, escopada por tenant,
+  com registro de data/ator/tenant/provider em log estruturado;
+  trocar para modo manual NÃO revoga (a UI explica). Testes handler +
+  HTTP ponta a ponta.
+- **Transparência estéreo→mono (Fase A do épico estéreo)** —
+  `worker.rs::aviso_downmix_mono` publica `job.warning` `mono_downmix`
+  com metadados de canais (`source_channels`/`analysis_channels`/
+  `processing_channels`/`output_channels`/`channel_policy=
+  downmix_arithmetic_mean`) para arquivos com >1 canal;
+  `GET /tracks/{id}/peaks` expõe `channels`/`sample_rate` do decode real;
+  UI exibe o aviso no wizard (análise), no preview (Player) e na
+  timeline (JobTimeline mostra `job.warning` em texto); helper
+  `avisoCanais` em `ui/src/lib/wavPeaks.ts` com testes Vitest.
+- **E2E honestos de Atividade** (`ui/e2e/full-flow.spec.ts`) — estado
+  vazio explicável em contexto novo (não mais "pode estar vazio" num
+  teste de histórico) + fluxo com job real (espera determinística via
+  GET /jobs, localização por ID, status em TEXTO e ação contextual real:
+  Abrir preview / Tentar de novo / Cancelar) + consentimento com
+  revogação real via UI.
+- **Navegação `Visão geral | Biblioteca | Novo remix | Atividade |
+  Espaço de trabalho`** (`ui/src/App.tsx` + `ui/src/views/`) — o fluxo guiado por
+  intenção é o caminho principal (view default); o canvas vira modo
+  avançado (Espaço de trabalho), compatível com a experiência anterior.
+  "Projetos" virou **Visão geral** com rótulo "Projeto atual do seu
+  espaço" — o backend não tem domínio Project persistido e a UI não
+  deve vender gestão de projetos inexistente (backlog no adendo §1.11).
+  Biblioteca lista faixas com "usar no remix"; Atividade lista jobs com
+  estado em TEXTO + ações reais (cancelar — C6; tentar de novo — C12,
+  cria novo job_id).
+- **Wizard "Novo remix"** (`ui/src/views/NovoRemixView.tsx`) — 6 passos
+  numerados: upload → análise (waveform real dos picos do backend,
+  Lote 2/C9) → objetivo (presets em linguagem musical + consentimento de
+  IA) → receita (canvas projetando o `PipelineConfig`, Lote 3) → render
+  (timeline com aria-live, cancelável) → preview/exportação.
+- **HITL explicável** (`ui/src/components/ProposalOverlay.tsx`) — mostra
+  alteração, razão, trecho, confiança, risco e impacto QUANDO o backend
+  os envia (nunca simula; divergência no adendo §1 item 9). Ações:
+  aprovar, ajustar, recusar, pedir alternativa (replan) e fazer
+  manualmente (recusa + troca para modo manual). Foco inicial no botão
+  primário, Escape recusa, `role=dialog`/`aria-modal`, expiração neutra.
+- **Preview A/B com waveform e manifesto** (`ui/src/components/Player.tsx`,
+  `ui/src/lib/wavPeaks.ts`, `ui/src/components/Waveform.tsx`) — waveforms
+  remix e original lado a lado com agulha sincronizada; parser WAV no
+  browser (chunks reais, PCM 8/16/24/32 int + float32, mesma semântica de
+  `compute_peaks`); métricas técnicas (duração, sample rate, canais, pico
+  dBFS) e manifesto de exportação com SHA-256 verificado.
+- **Transparência IA/LGPD** (`ui/src/components/PrivacyPanel.tsx`) —
+  provedor/modelo do assistente (GET /system/info), o que vai para a IA
+  com base na política auditável (ver Modificado) e consentimento
+  separado para o modo assistido (GET/POST/DELETE
+  /tenants/me/consent) exigido pelo wizard.
+- **Acessibilidade base** (`ui/src/index.css` + componentes) — foco
+  visível (violeta AA sobre o tema escuro), `prefers-reduced-motion`,
+  `aria-current` na navegação, `aria-live` no status do job e na timeline,
+  radiogroup no modo, estados vazios explicáveis.
+
+### Corrigido
+
+- **Corrida de `CONFIG_ENV` nos testes de local-session (CI Linux do PR
+  #59)** — dois testes do mesmo binário mutavam a env global do processo
+  (`std::env::set_var`) em paralelo enquanto `get_local_session` lia a
+  env por request; 404 não-determinístico. Correção de raiz: o modo é
+  capturado no boot em `AppConfig.config_env` e lido do estado da app
+  (`routes/auth.rs`); `main.rs` usa a mesma fonte única; testes passam o
+  modo via config, sem `set_var`. Comportamento fail-closed segue
+  testado (404 fora de "local").
+- **Comunicação de privacidade não enganosa** — a frase "o áudio NÃO é
+  enviado" deixou de ser hardcoded no `PrivacyPanel`: a afirmação só
+  aparece com base em `audio_sent_to_provider=false` da política
+  auditável servida pelo backend (testada); sem política, o texto é
+  condicional ("confira os dados enviados ao provedor configurado nesta
+  instalação").
+- **Bootstrap do App** — sessão local é garantida ANTES dos GETs
+  autenticados; `systemInfo`/consent/política podiam 401 por dispararem
+  antes do token e ficarem null para sempre (botão "Concordo" travado).
+- **Rate limiter configurável** (`features.rate_limit_per_minute`,
+  default 60) — o browser excede 60 req/min numa sessão e o presign do
+  E2E recebia 429; `config/local.yaml` usa 6000 com o limiter ATIVO.
+  Nunca desligar em produção (docs/08 §8).
+- E2E "Abrir preview" usa locator por heading (strict mode: o texto do
+  job aparece em 2 elementos quando o player já está montado).
+
+### Modificado
+
+- `ui/src/components/UploadPanel.tsx` — modos `soUpload`/`soObjetivo`
+  (um só conjunto de `data-testid` por tela), `trackIdExterno` para o
+  wizard, radiogroup de modo, aria-live no status, dica de recuperação
+  no erro de upload.
+- `ui/src/hooks/useApi.ts` + `ui/src/types/api.ts` — getTrackPeaks,
+  cancelJob, retryJob, replanProposal, getConsent/postConsent/
+  revokeConsent, getPrivacyPolicy, listTracks; types `PeaksResponse`
+  (channels/sample_rate), `ConsentInfo` e `PrivacyPolicy`.
+
 ## [Unreleased] — Lote 3 do plano Pareto (canvas executável + qualidade sonora)
 
 ### Adicionado

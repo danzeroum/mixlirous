@@ -1,4 +1,4 @@
-use crate::middleware::TenantScope;
+use crate::middleware::{AuthContext, TenantScope};
 use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
@@ -101,6 +101,55 @@ pub async fn post_consent(
     Ok(Json(ConsentResponse::from(record)))
 }
 
+/// `DELETE /api/v1/tenants/me/consent` — revogação REAL do consentimento
+/// do modo assistido (plano de design §IA/dados/LGPD).
+///
+/// Trocar para modo manual na UI não revoga nada persistido — isto aqui
+/// remove o registro ativo do tenant (`AudioRepo::revoke_consent`).
+///
+/// Semântica honesta, comunicada na UI:
+/// - a revogação vale para o USO FUTURO do modo assistido (o wizard volta
+///   a exigir consentimento);
+/// - NÃO apaga jobs, artefatos nem registros de auditoria já existentes;
+/// - registro da revogação: data/hora, tenant e ator (sub do JWT) em log
+///   estruturado, e o `provider` vigente quando aplicável (quando havia
+///   consentimento ativo).
+///
+/// Idempotente: revogar sem consentimento ativo responde 200 com o estado
+/// atualizado (nulls) — DELETE não é 404 quando nada havia (mesma regra
+/// de não-vazamento de docs/08 §3).
+pub async fn delete_consent(
+    State(state): State<AppState>,
+    AuthContext(claims): AuthContext,
+    TenantScope(tenant_id): TenantScope,
+) -> Result<Json<ConsentResponse>, (StatusCode, String)> {
+    // Provider vigente quando aplicável — entra no registro da revogação.
+    let provider_anterior = state
+        .repo
+        .get_consent(tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .map(|c| c.provider_at_accept);
+
+    state
+        .repo
+        .revoke_consent(tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tracing::info!(
+        %tenant_id,
+        actor = %claims.sub,
+        provider_anterior = provider_anterior.as_deref(),
+        "consentimento de modo assistido REVOGADO — registro com data/ator/tenant/provider"
+    );
+
+    Ok(Json(ConsentResponse {
+        assisted_mode_accepted_at: None,
+        provider_at_accept: None,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +200,7 @@ mod tests {
                 grafana_url: String::new(),
             },
             features: Default::default(),
+            config_env: "local".to_string(),
         };
         let validator = Arc::new(ValidationLayer::new());
         let mock = Arc::new(MockLlm::new());
@@ -257,5 +307,105 @@ mod tests {
             .await
             .unwrap();
         assert!(body_b.provider_at_accept.is_none());
+    }
+
+    // ─── Revogação real (plano de design §LGPD) ────────────────────────
+
+    #[tokio::test]
+    async fn test_revoke_consent_limpa_e_get_volta_nulo() {
+        let state = state_with_provider("deepseek");
+        let tenant_id = Uuid::new_v4();
+        let Json(_) = post_consent(
+            State(state.clone()),
+            TenantScope(tenant_id),
+            Json(ConsentRequest {
+                accepted: true,
+                provider: "deepseek".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let Json(revogado) = delete_consent(
+            State(state.clone()),
+            AuthContext(crate::middleware::auth::TenantClaims {
+                sub: Uuid::new_v4(),
+                tenant_id,
+                roles: vec!["owner".to_string()],
+                plan: "free".to_string(),
+                iat: 0,
+                exp: i64::MAX as usize,
+            }),
+            TenantScope(tenant_id),
+        )
+        .await
+        .unwrap();
+        assert!(revogado.assisted_mode_accepted_at.is_none());
+        assert!(revogado.provider_at_accept.is_none());
+
+        // GET volta nulls — o estado persistido foi removido.
+        let Json(read_back) = get_consent(State(state), TenantScope(tenant_id))
+            .await
+            .unwrap();
+        assert!(read_back.assisted_mode_accepted_at.is_none());
+        assert!(read_back.provider_at_accept.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_revoke_consent_e_idempotente() {
+        let state = state_with_provider("deepseek");
+        let tenant_id = Uuid::new_v4();
+        let claims = AuthContext(crate::middleware::auth::TenantClaims {
+            sub: Uuid::new_v4(),
+            tenant_id,
+            roles: vec!["owner".to_string()],
+            plan: "free".to_string(),
+            iat: 0,
+            exp: i64::MAX as usize,
+        });
+        // Revogar sem nunca ter aceito é 200 (não 404 — DELETE não vaza
+        // existência de registro, docs/08 §3).
+        let Json(_) = delete_consent(State(state.clone()), claims.clone(), TenantScope(tenant_id))
+            .await
+            .unwrap();
+        // E revogar duas vezes também.
+        let Json(_) = delete_consent(State(state), claims, TenantScope(tenant_id))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_revoke_consent_scoped_por_tenant() {
+        let state = state_with_provider("deepseek");
+        let tenant_a = Uuid::new_v4();
+        let tenant_b = Uuid::new_v4();
+        let Json(_) = post_consent(
+            State(state.clone()),
+            TenantScope(tenant_a),
+            Json(ConsentRequest {
+                accepted: true,
+                provider: "deepseek".to_string(),
+            }),
+        )
+        .await
+        .unwrap();
+
+        let claims_b = AuthContext(crate::middleware::auth::TenantClaims {
+            sub: Uuid::new_v4(),
+            tenant_id: tenant_b,
+            roles: vec!["owner".to_string()],
+            plan: "free".to_string(),
+            iat: 0,
+            exp: i64::MAX as usize,
+        });
+        let Json(_) = delete_consent(State(state.clone()), claims_b, TenantScope(tenant_b))
+            .await
+            .unwrap();
+
+        // Revogação do tenant B não afeta o consentimento do tenant A.
+        let Json(a) = get_consent(State(state), TenantScope(tenant_a))
+            .await
+            .unwrap();
+        assert_eq!(a.provider_at_accept.as_deref(), Some("deepseek"));
     }
 }

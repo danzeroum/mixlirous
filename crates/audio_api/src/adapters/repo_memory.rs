@@ -180,6 +180,14 @@ impl AudioRepo for InMemoryRepo {
         Ok(record)
     }
 
+    /// Revogação real (plano de design §LGPD): remove o registro ativo.
+    /// Idempotente — revogar sem consentimento é Ok.
+    async fn revoke_consent(&self, tenant_id: Uuid) -> Result<(), RepoError> {
+        let mut state = self.state.write().await;
+        state.consent.remove(&tenant_id);
+        Ok(())
+    }
+
     async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError> {
         let mut state = self.state.write().await;
         let now = Utc::now();

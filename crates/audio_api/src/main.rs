@@ -25,7 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app_config = AppConfig::load()?;
 
-    let config_env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
+    // Fonte única do modo: AppConfig.config_env (capturado de CONFIG_ENV no
+    // load) — o mesmo valor que as rotas fail-closed leem por request.
+    let config_env = app_config.config_env.clone();
     middleware::auth::assert_secret_configured_for_production(
         &config_env,
         std::env::var("JWT_SECRET").is_ok(),
@@ -97,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Rate limiter middleware (optional via config)
     if app_config.features.rate_limit {
-        let limiter = Arc::new(RateLimiter::new(60));
+        let limiter = Arc::new(RateLimiter::new(app_config.features.rate_limit_per_minute));
         let mw = middleware::rate_limit::rate_limit_middleware(limiter);
         app = app.layer(axum::middleware::from_fn(mw));
     }

@@ -85,6 +85,62 @@ fn apply_recipe_to_config(recipe: &ReActOutput, config: &mut PipelineConfig) {
 
 use uuid::Uuid;
 
+/// Contexto JSON entregue ao agente LLM (modo assistido).
+///
+/// Garantia de privacidade auditável (plano de design §IA/dados): o que
+/// sai da máquina para o provedor é o PROMPT + estes metadados NUMÉRICOS
+/// da faixa — nunca amostras de áudio. A função é pura e testada para
+/// que a política servida em `GET /system/privacy-policy`
+/// (`analysis_metadata_sent_to_provider: true`,
+/// `audio_sent_to_provider: false`) tenha contraprova no código.
+pub fn agent_context_for_track(
+    duration_sec: f32,
+    sample_rate: u32,
+    channels: u16,
+    frames: usize,
+) -> serde_json::Value {
+    json!({
+        "track_info": {
+            "duration_sec": duration_sec,
+            "sample_rate": sample_rate,
+            "channels": channels,
+            "frames": frames,
+        }
+    })
+}
+
+/// Transparência de canais (plano de design — Fase A do épico estéreo).
+///
+/// O pipeline principal é MONO: `worker.execute_job` faz
+/// `downmix_to_mono` (média aritmética dos canais) antes do DSP e o
+/// render sai em 1 canal. Para um arquivo estéreo isso é uma perda real
+/// (imagem L/R não preservada) e o usuário precisa saber ANTES de
+/// exportar. A função devolve a mensagem honesta + os metadados de
+/// canais quando o arquivo tem mais de um canal; `None` para mono
+/// (nada a avisar).
+pub fn aviso_downmix_mono(source_channels: u16) -> Option<(String, serde_json::Value)> {
+    if source_channels <= 1 {
+        return None;
+    }
+    let nome = match source_channels {
+        2 => "estéreo".to_string(),
+        n => format!("{} canais", n),
+    };
+    let message = format!(
+        "Arquivo original: {}. O processamento atual é mono; a separação entre \
+         esquerda e direita pode não ser preservada no render.",
+        nome
+    );
+    let measured = json!({
+        "source_channels": source_channels,
+        "analysis_channels": 1,
+        "processing_channels": 1,
+        "output_channels": 1,
+        "channel_policy": "downmix_arithmetic_mean",
+    });
+    Some((message, measured))
+}
+
 /// Liga os callbacks do loop ReAct ao `EventHub` (task 3.9 — streaming de
 /// raciocínio via SSE). `tool_requires_proposal` retorna `false` porque o
 /// ciclo HITL é acionado pelo usuário via `POST /proposals/{id}/approve` —
@@ -329,6 +385,34 @@ impl Worker {
             .map_err(|e| format!("decode join: {e}"))?
             .map_err(|e| format!("decode: {e}"))?;
 
+        // Fase A do épico estéreo: transparência de canais. Entrada com
+        // mais de um canal vira aviso EXPLICÍVEL com os metadados de
+        // canais — publicado ANTES do DSP para aparecer na timeline.
+        if let Some((message, measured)) = aviso_downmix_mono(decoded.channels) {
+            tracing::info!(
+                job_id = %job.id,
+                source_channels = decoded.channels,
+                channel_policy = "downmix_arithmetic_mean",
+                "arquivo multicanal será processado em mono"
+            );
+            self.state
+                .hub
+                .publish(
+                    job.id,
+                    "job.warning",
+                    json!({
+                        "job_id": job.id.to_string(),
+                        "code": "mono_downmix",
+                        "severity": "warning",
+                        "at_sec": null,
+                        "message_ptbr": message,
+                        "hint_ptbr": "A saída exportada terá 1 canal. Suporte estéreo de ponta a ponta está no roadmap (épico de estéreo).",
+                        "measured": measured,
+                    }),
+                )
+                .await;
+        }
+
         // 3. Se modo assistido, executa o orquestrador ReAct para obter a receita.
         // Item B1: a receita não é mais descartada — `apply_recipe_to_config`
         // traduz cada `AudioToolDef` em overrides sobre o `PipelineConfig`
@@ -345,14 +429,12 @@ impl Worker {
                     )
                     .await;
 
-                let context = json!({
-                    "track_info": {
-                        "duration_sec": decoded.duration_sec(),
-                        "sample_rate": decoded.sample_rate,
-                        "channels": decoded.channels,
-                        "frames": decoded.frames(),
-                    }
-                });
+                let context = agent_context_for_track(
+                    decoded.duration_sec(),
+                    decoded.sample_rate,
+                    decoded.channels,
+                    decoded.frames(),
+                );
 
                 let callbacks = HubCallbacks {
                     job_id: job.id,
@@ -523,6 +605,53 @@ impl Worker {
 
 pub async fn start_worker(state: AppState) {
     Worker::new(state).run().await;
+}
+
+#[cfg(test)]
+mod transparency_tests {
+    use super::*;
+
+    /// Contexto do agente contém SÓ metadados numéricos — contraprova da
+    /// política de privacidade (audio_sent_to_provider = false).
+    #[test]
+    fn contexto_do_agente_e_apenas_metadados_numericos() {
+        let ctx = agent_context_for_track(12.5, 44100, 2, 551_250);
+        let info = ctx["track_info"].as_object().expect("track_info object");
+        let chaves: Vec<&String> = info.keys().collect();
+        assert_eq!(chaves.len(), 4, "só os 4 metadados, nada mais");
+        for k in chaves {
+            assert!(info[k].is_number(), "campo {k} deve ser numérico");
+        }
+        assert_eq!(info["channels"], 2);
+        assert_eq!(info["sample_rate"], 44100);
+    }
+
+    #[test]
+    fn aviso_downmix_mono_nao_dispara_para_mono() {
+        assert!(aviso_downmix_mono(1).is_none());
+    }
+
+    /// WAV estéreo vira aviso explicável + metadados de canais completos.
+    #[test]
+    fn aviso_downmix_mono_para_estereo_tem_metadados_completos() {
+        let (message, measured) = aviso_downmix_mono(2).expect("aviso p/ estéreo");
+        assert!(message.contains("estéreo"));
+        assert!(message.contains("mono"));
+        assert!(message.contains("esquerda e direita"));
+        assert_eq!(measured["source_channels"], 2);
+        assert_eq!(measured["analysis_channels"], 1);
+        assert_eq!(measured["processing_channels"], 1);
+        assert_eq!(measured["output_channels"], 1);
+        assert_eq!(measured["channel_policy"], "downmix_arithmetic_mean");
+    }
+
+    /// Além de estéreo (5.1, 8 canais) também avisa — sem nomear errado.
+    #[test]
+    fn aviso_downmix_mono_para_multicanal() {
+        let (message, measured) = aviso_downmix_mono(6).expect("aviso p/ 6 canais");
+        assert!(message.contains("6 canais"));
+        assert_eq!(measured["source_channels"], 6);
+    }
 }
 
 #[cfg(test)]

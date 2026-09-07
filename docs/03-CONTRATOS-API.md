@@ -77,6 +77,7 @@ novo. A UI mostra isso com um ícone de cadeado.
 | `GET` | `/readyz` | Readiness: banco e storage acessíveis. Sem auth. |
 | `GET` | `/metrics` | Prometheus text format. Sem auth (bind interno). |
 | `GET` | `/api/v1/system/info` | Versão, backend de banco, provedor LLM, nº de cores. |
+| `GET` | `/api/v1/system/privacy-policy` | Política de privacidade auditável do provedor ativo (PR #59). |
 | `GET` | `/api/v1/system/resources` | Estado dos workers e da fila. |
 | `POST` | `/api/v1/system/scale` | Ajusta número de workers. |
 
@@ -98,6 +99,33 @@ metadados da faixa saem da máquina, nunca o áudio
 (`08-SEGURANCA-MULTITENANCY.md` §8). `false` só para provedor local
 (Ollama). É a fonte que a tela de consentimento (§3.8) lê para nomear o
 provedor antes da primeira execução em modo assistido.
+
+**`GET /api/v1/system/privacy-policy`** — política de dados do provedor
+ativo, no formato auditável do plano de design (§"IA, dados e LGPD"). É
+a ÚNICA fonte autorizada para a UI afirmar o que sai da máquina: a
+afirmação "o áudio não é enviado" só pode ser renderizada quando
+`audio_sent_to_provider` for `false` E vier daqui — nunca texto hardcoded
+no frontend (PR #59, correção 4.2). Os campos declarativos descrevem o
+que ESTA instalação faz de fato.
+
+```json
+{
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "audio_sent_to_provider": false,
+  "prompt_sent_to_provider": true,
+  "analysis_metadata_sent_to_provider": true,
+  "retention_policy": "O áudio enviado e os artefatos gerados ficam no storage desta instalação (disco local, MinIO ou S3) até o tenant excluí-los; não há expiração automática configurável nesta versão.",
+  "training_opt_out": "Nesta instalação não existe pipeline de treinamento: áudio e prompts não são usados para treinar modelos. Com provedor externo, verifique também a política de retenção/treino do próprio provedor.",
+  "region": "não configurado nesta instalação"
+}
+```
+
+Cobertura de teste: a política é função pura (`system.rs::privacy_policy_for`)
+com teste unitário por provedor e teste de integração HTTP
+(`routes_lote2.rs::privacy_policy_expoe_campos_auditaveis`); o contexto
+entregue ao LLM é só metadados numéricos (`worker.rs::agent_context_for_track`,
+teste próprio) — contraprova estrutural do `audio_sent_to_provider: false`.
 
 **`GET /api/v1/system/resources`**
 
@@ -211,8 +239,18 @@ saber a diferença.
 Array de picos min/max normalizados, para desenhar a waveform sem baixar o WAV.
 
 ```json
-{ "resolution": 1024, "peaks": [[-0.42, 0.51], [-0.38, 0.47], ...] }
+{ "resolution": 1024, "peaks": [[-0.42, 0.51], [-0.38, 0.47], ...], "channels": 2, "sample_rate": 44100 }
 ```
+
+`channels`/`sample_rate` (PR #59, Fase A do épico estéreo) descrevem o
+ARQUIVO ORIGINAL, calculados no decode real — não no cabeçalho declarado.
+A UI usa `channels > 1` para exibir o aviso de transparência
+("Arquivo original: estéreo. O processamento atual é mono; a separação
+entre esquerda e direita pode não ser preservada no render.") antes do
+render, junto dos metadados `source_channels`/`processing_channels`/
+`output_channels`/`channel_policy=downmix_arithmetic_mean` que o worker
+publica em `job.warning` (código `mono_downmix`). Os dois campos são
+opcionais no cliente para tolerar respostas antigas.
 
 **`GET /api/v1/tracks`** — lista paginada.
 **`DELETE /api/v1/tracks/:track_id`** — remove faixa e artefatos derivados.
@@ -627,6 +665,29 @@ não cobre o provedor novo.
 Erros: `422 consent_not_accepted` (`accepted: false`), `409 provider_mismatch`
 (o `provider` do corpo não bate com o provedor ativo agora — refazer
 `GET /system/info` e reenviar).
+
+**`DELETE /api/v1/tenants/me/consent`** — revogação REAL do consentimento
+(plano de design §LGPD; PR #59 correção 4.3). Trocar para modo manual na UI
+NÃO revoga nada persistido — esta rota remove o registro ativo do tenant.
+
+- Semântica: vale para o USO FUTURO do modo assistido (o wizard volta a
+  exigir aceite). NÃO apaga jobs, artefatos nem registros de auditoria já
+  existentes.
+- Registro: data/hora, tenant, ator (`sub` do JWT) e provedor vigente
+  quando aplicável, em log estruturado (`tracing`). Persistir a revogação
+  em `audit_events` é backlog (adendo Pareto).
+- Idempotente: revogar sem consentimento ativo responde `200` com o
+  estado atualizado (`nulls`) — DELETE não vaza existência de registro
+  (mesma regra de não-informação de `08-SEGURANCA §3`).
+
+```json
+// 200 — mesmo schema do GET, agora com nulls
+{ "assisted_mode_accepted_at": null, "provider_at_accept": null }
+```
+
+Cobertura de teste: handler (`tenants.rs` — limpa e volta nulo,
+idempotente, escopado por tenant) e HTTP ponta a ponta
+(`routes_lote2.rs::delete_consent_revoga_e_get_volta_nulo`).
 
 ---
 

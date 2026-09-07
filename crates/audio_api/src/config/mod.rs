@@ -1,7 +1,7 @@
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub database: DatabaseConfig,
     pub storage: StorageConfig,
@@ -10,6 +10,34 @@ pub struct AppConfig {
     pub observability: ObservabilityConfig,
     #[serde(default)]
     pub features: FeaturesConfig,
+    /// Modo de operação capturado de `CONFIG_ENV` no boot (`load()`).
+    ///
+    /// fix CI (PR #59): rotas fail-closed como `GET /auth/local-session` LEM
+    /// `config_env` do estado da aplicação em vez de `std::env::var` em
+    /// tempo de request — ler a env global por request tornava o
+    /// comportamento da rota mutável por qualquer thread do processo e
+    /// tornava testes de integração que rodam em paralelo não-determinísticos
+    /// (dois testes no mesmo binário setando valores diferentes).
+    #[serde(default = "default_config_env")]
+    pub config_env: String,
+}
+
+fn default_config_env() -> String {
+    "local".to_string()
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            database: Default::default(),
+            storage: Default::default(),
+            audio: Default::default(),
+            llm: Default::default(),
+            observability: Default::default(),
+            features: Default::default(),
+            config_env: default_config_env(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -87,6 +115,16 @@ pub struct FeaturesConfig {
     pub golden_master_enabled: bool,
     #[serde(default = "default_true")]
     pub rate_limit: bool,
+    /// Orçamento do rate limiter (req/min por chave, default 60).
+    /// O browser excede 60 req/min numa única sessão (bootstrap + SSE +
+    /// polling de Atividade/Biblioteca), então o E2E usa o perfil local
+    /// com um valor adequado a single-user — o limiter continua ATIVO.
+    #[serde(default = "default_rate_limit_per_minute")]
+    pub rate_limit_per_minute: u32,
+}
+
+fn default_rate_limit_per_minute() -> u32 {
+    60
 }
 
 fn default_true() -> bool {
@@ -100,12 +138,16 @@ impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
 
-        let cfg = Config::builder()
+        let mut cfg: Self = Config::builder()
             .add_source(File::with_name("config/default"))
             .add_source(File::with_name(&format!("config/{env}")).required(false))
             .add_source(Environment::with_prefix("REMIX").separator("__"))
-            .build()?;
+            .build()?
+            .try_deserialize()?;
 
-        Ok(cfg.try_deserialize()?)
+        // Fonte única: handlers fail-closed (ex.: GET /auth/local-session)
+        // leem `state.config.config_env` — nunca a env global por request.
+        cfg.config_env = env;
+        Ok(cfg)
     }
 }

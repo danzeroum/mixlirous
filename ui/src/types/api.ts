@@ -271,6 +271,50 @@ export interface ToolParam {
   unit?: string
 }
 
+// ─── Peaks / Waveform (Lote 2 + plano de design P1) ─────────────────────
+
+/**
+ * Resposta de `GET /tracks/{id}/peaks?resolution=N` (docs/03 §3.2).
+ * `channels`/`sample_rate` descrevem o ARQUIVO ORIGINAL (decode real no
+ * backend) — fonte do aviso de transparência mono/estéreo (Fase A do
+ * épico estéreo). Campos podem estar ausentes em respostas antigas.
+ */
+export interface PeaksResponse {
+  resolution: number
+  /** Por bucket: `[min, max]` normalizado em amostras float (-1..1). */
+  peaks: Array<[number, number]>
+  /** Canais do arquivo original (>1 vira aviso de downmix mono). */
+  channels?: number
+  /** Sample rate do arquivo original. */
+  sample_rate?: number
+}
+
+// ─── Consentimento (LGPD — plano de design §IA/dados) ───────────────────
+
+/** Resposta de `GET|POST|DELETE /tenants/me/consent`. */
+export interface ConsentInfo {
+  assisted_mode_accepted_at: string | null
+  provider_at_accept: string | null
+}
+
+/**
+ * Política de privacidade auditável — `GET /system/privacy-policy`
+ * (docs/03 §3.1). É a ÚNICA fonte autorizada para a UI afirmar o que
+ * sai da máquina: se `audio_sent_to_provider === false`, o painel pode
+ * dizer "o áudio não é enviado"; sem a política carregada, a linguagem
+ * é condicional (nada de afirmação absoluta hardcoded).
+ */
+export interface PrivacyPolicy {
+  provider: string
+  model: string
+  audio_sent_to_provider: boolean
+  prompt_sent_to_provider: boolean
+  analysis_metadata_sent_to_provider: boolean
+  retention_policy: string
+  training_opt_out: string
+  region: string
+}
+
 // ─── SSE Events ─────────────────────────────────────────────────────────
 
 export type SSEEventType =

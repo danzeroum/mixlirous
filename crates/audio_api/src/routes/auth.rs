@@ -99,9 +99,14 @@ pub async fn post_sse_session(
 /// sessão do single-user local no corpo E no cookie (mesmo token), para
 /// que a UI consiga: (a) mandar Bearer nos comandos REST e (b) abrir o
 /// `EventSource` com o cookie de sessão sem segunda chamada.
-pub async fn get_local_session(_state: State<AppState>) -> Result<Response, (StatusCode, String)> {
-    let config_env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
-    if config_env != "local" {
+pub async fn get_local_session(
+    State(state): State<AppState>,
+) -> Result<Response, (StatusCode, String)> {
+    // fix CI (PR #59): o modo é lido do AppConfig capturado no boot — não
+    // mais de `std::env::var` por request, que era mutável por qualquer
+    // thread do processo e fazia os testes de integração de local-session
+    // correrem (set_var paralelo de "local" x "production" no mesmo binário).
+    if state.config.config_env != "local" {
         // 404 de propósito: fora do modo local a rota não existe. Nunca
         // é um endpoint de login anônimo em produção (docs/08 §1).
         return Err((StatusCode::NOT_FOUND, "not_found".to_string()));

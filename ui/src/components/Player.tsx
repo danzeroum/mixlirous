@@ -1,52 +1,143 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import Waveform from './Waveform'
+import { authHeaders } from '../lib/authHeaders'
+import { parseWav, sha256Hex, formatarDuracao, avisoCanais } from '../lib/wavPeaks'
+import type { WavMetrics } from '../lib/wavPeaks'
 
 interface Props {
   /** Job ID — usado para buscar o artifact remixado. */
   jobId: string
-  /** Track ID do job — alimenta o lado "original" do A/B (Lote 2, item 2). */
+  /** Track original — alimenta a waveform do lado "original" (Lote 2). */
   trackId?: string | null
   /** URL de download publicada no evento `job.completed` (item B4). */
   downloadUrl: string
+  /** Notifica o pai com as métricas do remix (plano de design §preview). */
+  onMetrics?: (m: WavMetrics | null) => void
+}
+
+/** Manifesto de exportação (plano de design §preview: "manifesto/checksum"). */
+interface Manifesto {
+  arquivo: string
+  bytes: number
+  sha256: string
+  job_id: string
+  exportadoEm: string
+  duracao: string
+  sampleRate: number
+  canais: number
+  picoDbfs: string
 }
 
 /**
- * Player comparativo A/B (Design Brief §Tela 7). Reproduz original e remix
- * lado a lado — troca instantânea mantendo a posição (é como profissionais
- * avaliam áudio).
+ * Player comparativo A/B (Design Brief §Tela 7 + plano de design §preview).
  *
- * Item C2 do mapa: antes era um placeholder; agora conecta ao artifact real
- * via `GET /api/v1/jobs/{id}/artifact` (item B4).
- *
- * Lote 2 (item 2, adendo Pareto §3.6): o lado "original" agora liga ao
- * `track_id` do job — `GET /api/v1/tracks/{track_id}/raw` — em vez de exigir
- * upload manual do mesmo arquivo no player. O upload manual continua como
- * fallback para quando o track_id não estiver disponível (job antigo).
+ * - Remix: bytes do artifact (mesmo caminho do download) → waveform, métricas
+ *   técnicas e SHA-256 do manifesto.
+ * - Original: `GET /tracks/{id}/peaks` (Lote 2) para a waveform; o áudio em
+ *   si vem de `GET /tracks/{id}/raw` (sem upload manual).
+ * - A/B sincronizado: troca mantendo a posição; waveform com agulha.
  */
-function Player({ jobId, trackId, downloadUrl }: Props) {
+function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
   const remixAudioRef = useRef<HTMLAudioElement | null>(null)
   const originalAudioRef = useRef<HTMLAudioElement | null>(null)
   const [activeSource, setActiveSource] = useState<'remix' | 'original'>('remix')
-  const [originalUrl, setOriginalUrl] = useState<string | null>(null)
-  // Lote 2: com track_id no job, o original vem do backend — o upload
-  // manual vira fallback (job sem track, ou usuário quer comparar com
-  // outro arquivo de referência).
-  const rawOriginalUrl = trackId ? `/api/v1/tracks/${trackId}/raw` : null
-  const effectiveOriginalUrl = originalUrl ?? rawOriginalUrl
-  // Item B4: a `downloadUrl` vem direto do evento `job.completed` do worker
-  // (`/api/v1/jobs/{id}/artifact`). Usar direto em vez de ir buscar.
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [progresso, setProgresso] = useState(0)
+  const [metricsRemix, setMetricsRemix] = useState<WavMetrics | null>(null)
+  const [peaksRemix, setPeaksRemix] = useState<Array<[number, number]> | null>(null)
+  const [peaksOriginal, setPeaksOriginal] = useState<Array<[number, number]> | null>(null)
+  // Fase A do épico estéreo: canais do ORIGINAL (decode real no backend) —
+  // alimenta o aviso "arquivo estéreo → render mono" do preview.
+  const [canaisOriginal, setCanaisOriginal] = useState<number | null>(null)
+  const [manifesto, setManifesto] = useState<Manifesto | null>(null)
+  const [erroRemix, setErroRemix] = useState<string | null>(null)
+
+  // 1. Baixa o remix uma vez: waveform + métricas + checksum do manifesto.
+  useEffect(() => {
+    let cancelado = false
+    ;(async () => {
+      try {
+        const resp = await fetch(downloadUrl, { headers: authHeaders() })
+        if (!resp.ok) throw new Error(`artifact HTTP ${resp.status}`)
+        const bytes = await resp.arrayBuffer()
+        const { metrics, peaks } = parseWav(bytes)
+        if (cancelado) return
+        setMetricsRemix(metrics)
+        setPeaksRemix(peaks)
+        onMetrics?.(metrics)
+        const sha = await sha256Hex(bytes)
+        if (cancelado) return
+        setManifesto({
+          arquivo: `remix-${jobId}.wav`,
+          bytes: bytes.byteLength,
+          sha256: sha,
+          job_id: jobId,
+          exportadoEm: new Date().toISOString(),
+          duracao: formatarDuracao(metrics.durationSec),
+          sampleRate: metrics.sampleRate,
+          canais: metrics.channels,
+          picoDbfs: metrics.peakDbfs.toFixed(1),
+        })
+      } catch (e) {
+        if (!cancelado) {
+          // Sem waveform/checksum o player continua funcional — degrada com aviso.
+          setErroRemix(e instanceof Error ? e.message : 'Falha ao analisar o remix.')
+          onMetrics?.(null)
+        }
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloadUrl, jobId])
+
+  // 2. Waveform do original (peaks do backend — Lote 2/C9).
+  useEffect(() => {
+    if (!trackId) return
+    let cancelado = false
+    ;(async () => {
+      try {
+        const resp = await fetch(`/api/v1/tracks/${trackId}/peaks?resolution=512`, {
+          headers: authHeaders(),
+        })
+        if (!resp.ok) return
+        const body = (await resp.json()) as { peaks: Array<[number, number]>; channels?: number }
+        if (!cancelado) {
+          setPeaksOriginal(body.peaks)
+          if (typeof body.channels === 'number') setCanaisOriginal(body.channels)
+        }
+      } catch {
+        // waveform original é opcional — não bloqueia o preview
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [trackId])
+
+  // 3. Áudio do original por track_id (Lote 2) — derivado, sem effect:
+  //    rota raw quando existe track; upload manual vira fallback (e tem
+  //    precedência). URLs blob são revogadas no efeito de cleanup abaixo.
+  const rawUrl = trackId ? `/api/v1/tracks/${trackId}/raw` : null
+  const [arquivoManual, setArquivoManual] = useState<string | null>(null)
+  const originalUrl = arquivoManual ?? rawUrl
+
+  // Progresso para a agulha da waveform ativa.
+  const handleTimeUpdate = useCallback(() => {
+    const el = activeSource === 'remix' ? remixAudioRef.current : originalAudioRef.current
+    if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return
+    setProgresso(el.currentTime / el.duration)
+  }, [activeSource])
 
   // Toggle A/B: alterna entre remix e original, mantendo a posição.
-  // Se o original não estiver disponível, explica o que falta.
   const handleToggle = useCallback(() => {
-    if (activeSource === 'remix' && !effectiveOriginalUrl) {
-      setLoadError('Original indisponível: job sem track_id e nenhum arquivo carregado.')
+    if (activeSource === 'remix' && !originalUrl) {
+      setLoadError('Carregue o arquivo original para comparar A/B.')
       return
     }
     const newSource = activeSource === 'remix' ? 'original' : 'remix'
     const currentTime = remixAudioRef.current?.currentTime ?? 0
-    // Pausa o atual, muda o ativo, posiciona o novo no mesmo instante,
-    // retoma se estava tocando.
     const wasPlaying = !remixAudioRef.current?.paused
     remixAudioRef.current?.pause()
     originalAudioRef.current?.pause()
@@ -58,22 +149,23 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
         if (wasPlaying) target.play().catch(() => {})
       }
     })
-  }, [activeSource, effectiveOriginalUrl])
+  }, [activeSource, originalUrl])
 
   const handleOriginalUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (originalUrl) URL.revokeObjectURL(originalUrl)
-    setOriginalUrl(URL.createObjectURL(file))
+    if (arquivoManual) URL.revokeObjectURL(arquivoManual)
+    setArquivoManual(URL.createObjectURL(file))
+    setPeaksOriginal(null)
     setLoadError(null)
-  }, [originalUrl])
+  }, [arquivoManual])
 
   // Cleanup das object URLs ao desmontar.
   useEffect(() => {
     return () => {
-      if (originalUrl) URL.revokeObjectURL(originalUrl)
+      if (arquivoManual) URL.revokeObjectURL(arquivoManual)
     }
-  }, [originalUrl])
+  }, [arquivoManual])
 
   const playRemix = useCallback(() => {
     setActiveSource('remix')
@@ -82,19 +174,24 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
   }, [])
 
   const playOriginal = useCallback(() => {
-    if (!effectiveOriginalUrl) {
-      setLoadError('Original indisponível: job sem track_id e nenhum arquivo carregado.')
+    if (!originalUrl) {
+      setLoadError('Carregue o arquivo original para comparar A/B.')
       return
     }
     setActiveSource('original')
     remixAudioRef.current?.pause()
     originalAudioRef.current?.play().catch(() => {})
-  }, [effectiveOriginalUrl])
+  }, [originalUrl])
+
+  const tamanhoMb = useMemo(
+    () => (manifesto ? (manifesto.bytes / (1024 * 1024)).toFixed(2) : null),
+    [manifesto]
+  )
 
   return (
     <div
       data-testid="player"
-      className="absolute bottom-4 left-4 right-4 bg-gray-800/95 backdrop-blur p-4 rounded-lg border border-gray-700 shadow-lg z-10"
+      className="bg-gray-800/95 backdrop-blur p-4 rounded-lg border border-gray-700 shadow-lg"
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-white">
@@ -105,11 +202,51 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
             href={downloadUrl}
             download={`remix-${jobId}.wav`}
             data-testid="download-link"
+            onClick={() => setManifesto((m) => (m ? { ...m, exportadoEm: new Date().toISOString() } : m))}
             className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
           >
-            ⬇ Baixar WAV
+            ⬇ Exportar WAV
           </a>
         )}
+      </div>
+
+      {/* Waveforms comparadas — mesma escala, agulha no lado ativo */}
+      <div className="grid grid-cols-2 gap-4 mb-3">
+        <div>
+          <p className="text-xs text-gray-400 mb-1">
+            Remix {metricsRemix && `· ${formatarDuracao(metricsRemix.durationSec)}`}
+          </p>
+          {peaksRemix ? (
+            <Waveform
+              peaks={peaksRemix}
+              height={56}
+              progress={activeSource === 'remix' ? progresso : undefined}
+              ariaLabel="Forma de onda do remix"
+              className="w-full bg-gray-900/60 rounded"
+            />
+          ) : (
+            <div className="h-14 rounded bg-gray-900/60" aria-hidden />
+          )}
+        </div>
+        <div>
+          <p className="text-xs text-gray-400 mb-1">Original</p>
+          {peaksOriginal ? (
+            <Waveform
+              peaks={peaksOriginal}
+              height={56}
+              progress={activeSource === 'original' ? progresso : undefined}
+              ariaLabel="Forma de onda do original"
+              className="w-full bg-gray-900/60 rounded"
+            />
+          ) : (
+            <div className="h-14 rounded bg-gray-900/60" aria-hidden />
+          )}
+          {avisoCanais(canaisOriginal) && (
+            <p role="status" data-testid="player-mono-notice" className="mt-1 text-[11px] text-orange-300">
+              {avisoCanais(canaisOriginal)}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -124,7 +261,7 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-300">Remix</span>
             {activeSource === 'remix' && (
-              <span className="text-xs text-purple-400">▶ tocando</span>
+              <span className="text-xs text-purple-300">▶ tocando</span>
             )}
           </div>
           <audio
@@ -133,6 +270,7 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
             controls
             className="w-full"
             onPlay={playRemix}
+            onTimeUpdate={handleTimeUpdate}
           />
         </div>
 
@@ -146,18 +284,19 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-300">
-              Original {effectiveOriginalUrl ? (trackId && !originalUrl ? '(via track)' : '') : '(carregue abaixo)'}
+              Original {originalUrl ? '' : '(carregue abaixo)'}
             </span>
             {activeSource === 'original' && (
-              <span className="text-xs text-blue-400">▶ tocando</span>
+              <span className="text-xs text-blue-300">▶ tocando</span>
             )}
           </div>
           <audio
             ref={originalAudioRef}
-            src={effectiveOriginalUrl ?? undefined}
+            src={originalUrl ?? undefined}
             controls
             className="w-full"
             onPlay={playOriginal}
+            onTimeUpdate={handleTimeUpdate}
           />
         </div>
       </div>
@@ -165,25 +304,63 @@ function Player({ jobId, trackId, downloadUrl }: Props) {
       <div className="flex items-center gap-3 mt-3">
         <button
           onClick={handleToggle}
-          disabled={!effectiveOriginalUrl && activeSource === 'remix'}
+          disabled={!originalUrl && activeSource === 'remix'}
           className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50"
           title="Alterna entre remix e original mantendo a posição (como profissionais comparam)."
         >
           ⇄ Alternar A/B
         </button>
-        <label className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm cursor-pointer">
-          ⬆ Carregar original {rawOriginalUrl ? '(substituir)' : ''}
-          <input
-            type="file"
-            accept="audio/*,.wav,.flac,.aiff,.mp3,.m4a,.aac"
-            onChange={handleOriginalUpload}
-            className="hidden"
-          />
-        </label>
+        {!trackId && (
+          <label className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm cursor-pointer">
+            ⬆ Carregar original
+            <input
+              type="file"
+              accept="audio/*,.wav,.flac,.aiff,.mp3,.m4a,.aac"
+              onChange={handleOriginalUpload}
+              className="hidden"
+            />
+          </label>
+        )}
         {loadError && (
-          <span className="text-xs text-red-400">{loadError}</span>
+          <span className="text-xs text-red-400" role="alert">{loadError}</span>
         )}
       </div>
+
+      {/* Manifesto de exportação — integridade verificável */}
+      {manifesto && (
+        <details className="mt-3 text-xs" data-testid="export-manifest">
+          <summary className="cursor-pointer text-gray-300 select-none">
+            Manifesto do arquivo ({tamanhoMb} MB)
+          </summary>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-900/70 p-3 rounded font-mono">
+            <dt className="text-gray-400">arquivo</dt>
+            <dd className="text-gray-100 break-all">{manifesto.arquivo}</dd>
+            <dt className="text-gray-400">bytes</dt>
+            <dd className="text-gray-100">{manifesto.bytes}</dd>
+            <dt className="text-gray-400">duração</dt>
+            <dd className="text-gray-100">{manifesto.duracao}</dd>
+            <dt className="text-gray-400">sample rate</dt>
+            <dd className="text-gray-100">{manifesto.sampleRate} Hz</dd>
+            <dt className="text-gray-400">canais</dt>
+            <dd className="text-gray-100">{manifesto.canais}</dd>
+            <dt className="text-gray-400">pico</dt>
+            <dd className="text-gray-100">{manifesto.picoDbfs} dBFS</dd>
+            <dt className="text-gray-400">job_id</dt>
+            <dd className="text-gray-100 break-all">{manifesto.job_id}</dd>
+            <dt className="text-gray-400">sha256</dt>
+            <dd className="text-gray-100 break-all" data-testid="manifest-sha256">{manifesto.sha256}</dd>
+            <dt className="text-gray-400">exportado em</dt>
+            <dd className="text-gray-100">{new Date(manifesto.exportadoEm).toLocaleString('pt-BR')}</dd>
+          </dl>
+        </details>
+      )}
+
+      {erroRemix && (
+        <p className="mt-2 text-xs text-orange-300" role="status">
+          Não consegui analisar o WAV para waveform/checksum ({erroRemix}) — o download continua
+          funcionando normalmente.
+        </p>
+      )}
     </div>
   )
 }
