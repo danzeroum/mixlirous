@@ -63,17 +63,27 @@ impl SqliteRepo {
         // 002_tracks: ALTER TABLE may fail if columns already exist (idempotent).
         let migration_002 = std::include_str!("migrations/002_tracks.sql");
         for stmt in migration_002.split(';') {
-            let trimmed = stmt.trim();
+            // O statement pode começar com comentários SQL antes do ALTER —
+            // strip para a checagem de idempotência não errar o tipo (sem
+            // isto, o SEGUNDO boot com o banco já migrado morre em
+            // "duplicate column name" porque o statement não "começa" com
+            // ALTER na visão da checagem).
+            let sem_comentarios = stmt
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let trimmed = sem_comentarios.trim().to_string();
             if trimmed.is_empty() {
                 continue;
             }
             // ALTER TABLE ADD COLUMN fails if column exists — ignore.
             if trimmed.starts_with("ALTER TABLE") {
-                if sqlx::query(trimmed).execute(&pool).await.is_err() {
+                if sqlx::query(&trimmed).execute(&pool).await.is_err() {
                     // Column already exists — safe to continue.
                 }
             } else {
-                sqlx::query(trimmed)
+                sqlx::query(&trimmed)
                     .execute(&pool)
                     .await
                     .map_err(|e| RepoError::Backend(format!("migration 002: {e}")))?;
