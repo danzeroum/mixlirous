@@ -10,7 +10,6 @@ import {
   graphToPipelineConfig,
   summarizeGraph,
 } from '../graphToPipeline'
-import { defaultPipelineConfig } from '../../types/api'
 import type { RemixNode } from '../../store/graphStore'
 
 function toolNode(id: string, tool: string, data: Record<string, unknown> = {}): RemixNode {
