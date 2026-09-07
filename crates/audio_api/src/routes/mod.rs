@@ -65,7 +65,7 @@ pub fn api_router() -> Router<AppState> {
         .route("/auth/sse-session", post(auth::post_sse_session))
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
-        .route("/uploads/{object_key}", put(uploads::upload_put))
+        .route("/uploads/{*object_key}", put(uploads::upload_put))
         .route(
             "/tracks",
             post(tracks::create_track).get(tracks::list_tracks),
