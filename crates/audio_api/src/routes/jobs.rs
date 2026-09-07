@@ -1,7 +1,7 @@
 use crate::middleware::{AuthContext, TenantScope, TraceParent};
 use crate::state::AppState;
-use audio_core::PipelineConfig;
 use audio_core::ports::repo_trait::JobMeta;
+use audio_core::PipelineConfig;
 use axum::{
     body::Body,
     extract::Path,
@@ -191,16 +191,20 @@ pub async fn cancel_job(
     TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let job = state.repo.cancel_job(job_id, tenant_id).await.map_err(|e| match e {
-        audio_core::ports::repo_trait::RepoError::NotFound(_) => {
-            (StatusCode::NOT_FOUND, "not_found".to_string())
-        },
-        audio_core::ports::repo_trait::RepoError::InvalidState(_) => (
-            StatusCode::CONFLICT,
-            "job_not_editable: só jobs em queued/processing podem ser cancelados".to_string(),
-        ),
-        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
-    })?;
+    let job = state
+        .repo
+        .cancel_job(job_id, tenant_id)
+        .await
+        .map_err(|e| match e {
+            audio_core::ports::repo_trait::RepoError::NotFound(_) => {
+                (StatusCode::NOT_FOUND, "not_found".to_string())
+            },
+            audio_core::ports::repo_trait::RepoError::InvalidState(_) => (
+                StatusCode::CONFLICT,
+                "job_not_editable: só jobs em queued/processing podem ser cancelados".to_string(),
+            ),
+            other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+        })?;
 
     tracing::info!(%job_id, "job cancelado pelo usuário");
 
@@ -254,7 +258,14 @@ pub async fn retry_job(
     let new_job_id = Uuid::new_v4();
     state
         .repo
-        .save_job(new_job_id, claims.tenant_id, claims.sub, &config, &[], &meta)
+        .save_job(
+            new_job_id,
+            claims.tenant_id,
+            claims.sub,
+            &config,
+            &[],
+            &meta,
+        )
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

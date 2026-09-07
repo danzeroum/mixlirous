@@ -83,7 +83,14 @@ async fn setup_job_com_track(state: &AppState, mode: &str) -> Uuid {
     // Por ora, save_job(job_id, tenant_id, user_id, &config, &[], &JobMeta::default()).
     state
         .repo
-        .save_job(job_id, tenant_id, user_id, &config, &[], &JobMeta::default())
+        .save_job(
+            job_id,
+            tenant_id,
+            user_id,
+            &config,
+            &[],
+            &JobMeta::default(),
+        )
         .await
         .expect("save_job");
 
@@ -187,7 +194,14 @@ async fn rota_artifact_retorna_409_para_job_nao_completed() {
     let config = PipelineConfig::default();
     state
         .repo
-        .save_job(job_id, tenant_id, user_id, &config, &[], &JobMeta::default())
+        .save_job(
+            job_id,
+            tenant_id,
+            user_id,
+            &config,
+            &[],
+            &JobMeta::default(),
+        )
         .await
         .unwrap();
 

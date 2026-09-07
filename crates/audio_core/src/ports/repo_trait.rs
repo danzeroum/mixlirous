@@ -34,8 +34,7 @@ pub trait AudioRepo: Send + Sync {
     /// `Processing` — estado terminal devolve `RepoError::InvalidState`
     /// (o handler traduz para 409 `job_not_editable`). Retorna o registro
     /// atualizado para o handler publicar o evento SSE.
-    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid)
-    -> Result<JobRecord, RepoError>;
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError>;
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError>;
     async fn list_jobs(&self, tenant_id: Uuid) -> Result<Vec<JobRecord>, RepoError>;
     async fn save_fingerprint(

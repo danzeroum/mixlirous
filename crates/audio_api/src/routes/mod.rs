@@ -61,14 +61,8 @@ pub fn api_router() -> Router<AppState> {
             post(proposals::ProposalHandlers::replan_proposal),
         )
         // Lote 2 (issue #33): sessão local + cookie de SSE same-origin.
-        .route(
-            "/auth/local-session",
-            get(auth::get_local_session),
-        )
-        .route(
-            "/auth/sse-session",
-            post(auth::post_sse_session),
-        )
+        .route("/auth/local-session", get(auth::get_local_session))
+        .route("/auth/sse-session", post(auth::post_sse_session))
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
         .route("/uploads/{object_key}", put(uploads::upload_put))

@@ -205,19 +205,27 @@ pub async fn get_track_peaks(
 
     let decoded = tokio::task::spawn_blocking(move || audio_core::decode_to_pcm(&bytes))
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("decode join: {e}")))?
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("decode join: {e}"),
+            )
+        })?
         .map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, format!("decode: {e}")))?;
 
-    let peaks = tokio::task::spawn_blocking(move || compute_peaks(&decoded.interleaved, resolution))
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("peaks join: {e}")))?;
+    let peaks =
+        tokio::task::spawn_blocking(move || compute_peaks(&decoded.interleaved, resolution))
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("peaks join: {e}"),
+                )
+            })?;
 
     Ok((
         StatusCode::OK,
-        Json(TrackPeaksResponse {
-            resolution,
-            peaks,
-        }),
+        Json(TrackPeaksResponse { resolution, peaks }),
     ))
 }
 
