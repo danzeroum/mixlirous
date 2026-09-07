@@ -133,10 +133,16 @@ fn local_adaptive_thresholds(onset: &[f32], hop_size: usize, sample_rate: u32) -
             continue;
         }
         local.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let med = local[local.len() / 2];
         let p75 = local[local.len() * 3 / 4];
         let p95 = local[(local.len() as f32 * 0.95) as usize].min(local[local.len() - 1]);
         let range = (p95 - p75).max(0.0);
-        *thr = (p75 + 0.1 * range).max(1e-4);
+        // 2,2 × mediana local rejeita o artefato de janela: uma senoide
+        // CONSTANTE produz oscilação de RMS (o período não é múltiplo do
+        // hop), com picos ~1,9× a mediana local — sem este piso, o pipeline
+        // "detectava" batidas em áudio sem transiente nenhum e a seleção
+        // de blocos encurtava a saída (quebrou tuning_pipeline_tests::e2e).
+        *thr = (p75 + 0.1 * range).max(2.2 * med).max(1e-4);
     }
     thresholds
 }
