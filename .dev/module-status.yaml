@@ -55,13 +55,18 @@ audio_api: code 95%, integration 80%
   middleware: auth JWT, rate_limit
   resiliência: atomic_write, recovery loop
 
-ui: code 95%, integration 88%
+ui: code 95%, integration 90%
   # Lote 1 do plano Pareto (+5): ToolPalette respeita available=false de
   # GET /tools — ghost tools (compression, dynamic_eq) desabilitadas com
   # motivo no tooltip; lógica em lib/toolFilter.ts com testes Vitest.
   # Lote 3: canvas EXECUTÁVEL — graphStore serializa para o
   # pipeline_config do job (graphToPipeline.ts, contrato duplo com Rust);
   # spec Playwright do fluxo feliz; sessão local na app (token+cookie).
+  # Plano de design (etapa única): navegação em 5 visões, wizard guiado
+  # (upload→análise→objetivo→receita→render→preview), HITL explicável com
+  # alternativa/manual, waveform A/B + manifesto sha256, timeline de job
+  # com cancel/retry, painel de IA/privacidade com consentimento, a11y
+  # (foco visível, aria-live, reduced-motion, estados explicáveis).
   components:
     UploadPanel: modo manual/assisted selecionável (B3)
     ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
@@ -99,8 +104,8 @@ sprints:
   # C12 (9 endpoints documentados mas não implementados)
 
 tests: 490+ rust (nextest, com fixtures; Lote 3: +6 limiter, +4 onset,
-  +2 contrato do grafo) + 24 ui/vitest (13 + 11 graphToPipeline)
-  + 1 spec Playwright (fluxo feliz)
+  +2 contrato do grafo) + 31 ui/vitest (13 + 11 graphToPipeline + 7
+  wavPeaks) + 2 specs Playwright (fluxo feliz + navegação)
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -116,3 +121,5 @@ fmt: OK (--check)
 #             (divergência adendo §1.7)
 # Lote 3 Pareto: canvas executável (grafo→pipeline_config), #37 (limiter
 #             de pico), #27 (limiar local), spec Playwright do fluxo
+# Plano de design: wizard + 5 visões + HITL explicável + waveform/manifesto
+#             + privacidade/consentimento + a11y (divergências adendo §1.8-9)

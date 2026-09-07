@@ -4,6 +4,55 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Plano de design centrado no usuário (etapa única vertical)
+
+### Adicionado
+
+- **Navegação `Projetos | Biblioteca | Novo remix | Atividade | Espaço de
+  trabalho`** (`ui/src/App.tsx` + `ui/src/views/`) — o fluxo guiado por
+  intenção é o caminho principal (view default); o canvas vira modo
+  avançado (Espaço de trabalho), compatível com a experiência anterior.
+  Projetos resume contadores reais; Biblioteca lista faixas com "usar no
+  remix"; Atividade lista jobs com estado em TEXTO + ações reais
+  (cancelar — C6; tentar de novo — C12, cria novo job_id).
+- **Wizard "Novo remix"** (`ui/src/views/NovoRemixView.tsx`) — 6 passos
+  numerados: upload → análise (waveform real dos picos do backend,
+  Lote 2/C9) → objetivo (presets em linguagem musical + consentimento de
+  IA) → receita (canvas projetando o `PipelineConfig`, Lote 3) → render
+  (timeline com aria-live, cancelável) → preview/exportação.
+- **HITL explicável** (`ui/src/components/ProposalOverlay.tsx`) — mostra
+  alteração, razão, trecho, confiança, risco e impacto QUANDO o backend
+  os envia (nunca simula; divergência no adendo §1 item 9). Ações:
+  aprovar, ajustar, recusar, pedir alternativa (replan) e fazer
+  manualmente (recusa + troca para modo manual). Foco inicial no botão
+  primário, Escape recusa, `role=dialog`/`aria-modal`, expiração neutra.
+- **Preview A/B com waveform e manifesto** (`ui/src/components/Player.tsx`,
+  `ui/src/lib/wavPeaks.ts`, `ui/src/components/Waveform.tsx`) — waveforms
+  remix e original lado a lado com agulha sincronizada; parser WAV no
+  browser (chunks reais, PCM 8/16/24/32 int + float32, mesma semântica de
+  `compute_peaks`); métricas técnicas (duração, sample rate, canais, pico
+  dBFS) e manifesto de exportação com SHA-256 verificado.
+- **Transparência IA/LGPD** (`ui/src/components/PrivacyPanel.tsx`) —
+  provedor/modelo do assistente (GET /system/info), o que vai para a IA
+  (só o prompt — áudio não sai) e consentimento separado para o modo
+  assistido (GET/POST /tenants/me/consent) exigido pelo wizard.
+- **Acessibilidade base** (`ui/src/index.css` + componentes) — foco
+  visível (violeta AA sobre o tema escuro), `prefers-reduced-motion`,
+  `aria-current` na navegação, `aria-live` no status do job e na timeline,
+  radiogroup no modo, estados vazios explicáveis.
+- **E2E de navegação** (`ui/e2e/full-flow.spec.ts`) — 2º spec autocontido:
+  faixa na Biblioteca, Atividade com estado honesto, retorno ao fluxo.
+
+### Modificado
+
+- `ui/src/components/UploadPanel.tsx` — modos `soUpload`/`soObjetivo`
+  (um só conjunto de `data-testid` por tela), `trackIdExterno` para o
+  wizard, radiogroup de modo, aria-live no status, dica de recuperação
+  no erro de upload.
+- `ui/src/hooks/useApi.ts` + `ui/src/types/api.ts` — getTrackPeaks,
+  cancelJob, retryJob, replanProposal, getConsent/postConsent,
+  listTracks; types `PeaksResponse` e `ConsentInfo`.
+
 ## [Unreleased] — Lote 3 do plano Pareto (canvas executável + qualidade sonora)
 
 ### Adicionado
