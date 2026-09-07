@@ -215,6 +215,19 @@ impl Worker {
 
         hb_task.abort();
 
+        // Cancelamento cooperativo (Lote 2, C6): se o usuário cancelou o
+        // job durante a execução, o resultado é DESCARTADO — nem
+        // `completed` (que apagaria o cancelamento) nem `failed` com retry
+        // (que reenfileiraria algo que o usuário pediu para parar). O
+        // evento `job.cancelled` já foi publicado pelo handler da rota.
+        match self.state.repo.get_job(job_id, job.tenant_id).await {
+            Ok(current) if current.status == JobStatus::Cancelled => {
+                tracing::info!(%job_id, "job cancelado durante a execução — resultado descartado");
+                return Ok(());
+            },
+            _ => {},
+        }
+
         match result {
             Ok(artifact_key) => {
                 self.state
@@ -242,6 +255,14 @@ impl Worker {
             },
             Err(e) => {
                 tracing::error!(worker_id = %self.id, job_id = %job_id, error = %e, "job failed");
+                // Job cancelado que falhou depois do cancelamento não volta
+                // para a fila — a vontade do usuário vence.
+                if let Ok(current) = self.state.repo.get_job(job_id, job.tenant_id).await {
+                    if current.status == JobStatus::Cancelled {
+                        tracing::info!(%job_id, "job cancelado falhou após cancelamento — sem requeue");
+                        return Ok(());
+                    }
+                }
                 let _ = self.state.repo.fail_and_retry(job_id, 3).await;
                 self.state
                     .hub

@@ -207,8 +207,11 @@ primeira execução, com opção de trocar para LLM local. Para a persona P3
 | VPS | arquivo `.env` fora do repositório, permissão 0600 |
 | SaaS | secret manager (SSM / Vault), injetado como env |
 
-Nunca em `config/*.yaml` versionado. O `production.yaml` do kit já tem
-`postgres://remix:prod@...` hardcoded — corrigir para `${DATABASE_URL}`.
+Nunca em `config/*.yaml` versionado. `config/production.yaml` hoje já
+usa `url: "${DATABASE_URL}"` com comentário explícito de injeção via
+secrets manager — a referência a `postgres://remix:prod@...` hardcoded
+era do kit original e foi corrigida na Sprint 0 (o parágrafo acima
+estava desatualizado; ver adendo Pareto §1, item 1).
 
 CI: `gitleaks` no pré-commit e no pipeline.
 

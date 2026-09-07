@@ -24,7 +24,7 @@ use audio_api::worker::Worker;
 use audio_core::domain::AudioCodec;
 use audio_core::dsp::DefaultMixer;
 use audio_core::ndarray::Array1;
-use audio_core::ports::repo_trait::JobStatus;
+use audio_core::ports::repo_trait::{JobMeta, JobStatus};
 use audio_core::ports::{AudioRepo, Storage};
 use audio_core::{AudioFormat, PipelineConfig};
 use std::sync::Arc;
@@ -80,10 +80,17 @@ async fn setup_job_com_track(state: &AppState, mode: &str) -> Uuid {
 
     // Salva o job no repo. O `save_job` não recebe track_id diretamente —
     // ele é guardado em coluna separada. Verificamos se o repo suporta.
-    // Por ora, save_job(job_id, tenant_id, user_id, &config, &[]).
+    // Por ora, save_job(job_id, tenant_id, user_id, &config, &[], &JobMeta::default()).
     state
         .repo
-        .save_job(job_id, tenant_id, user_id, &config, &[])
+        .save_job(
+            job_id,
+            tenant_id,
+            user_id,
+            &config,
+            &[],
+            &JobMeta::default(),
+        )
         .await
         .expect("save_job");
 
@@ -187,7 +194,14 @@ async fn rota_artifact_retorna_409_para_job_nao_completed() {
     let config = PipelineConfig::default();
     state
         .repo
-        .save_job(job_id, tenant_id, user_id, &config, &[])
+        .save_job(
+            job_id,
+            tenant_id,
+            user_id,
+            &config,
+            &[],
+            &JobMeta::default(),
+        )
         .await
         .unwrap();
 

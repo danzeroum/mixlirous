@@ -6,8 +6,14 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const AUTH_SCHEME: &str = "Bearer ";
+/// Cookie de sessão same-origin (issue #33 — Lote 2 do plano Pareto). O
+/// `EventSource` não consegue mandar header `Authorization`; o handshake
+/// SSE valida este cookie como fallback. `HttpOnly` + `SameSite=Lax` +
+/// `Path=/api/v1` + exp curta — emitido por `routes::auth::post_sse_session`
+/// APENAS para quem já apresentou um Bearer válido.
+pub const SSE_SESSION_COOKIE: &str = "mixlirous_session";
 
-fn jwt_secret() -> String {
+pub(crate) fn jwt_secret() -> String {
     std::env::var("JWT_SECRET").unwrap_or_else(|_| "local-dev-secret-change-me".to_string())
 }
 
@@ -16,7 +22,7 @@ fn jwt_secret() -> String {
 /// mas se isso chegar em qualquer ambiente que n├úo seja `local` sem
 /// `JWT_SECRET` definido, todo token ├® assinado com uma string hardcoded
 /// neste reposit├│rio p├║blico. `.env.example` documenta tr├¬s valores para
-/// `CONFIG_ENV` (`local | default | production`) ÔÇö fail-closed exige o
+/// `CONFIG_ENV` (`local | default | production`)ÔÇö fail-closed exige o
 /// segredo nos dois que n├úo s├úo `local`, em vez de listar por nome s├│
 /// `production` (falharia aberto em `default`, que j├í ├® modo VPS real com
 /// Postgres/MinIO ÔÇö ver `docker-compose.yml`, n├úo ├® o laptop do
@@ -46,8 +52,42 @@ pub struct TenantClaims {
     pub exp: usize,
 }
 
+/// Extrai o token de `parts`: header `Authorization: Bearer` tem
+/// precedência; sem header, cai para o cookie `mixlirous_session` (issue
+/// #33). O cookie é same-origin e HttpOnly — o browser só o envia para o
+/// próprio host que o emitiu, via `EventSource`/`fetch` com
+/// `credentials: 'same-origin'`.
+fn extract_token(parts: &Parts) -> Option<String> {
+    if let Some(header) = parts
+        .headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+    {
+        if let Some(token) = header.strip_prefix(AUTH_SCHEME) {
+            return Some(token.to_string());
+        }
+    }
+
+    let cookie_header = parts
+        .headers
+        .get(axum::http::header::COOKIE)?
+        .to_str()
+        .ok()?;
+    for pair in cookie_header.split(';') {
+        let pair = pair.trim();
+        if let Some(value) = pair.strip_prefix(SSE_SESSION_COOKIE) {
+            let value = value.strip_prefix('=')?;
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
 /// Extractor de autentica├º├úo: decodifica e valida o JWT do header
-/// `Authorization: Bearer <token>`. `tenant_id` do token ├® a ├║nica fonte de
+/// `Authorization: Bearer <token>` ou, no handshake SSE, do cookie de
+/// sess├úo same-origin. `tenant_id` do token ├® a ├║nica fonte de
 /// verdade ÔÇö nenhum handler aceita `tenant_id` no corpo ou na query.
 #[derive(Debug, Clone)]
 pub struct AuthContext(pub TenantClaims);
@@ -59,24 +99,20 @@ where
     type Rejection = (StatusCode, String);
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let header = parts
-            .headers
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
+        let token = extract_token(parts)
             .ok_or((StatusCode::UNAUTHORIZED, "unauthenticated".to_string()))?;
 
-        let token = header
-            .strip_prefix(AUTH_SCHEME)
-            .ok_or((StatusCode::UNAUTHORIZED, "unauthenticated".to_string()))?;
-
-        let claims = decode_claims(token, &jwt_secret())
+        let claims = decode_claims(&token, &jwt_secret())
             .map_err(|_| (StatusCode::UNAUTHORIZED, "unauthenticated".to_string()))?;
 
         Ok(AuthContext(claims))
     }
 }
 
-fn decode_claims(token: &str, secret: &str) -> Result<TenantClaims, jsonwebtoken::errors::Error> {
+pub(crate) fn decode_claims(
+    token: &str,
+    secret: &str,
+) -> Result<TenantClaims, jsonwebtoken::errors::Error> {
     use jsonwebtoken::{decode, DecodingKey, Validation};
 
     let key = DecodingKey::from_secret(secret.as_bytes());
@@ -84,10 +120,34 @@ fn decode_claims(token: &str, secret: &str) -> Result<TenantClaims, jsonwebtoken
     Ok(data.claims)
 }
 
+/// Assina um JWT com as claims dadas. Compartilhado pelo boot (token de
+/// sessão local) e pelas rotas de auth (`routes/auth.rs`).
+pub fn encode_claims(
+    claims: &TenantClaims,
+    secret: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+
+    encode(
+        &Header::default(),
+        claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use jsonwebtoken::{encode, EncodingKey, Header};
+
+    fn parts_with(headers: Vec<(axum::http::HeaderName, &'static str)>) -> Parts {
+        let mut builder = axum::http::Request::builder();
+        for (name, value) in headers {
+            builder = builder.header(name, value);
+        }
+        let (parts, _body) = builder.body(()).expect("request").into_parts();
+        parts
+    }
 
     fn sample_claims() -> TenantClaims {
         TenantClaims {
@@ -167,5 +227,54 @@ mod tests {
     #[test]
     fn test_assert_secret_configured_allows_local_without_secret() {
         assert_secret_configured_for_production("local", false);
+    }
+
+    /// #33 — extração de token: Bearer no header tem precedência.
+    #[test]
+    fn extract_token_prefere_header_bearer() {
+        let parts = parts_with(vec![
+            (axum::http::header::AUTHORIZATION, "Bearer header-token"),
+            (axum::http::header::COOKIE, "mixlirous_session=cookie-token"),
+        ]);
+        assert_eq!(extract_token(&parts).as_deref(), Some("header-token"));
+    }
+
+    /// #33 — sem header, o cookie `mixlirous_session` fornece o token
+    /// (é o caminho do handshake do EventSource).
+    #[test]
+    fn extract_token_cai_para_cookie_de_sessao() {
+        let parts = parts_with(vec![(
+            axum::http::header::COOKIE,
+            "outro=v1; mixlirous_session=cookie-token; mais=v2",
+        )]);
+        assert_eq!(extract_token(&parts).as_deref(), Some("cookie-token"));
+    }
+
+    #[test]
+    fn extract_token_sem_nada_e_none() {
+        let parts = parts_with(vec![]);
+        assert_eq!(extract_token(&parts), None);
+    }
+
+    #[test]
+    fn extract_token_cookie_vazio_e_none() {
+        let parts = parts_with(vec![(axum::http::header::COOKIE, "mixlirous_session=")]);
+        assert_eq!(extract_token(&parts), None);
+    }
+
+    /// roundtrip completo via encode/decode com o token vindo do cookie —
+    /// prova que o fallback é trust-equivalente ao header.
+    #[test]
+    fn cookie_token_faz_roundtrip_de_claims() {
+        let claims = sample_claims();
+        let token = encode_claims(&claims, "test-secret").unwrap();
+
+        let cookie_value = Box::leak(format!("{SSE_SESSION_COOKIE}={token}").into_boxed_str());
+        let parts = parts_with(vec![(axum::http::header::COOKIE, cookie_value)]);
+
+        let extracted = extract_token(&parts).unwrap();
+        let decoded = decode_claims(&extracted, "test-secret").unwrap();
+        assert_eq!(decoded.tenant_id, claims.tenant_id);
+        assert_eq!(decoded.sub, claims.sub);
     }
 }

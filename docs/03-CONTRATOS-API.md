@@ -382,8 +382,10 @@ Só válido em `queued`, `running`, `awaiting_approval`.
 **`POST /api/v1/jobs/:job_id/retry`** → `202` com **novo** `job_id`.
 Só válido em `failed`. Reusa a mesma receita e o mesmo `track_id`.
 
-> **Status (2026-08-20):** endpoint `retry` ainda não implementado no
-> router (`crates/audio_api/src/routes/mod.rs`). Ver `CHANGELOG.md`.
+> **Status (Lote 2 do plano Pareto):** implementado como requeue simples —
+> `crates/audio_api/src/routes/jobs.rs::retry_job` (rota registrada em
+> `routes/mod.rs`). Só válido em `failed`; cria **novo** `job_id` reusando
+> receita, `track_id`, modo e prompt. Job cancelado não volta via retry.
 
 **`GET /api/v1/jobs/:job_id/artifact`** → `302` para URL assinada, ou
 `?redirect=false` para receber `{ "download_url": "...", "expires_at": "..." }`.

@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 interface Props {
   /** Job ID — usado para buscar o artifact remixado. */
   jobId: string
+  /** Track ID do job — alimenta o lado "original" do A/B (Lote 2, item 2). */
+  trackId?: string | null
   /** URL de download publicada no evento `job.completed` (item B4). */
   downloadUrl: string
 }
@@ -15,26 +17,30 @@ interface Props {
  * Item C2 do mapa: antes era um placeholder; agora conecta ao artifact real
  * via `GET /api/v1/jobs/{id}/artifact` (item B4).
  *
- * Nota técnica: o áudio original não tem endpoint direto. Para o MVP local,
- * guardamos o arquivo enviado no `EventSource` do upload — o componente
- * aceita um File via drag&drop opcional, ou o usuário pode tocar só o remix.
- * Em iteração futura, o backend deve expor `GET /tracks/{id}/raw` para o
- * "comparar com original" funcionar sem upload manual.
+ * Lote 2 (item 2, adendo Pareto §3.6): o lado "original" agora liga ao
+ * `track_id` do job — `GET /api/v1/tracks/{track_id}/raw` — em vez de exigir
+ * upload manual do mesmo arquivo no player. O upload manual continua como
+ * fallback para quando o track_id não estiver disponível (job antigo).
  */
-function Player({ jobId, downloadUrl }: Props) {
+function Player({ jobId, trackId, downloadUrl }: Props) {
   const remixAudioRef = useRef<HTMLAudioElement | null>(null)
   const originalAudioRef = useRef<HTMLAudioElement | null>(null)
   const [activeSource, setActiveSource] = useState<'remix' | 'original'>('remix')
   const [originalUrl, setOriginalUrl] = useState<string | null>(null)
+  // Lote 2: com track_id no job, o original vem do backend — o upload
+  // manual vira fallback (job sem track, ou usuário quer comparar com
+  // outro arquivo de referência).
+  const rawOriginalUrl = trackId ? `/api/v1/tracks/${trackId}/raw` : null
+  const effectiveOriginalUrl = originalUrl ?? rawOriginalUrl
   // Item B4: a `downloadUrl` vem direto do evento `job.completed` do worker
   // (`/api/v1/jobs/{id}/artifact`). Usar direto em vez de ir buscar.
   const [loadError, setLoadError] = useState<string | null>(null)
 
   // Toggle A/B: alterna entre remix e original, mantendo a posição.
-  // Se o original ainda não foi carregado, avisa o usuário para fazer upload.
+  // Se o original não estiver disponível, explica o que falta.
   const handleToggle = useCallback(() => {
-    if (activeSource === 'remix' && !originalUrl) {
-      setLoadError('Carregue o arquivo original para comparar A/B.')
+    if (activeSource === 'remix' && !effectiveOriginalUrl) {
+      setLoadError('Original indisponível: job sem track_id e nenhum arquivo carregado.')
       return
     }
     const newSource = activeSource === 'remix' ? 'original' : 'remix'
@@ -52,7 +58,7 @@ function Player({ jobId, downloadUrl }: Props) {
         if (wasPlaying) target.play().catch(() => {})
       }
     })
-  }, [activeSource, originalUrl])
+  }, [activeSource, effectiveOriginalUrl])
 
   const handleOriginalUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -76,14 +82,14 @@ function Player({ jobId, downloadUrl }: Props) {
   }, [])
 
   const playOriginal = useCallback(() => {
-    if (!originalUrl) {
-      setLoadError('Carregue o arquivo original para comparar A/B.')
+    if (!effectiveOriginalUrl) {
+      setLoadError('Original indisponível: job sem track_id e nenhum arquivo carregado.')
       return
     }
     setActiveSource('original')
     remixAudioRef.current?.pause()
     originalAudioRef.current?.play().catch(() => {})
-  }, [originalUrl])
+  }, [effectiveOriginalUrl])
 
   return (
     <div
@@ -140,7 +146,7 @@ function Player({ jobId, downloadUrl }: Props) {
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-300">
-              Original {originalUrl ? '' : '(carregue abaixo)'}
+              Original {effectiveOriginalUrl ? (trackId && !originalUrl ? '(via track)' : '') : '(carregue abaixo)'}
             </span>
             {activeSource === 'original' && (
               <span className="text-xs text-blue-400">▶ tocando</span>
@@ -148,7 +154,7 @@ function Player({ jobId, downloadUrl }: Props) {
           </div>
           <audio
             ref={originalAudioRef}
-            src={originalUrl ?? undefined}
+            src={effectiveOriginalUrl ?? undefined}
             controls
             className="w-full"
             onPlay={playOriginal}
@@ -159,14 +165,14 @@ function Player({ jobId, downloadUrl }: Props) {
       <div className="flex items-center gap-3 mt-3">
         <button
           onClick={handleToggle}
-          disabled={!originalUrl && activeSource === 'remix'}
+          disabled={!effectiveOriginalUrl && activeSource === 'remix'}
           className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50"
           title="Alterna entre remix e original mantendo a posição (como profissionais comparam)."
         >
           ⇄ Alternar A/B
         </button>
         <label className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm cursor-pointer">
-          ⬆ Carregar original
+          ⬆ Carregar original {rawOriginalUrl ? '(substituir)' : ''}
           <input
             type="file"
             accept="audio/*,.wav,.flac,.aiff,.mp3,.m4a,.aac"

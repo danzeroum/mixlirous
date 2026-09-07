@@ -28,21 +28,26 @@ audio_agent: code 95%, integration 80%
   # Próximo passo: system_prompt hardcoded em build_llm_request deve vir
   # do prompt_loader (item M2 do relatório — não fechado).
 
-audio_api: code 95%, integration 70%
+audio_api: code 95%, integration 80%
   routes:
-    jobs: create/list/get + NOVO download_artifact (B4)
-    tracks: create/get/list + peaks (TODO hardcoded)
+    jobs: create/list/get + download_artifact (B4) + cancel REAL (C6, Lote 2) +
+      retry (C12 parcial, Lote 2)
+    tracks: create/get/list + peaks REAL (C9, Lote 2) + raw (Lote 2, player A/B)
     uploads: presign + PUT
     proposals: list/approve/reject/replan (store morto — B5 pendente)
     prompts: list/get (lê catalog.json)
     tools: list (espelha limits::tool_registry)
     tenants: quota + consent (mock)
     system: info (sem resources nem scale)
-    sse: job_stream (sem Last-Event-ID — B7 pendente)
+    sse: job_stream (sem Last-Event-ID — B7 pendente) + handshake autenticado
+      por cookie de sessão same-origin (issue #33, Lote 2; rotas em
+      routes/auth.rs: local-session + sse-session)
     dev_slice: diagnóstico (gated MIXLIROUS_DEV_SLICE=1)
   sse: EventHub broadcast conectado ao job_stream
   adapters: InMemoryRepo, SqliteRepo
   worker: pipeline DSP real + heartbeat + callbacks SSE (agent.thought/error/replan)
+    # Lote 2: worker cancel-aware — job cancelado não é sobrescrito por
+    # completed/failed e não volta para a fila via fail_and_retry
     # B1 FECHADO: apply_recipe_to_config aplica tool_calls ao PipelineConfig
     # B4 FECHADO: download_url agora aponta para /api/v1/jobs/{id}/artifact
     # C4 FECHADO: erro do agente vira agent.error estruturado em vez de panic
@@ -51,20 +56,28 @@ audio_api: code 95%, integration 70%
   resiliência: atomic_write, recovery loop
 
 ui: code 95%, integration 88%
+  # Lote 1 do plano Pareto (+5): ToolPalette respeita available=false de
+  # GET /tools — ghost tools (compression, dynamic_eq) desabilitadas com
+  # motivo no tooltip; lógica em lib/toolFilter.ts com testes Vitest.
   # Lote 3: canvas EXECUTÁVEL — graphStore serializa para o
   # pipeline_config do job (graphToPipeline.ts, contrato duplo com Rust);
   # spec Playwright do fluxo feliz; sessão local na app (token+cookie).
   components:
     UploadPanel: modo manual/assisted selecionável (B3)
     ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
+    ToolPalette (NOVO): paleta de ferramentas de GET /tools com filtro de
+      disponibilidade (Lote 1 item 4)
     RemixCanvas: DAG React Flow (nós estáticos — pendente integração com
       graph do backend quando get_job retornar JobResponse completo)
-    Player: player A/B comparativo (C2)
+    Player: player A/B comparativo (C2) + original via track_id
+      (GET /tracks/{id}/raw, Lote 2 item 2 — sem upload manual)
   hooks:
     useSSE (NOVO): addEventListener para eventos nomeados (B2);
-      useParamStream virou re-export para compat
+      useParamStream virou re-export para compat; ensureSseSession()
+      antes do handshake (issue #33, Lote 2)
     useApi: ApiRequestError estruturado (C1) + approveProposal com body
-  store: graphStore (Zustand) — fonte do pipeline_config (Lote 3)
+  store: graphStore (Zustand) + addToolNode (Lote 1) — fonte do
+    pipeline_config (Lote 3)
   lib:
     graphToPipeline (NOVO): serialização grafo→PipelineConfig + validações
       (ciclo, ghost tools, empty) — 11 testes Vitest
@@ -78,12 +91,16 @@ sprints:
   S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend (backend tasks 3.1-3.11)
   S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
   # Sprint de integração (esta iteração): B1, B2, B3, B4, C1, C2, C3, C4 — fechados
+  # Lote 1 do plano Pareto: docs sincronizados (README/08/14), CI
+  # incondicional em PR (#5), redes do compose restauradas, paleta com
+  # filtro de ghost tools (item 4).
   # Próxima sprint (pendentes): B5 (HITL store populado), B7 (Last-Event-ID replay),
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 480+ (Lote 3: +6 limiter, +4 onset, +2 contrato do grafo,
-  +11 ui/vitest graphToPipeline, +1 spec Playwright)
+tests: 490+ rust (nextest, com fixtures; Lote 3: +6 limiter, +4 onset,
+  +2 contrato do grafo) + 24 ui/vitest (13 + 11 graphToPipeline)
+  + 1 spec Playwright (fluxo feliz)
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -92,5 +109,10 @@ fmt: OK (--check)
 # 2026-08-20: B1 (recipe aplicada), B2 (SSE hook fix), B3 (contract sync),
 #             B4 (artifact endpoint), C1-C4 (UI), T1/T2/T3 (tests),
 #             D1-D4 (docs)
+# Lote 1 Pareto: docs (adendo §1), CI incondicional (#5), compose [mixlirous],
+#             ToolPalette + toolFilter (ui 80→85)
+# Lote 2 Pareto: C9 (peaks), C6 (cancel), C12-parcial (retry), #33 (SSE
+#             auth via cookie), raw por track_id, save_job com JobMeta
+#             (divergência adendo §1.7)
 # Lote 3 Pareto: canvas executável (grafo→pipeline_config), #37 (limiter
 #             de pico), #27 (limiar local), spec Playwright do fluxo

@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import RemixCanvas from './components/RemixCanvas'
 import ProposalOverlay, { type Proposal } from './components/ProposalOverlay'
+import ToolPalette from './components/ToolPalette'
 import UploadPanel from './components/UploadPanel'
 import Player from './components/Player'
 import { useSSE } from './hooks/useSSE'
 import { useApi } from './hooks/useApi'
-import { defaultPipelineConfig, type JobMode, type PipelineConfig } from './types/api'
+import type { JobMode, PipelineConfig, ToolInfo } from './types/api'
+import { defaultPipelineConfig } from './types/api'
 import { GraphValidationError, graphToPipelineConfig } from './lib/graphToPipeline'
 import { useGraphStore } from './store/graphStore'
 import { setStoredToken } from './lib/authHeaders'
@@ -18,8 +20,34 @@ function App() {
   // Item B3 do mapa: modo é selecionável agora (default 'manual', mas o
   // usuário pode trocar para 'assisted' para disparar o agente ReAct).
   const [mode, setMode] = useState<JobMode>('manual')
+  // Item 4 do Lote 1 (plano Pareto): paleta alimentada por GET /api/v1/tools.
+  const [tools, setTools] = useState<ToolInfo[] | null>(null)
+  const [toolsLoading, setToolsLoading] = useState(true)
   const { events, connected } = useSSE(jobId)
   const api = useApi()
+  const { listTools } = api
+
+  useEffect(() => {
+    let cancelled = false
+    // toolsLoading já começa true; o effect só roda uma vez (listTools é
+    // estável via useCallback) — sem setState síncrono no corpo.
+    listTools()
+      .then((r) => {
+        if (!cancelled) setTools(r.tools)
+      })
+      .catch((e) => {
+        // A paleta degrada com aviso próprio; não vira erro vermelho global.
+        console.error('Falha ao carregar ferramentas:', e)
+        if (!cancelled) setTools(null)
+      })
+      .finally(() => {
+        if (!cancelled) setToolsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [listTools])
+
   // Lote 3 (item 1): o grafo do canvas é a fonte do pipeline_config —
   // o que o usuário montou é o que o backend executa.
   const graphNodes = useGraphStore((s) => s.nodes)
@@ -196,9 +224,14 @@ function App() {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1">
+      <div className="flex-1 relative">
         <ReactFlowProvider>
           <RemixCanvas />
+          {/* Item 4 do Lote 1: paleta respeita `available` de GET /tools —
+              ghost tools (compression, dynamic_eq) desabilitadas com motivo. */}
+          <div className="absolute top-4 left-4 z-10 w-64">
+            <ToolPalette tools={tools} loading={toolsLoading} />
+          </div>
           {pendingProposal && (
             <ProposalOverlay
               proposal={pendingProposal}
@@ -207,7 +240,11 @@ function App() {
             />
           )}
           {jobCompleted && jobId && (
-            <Player jobId={jobId} downloadUrl={jobCompleted.downloadUrl} />
+            <Player
+              jobId={jobId}
+              trackId={trackId}
+              downloadUrl={jobCompleted.downloadUrl}
+            />
           )}
         </ReactFlowProvider>
       </div>

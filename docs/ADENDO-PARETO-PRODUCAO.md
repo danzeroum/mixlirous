@@ -14,6 +14,7 @@ O plano de 10 fases está correto na direção, mas alguns itens listados como "
 | 4 | "Implementar `POST /jobs/:id/cancel`" | **A rota já existe** no router (`jobs::cancel_job`). O trabalho real é implementar a lógica — hoje é placeholder (CHANGELOG C6). Menor esforço do que criar do zero. | `crates/audio_api/src/routes/mod.rs`, `CHANGELOG.md` |
 | 5 | "HITL de propostas pendente" (citado no README) | **Falso — já resolvido no código.** `App.tsx` deriva a proposta pendente do evento `agent.proposal`; overlay tem Aprovar/Recusar/Aprovar-com-ajuste. O README ainda traz esse aviso desatualizado. | `ui/src/App.tsx` |
 | 6 | `retry` do job | **Confirmado ausente**, com data no próprio contrato: nota "(2026-08-20): endpoint retry ainda não implementado no router". Não é suposição — é status oficial do projeto. | `docs/03-CONTRATOS-API.md` |
+| 7 | (não previsto no plano) `save_job` persistia só config/blocks | **Divergência achada no Lote 2**: os dois adapters descartavam `mode`, `user_prompt` e `track_id` — todo job criado via `POST /jobs` chegava ao worker sem track e falhava com "no track_id/object_key associated with job". As colunas SQLite já existiam (migration 002); faltava populá-las. Corrigido com `JobMeta` atômico em `AudioRepo::save_job`. | `crates/audio_core/src/ports/repo_trait.rs`, `crates/audio_api/src/adapters/*` |
 
 ## 2. Causa raiz do desalinhamento
 

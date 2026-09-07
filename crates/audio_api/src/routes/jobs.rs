@@ -1,5 +1,6 @@
 use crate::middleware::{AuthContext, TenantScope, TraceParent};
 use crate::state::AppState;
+use audio_core::ports::repo_trait::JobMeta;
 use audio_core::PipelineConfig;
 use axum::{
     body::Body,
@@ -54,6 +55,17 @@ pub struct JobListResponse {
     pub next_cursor: Option<String>,
 }
 
+/// Resposta de `POST /jobs/{job_id}/retry` (contrato docs/03 §3.3: 202 com
+/// **novo** `job_id`, reusando a mesma receita e o mesmo `track_id`).
+#[derive(Debug, Serialize)]
+pub struct RetryJobResponse {
+    pub job_id: Uuid,
+    pub status: &'static str,
+    pub stream_url: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub retried_from: Uuid,
+}
+
 pub async fn create_job(
     State(state): State<AppState>,
     AuthContext(claims): AuthContext,
@@ -72,18 +84,31 @@ pub async fn create_job(
         "job de remix recebido"
     );
 
-    // Sprint 0: enfileira o job sem rodar o pipeline de fato (fila real e
-    // motor DSP/agente s├úo Sprint 1+; ver docs/13-ROADMAP-SPRINTS.md).
-    // tenant_id e user_id v├¬m das claims do JWT, nunca do corpo/query (ver
-    // docs/08-SEGURANCA-MULTITENANCY.md ┬º1) ÔÇö e nunca um no lugar do outro.
+    // Gap de integração fechado no Lote 2 do plano Pareto: mode,
+    // user_prompt e track_id agora são persistidos via `JobMeta` no
+    // `save_job` — antes eram descartados pelos adapters e o worker
+    // falhava com "no track_id/object_key associated with job" em todo
+    // job criado pela rota. tenant_id e user_id continuam vindo das
+    // claims do JWT, nunca do corpo/query (docs/08-SEGURANCA-MULTITENANCY §1).
+    let meta = JobMeta {
+        mode: Some(
+            serde_json::to_value(&payload.mode)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_string))
+                .unwrap_or_else(|| "manual".to_string()),
+        ),
+        user_prompt: payload.user_prompt.clone(),
+        track_id: Some(payload.track_id),
+    };
+
     state
         .repo
-        .save_job(job_id, claims.tenant_id, claims.sub, &config, &[])
+        .save_job(job_id, claims.tenant_id, claims.sub, &config, &[], &meta)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Propaga o traceparent recebido (W3C) quando houver; sen├úo gera um novo
-    // trace_id ÔÇö ver docs/03-CONTRATOS-API.md ┬º1 "Rastreamento".
+    // Propaga o traceparent recebido (W3C) quando houver; senão gera um novo
+    // trace_id — ver docs/03-CONTRATOS-API.md §1 "Rastreamento".
     let trace_id = trace
         .trace_id
         .unwrap_or_else(|| Uuid::new_v4().simple().to_string());
@@ -131,9 +156,9 @@ pub async fn get_job(
     TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<JobSummary>, (StatusCode, String)> {
-    // Antes desta rota nem exigia JWT. tenant_id escopa a busca ÔÇö job de
-    // outro tenant d├í o mesmo 404 de um job inexistente, nunca um 403 (ver
-    // docs/08-SEGURANCA-MULTITENANCY.md ┬º3).
+    // Antes desta rota nem exigia JWT. tenant_id escopa a busca — job de
+    // outro tenant dá o mesmo 404 de um job inexistente, nunca um 403 (ver
+    // docs/08-SEGURANCA-MULTITENANCY.md §3).
     let job = state
         .repo
         .get_job(job_id, tenant_id)
@@ -148,23 +173,113 @@ pub async fn get_job(
     }))
 }
 
+/// `POST /api/v1/jobs/{job_id}/cancel` — cancelamento real (CHANGELOG C6,
+/// Lote 2 do plano Pareto).
+///
+/// - Transição validada no adapter (`AudioRepo::cancel_job`): só
+///   `Queued`/`Processing` → `Cancelled`, com registro de auditoria
+///   `JOB_CANCELLED` atômico. Estado terminal devolve 409
+///   `job_not_editable`; job de outro tenant devolve 404 (mesma regra do
+///   `get_job` — vazio de informação).
+/// - Publica `job.cancelled` no hub SSE (contrato docs/03 §5) para a UI
+///   parar de acompanhar.
+/// - O worker coopera: ao terminar a execução, reconfere o estado e
+///   **não** sobrescreve um cancelamento com `completed`/`failed`
+///   (`worker.rs::process_next_job`).
 pub async fn cancel_job(
     State(state): State<AppState>,
     TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Placeholder: cancelamento real (mudar status e liberar a fila) precisa
-    // do estado de fila de verdade (Sprint 1+). Mesmo como placeholder, a
-    // rota j├í ├® escopada por tenant ÔÇö nunca cancela (nem finge cancelar) um
-    // job que n├úo pertence a quem chamou.
     let job = state
         .repo
-        .get_job(job_id, tenant_id)
+        .cancel_job(job_id, tenant_id)
         .await
-        .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
+        .map_err(|e| match e {
+            audio_core::ports::repo_trait::RepoError::NotFound(_) => {
+                (StatusCode::NOT_FOUND, "not_found".to_string())
+            },
+            audio_core::ports::repo_trait::RepoError::InvalidState(_) => (
+                StatusCode::CONFLICT,
+                "job_not_editable: só jobs em queued/processing podem ser cancelados".to_string(),
+            ),
+            other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+        })?;
+
+    tracing::info!(%job_id, "job cancelado pelo usuário");
+
+    state
+        .hub
+        .publish(
+            job_id,
+            "job.cancelled",
+            serde_json::json!({ "job_id": job_id.to_string() }),
+        )
+        .await;
 
     Ok(Json(
         serde_json::json!({ "job_id": job.id, "status": "cancelled" }),
+    ))
+}
+
+/// `POST /api/v1/jobs/{job_id}/retry` — requeue simples (contrato docs/03
+/// §3.3; o endpoint era um dos 9 documentados mas ausentes do router —
+/// CHANGELOG C12).
+///
+/// Contrato: só válido em `failed`; cria um **novo** `job_id` reusando a
+/// mesma receita (`config`) e o mesmo `track_id`/modo/prompt. Blocks não
+/// são reaproveitados — a seleção é refeita pelo pipeline. O job original
+/// permanece em `failed` como histórico.
+pub async fn retry_job(
+    State(state): State<AppState>,
+    AuthContext(claims): AuthContext,
+    Path(job_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<RetryJobResponse>), (StatusCode, String)> {
+    let old = state
+        .repo
+        .get_job(job_id, claims.tenant_id)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
+
+    if old.status != audio_core::ports::repo_trait::JobStatus::Failed {
+        return Err((
+            StatusCode::CONFLICT,
+            "job_not_editable: retry só é válido em jobs failed".to_string(),
+        ));
+    }
+
+    let config: PipelineConfig = serde_json::from_value(old.config.clone()).unwrap_or_default();
+    let meta = JobMeta {
+        mode: old.mode.clone(),
+        user_prompt: old.user_prompt.clone(),
+        track_id: old.track_id,
+    };
+
+    let new_job_id = Uuid::new_v4();
+    state
+        .repo
+        .save_job(
+            new_job_id,
+            claims.tenant_id,
+            claims.sub,
+            &config,
+            &[],
+            &meta,
+        )
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tracing::info!(%job_id, new_job_id = %new_job_id, "job reenfileirado via retry");
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(RetryJobResponse {
+            job_id: new_job_id,
+            status: "queued",
+            stream_url: format!("/api/v1/jobs/{new_job_id}/events"),
+            created_at: chrono::Utc::now(),
+            retried_from: job_id,
+        }),
     ))
 }
 
@@ -260,5 +375,16 @@ mod tests {
         let job_id = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let key = format!("tenant-{}/artifacts/{}/remix.wav", tenant_id, job_id);
         assert_eq!(key, "tenant-00000000-0000-0000-0000-000000000001/artifacts/00000000-0000-0000-0000-000000000002/remix.wav");
+    }
+
+    /// O `JobMode` serializa em snake_case; o `create_job` grava exatamente
+    /// essa string no `JobMeta.mode`, e é o valor que o worker compara com
+    /// `job.mode.as_deref() == Some("assisted")`.
+    #[test]
+    fn job_mode_serializa_como_string_que_o_worker_compara() {
+        let assisted = serde_json::to_value(JobMode::Assisted).unwrap();
+        let manual = serde_json::to_value(JobMode::Manual).unwrap();
+        assert_eq!(assisted, serde_json::json!("assisted"));
+        assert_eq!(manual, serde_json::json!("manual"));
     }
 }
