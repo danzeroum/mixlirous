@@ -86,6 +86,12 @@ test('fluxo feliz: upload → job → aprovação HITL → download do artefato'
     timeout: 30_000,
   })
 
+  // 2b. Canvas executável (Lote 3): monta o grafo pela PALETA — o job
+  // parte da serialização do grafo (crossfade + normalização LUFS).
+  // Compressão/EQ dinâmico aparecem desabilitados na paleta (ghost tools).
+  await page.getByRole('button', { name: '+ Transição' }).click()
+  await page.getByRole('button', { name: '+ Normalização LUFS' }).click()
+
   // 2. Criação do job (modo manual — pipeline direto, sem LLM).
   await page.getByTestId('prompt-input').fill('versão de 30s para o e2e do fluxo feliz')
   await page.getByTestId('create-job').click()
