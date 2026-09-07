@@ -4,6 +4,66 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Lote 2 do plano Pareto (UX de job essencial)
+
+### Adicionado
+
+- **C9: `GET /api/v1/tracks/{id}/peaks` real** — o handler lê o objeto do
+  storage, decodifica via `decode_to_pcm` em `spawn_blocking` e reduz para
+  `resolution` buckets [min, max] (`tracks.rs::compute_peaks`, com testes
+  de propriedade: bucket desigual, NaN ignorado, entrada vazia). A
+  waveform deixa de ser um array vazio.
+- **`GET /api/v1/tracks/{id}/raw`** — stream do áudio ORIGINAL por
+  track_id, tenant-scoped. Complemento do item 2 do Lote 2: o player A/B
+  não precisa mais de upload manual do arquivo original.
+- **C6: `POST /api/v1/jobs/{id}/cancel` real** — `AudioRepo::cancel_job`
+  (novo método do trait) faz transição validada `Queued/Processing →
+  Cancelled` + registro de auditoria `JOB_CANCELLED` atomicamente (nos
+  dois adapters; SQLite sob transação). Estado terminal → 409
+  `job_not_editable`. O handler publica `job.cancelled` no hub SSE; o
+  worker reconfere o estado ao terminar a execução e descarta o
+  resultado de job cancelado (nem `completed`, nem requeue).
+- **C12 (parcial): `POST /api/v1/jobs/{id}/retry`** — requeue simples
+  conforme contrato docs/03 §3.3: só em `failed`, cria **novo** `job_id`
+  reusando receita (`config`), `track_id`, modo e prompt. O job original
+  permanece `failed` como histórico.
+- **Issue #33: autenticação do SSE via cookie de sessão same-origin** —
+  `AuthContext` aceita, como fallback ao header `Authorization`, o cookie
+  `mixlirous_session` (`HttpOnly`, `SameSite=Lax`, `Path=/api/v1`). Duas
+  rotas novas em `routes/auth.rs`: `POST /auth/sse-session` (emite o
+  cookie para quem já tem Bearer; TTL 1h) e `GET /auth/local-session`
+  (modo local single-user do contrato §1; fail-closed fora de
+  `CONFIG_ENV=local`). `useSSE` garante a sessão antes do handshake.
+  Sem WebSocket, como o adendo recomenda.
+- **Testes** — `crates/audio_api/tests/routes_lote2.rs` (9 testes HTTP via
+  `tower::oneshot`: peaks real, peaks sem áudio, raw por tenant, cancel
+  com auditoria + 409, retry feliz + 409, handshake SSE por cookie,
+  local-session no local e fail-closed em produção); testes de
+  cancelamento e de meta no `repo_memory`; regressão do `JobMode`.
+
+### Corrigido
+
+- **Gap de integração do `save_job`** (divergência documentada no adendo
+  Pareto §1, item 7): os adapters descartavam `mode`, `user_prompt` e
+  `track_id` — todo job criado via `POST /jobs` chegava ao worker sem
+  track e falhava com "no track_id/object_key associated with job". As
+  colunas SQLite já existiam (migration 002); faltava populá-las. Novo
+  parâmetro `JobMeta` em `AudioRepo::save_job`, atômico com o registro.
+- **Worker cancel-aware** — `job.cancelled` não é sobrescrito por
+  `completed`/`failed`, e job cancelado não volta para a fila via
+  `fail_and_retry`.
+
+### Modificado
+
+- `ui/src/components/Player.tsx` — lado "original" do A/B liga ao
+  `track_id` do job (`GET /tracks/{id}/raw`); upload manual vira fallback.
+- `ui/src/hooks/useSSE.ts` — `ensureSseSession()` antes do handshake.
+- `ui/src/App.tsx` — `trackId` repassado ao Player.
+- `.dev/module-status.yaml` — audio_api 70→80, ui 80→85.
+- `docs/03-CONTRATOS-API.md` — nota de status do `retry` atualizada.
+- `docs/ADENDO-PARETO-PRODUCAO.md` — divergência do `save_job` registrada
+  na tabela da seção 1 (item 7).
+
 ## [Unreleased] — 2026-08-20
 
 ### Adicionado
