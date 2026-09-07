@@ -10,8 +10,8 @@ import { useApi } from './hooks/useApi'
 import type { JobMode, PipelineConfig, ToolInfo } from './types/api'
 import { defaultPipelineConfig } from './types/api'
 import { GraphValidationError, graphToPipelineConfig } from './lib/graphToPipeline'
+import { ensureLocalSession } from './lib/authHeaders'
 import { useGraphStore } from './store/graphStore'
-import { setStoredToken } from './lib/authHeaders'
 
 function App() {
   const [jobId, setJobId] = useState<string | undefined>(undefined)
@@ -56,21 +56,14 @@ function App() {
 
   // Sessão local (docs/03 §1): token para os comandos REST + cookie
   // same-origin para o handshake SSE e para o download do artefato.
+  // SINGLETON (ensureLocalSession): chamar `local-session` mais de uma vez
+  // criaria um tenant novo a cada chamada — com o StrictMode isto desalinha
+  // Bearer e cookie (fix de integração dos Lotes 2+3).
   useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch('/api/v1/auth/local-session', {
-          credentials: 'same-origin',
-        })
-        if (res.ok) {
-          const body = (await res.json()) as { token?: string }
-          if (body?.token) setStoredToken(body.token)
-        }
-      } catch {
-        // Modo SaaS cuida do próprio login — sem token local não há nada
-        // a fazer aqui.
-      }
-    })()
+    void ensureLocalSession().catch(() => {
+      // Modo SaaS cuida do próprio login — sem token local não há nada a
+      // fazer aqui.
+    })
   }, [])
 
   const handleUploadComplete = useCallback((id: string) => {
