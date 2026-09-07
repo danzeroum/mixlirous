@@ -1,6 +1,7 @@
 use crate::middleware::{AuthContext, TenantScope, TraceParent};
 use crate::state::AppState;
 use audio_core::PipelineConfig;
+use audio_core::ports::repo_trait::JobMeta;
 use axum::{
     body::Body,
     extract::Path,
@@ -72,18 +73,31 @@ pub async fn create_job(
         "job de remix recebido"
     );
 
-    // Sprint 0: enfileira o job sem rodar o pipeline de fato (fila real e
-    // motor DSP/agente s├úo Sprint 1+; ver docs/13-ROADMAP-SPRINTS.md).
-    // tenant_id e user_id v├¬m das claims do JWT, nunca do corpo/query (ver
-    // docs/08-SEGURANCA-MULTITENANCY.md ┬º1) ÔÇö e nunca um no lugar do outro.
+    // Gap de integração fechado no Lote 2 do plano Pareto: mode,
+    // user_prompt e track_id agora são persistidos via `JobMeta` no
+    // `save_job` — antes eram descartados pelos adapters e o worker
+    // falhava com "no track_id/object_key associated with job" em todo
+    // job criado pela rota. tenant_id e user_id continuam vindo das
+    // claims do JWT, nunca do corpo/query (docs/08-SEGURANCA-MULTITENANCY §1).
+    let meta = JobMeta {
+        mode: Some(
+            serde_json::to_value(&payload.mode)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_string))
+                .unwrap_or_else(|| "manual".to_string()),
+        ),
+        user_prompt: payload.user_prompt.clone(),
+        track_id: Some(payload.track_id),
+    };
+
     state
         .repo
-        .save_job(job_id, claims.tenant_id, claims.sub, &config, &[])
+        .save_job(job_id, claims.tenant_id, claims.sub, &config, &[], &meta)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Propaga o traceparent recebido (W3C) quando houver; sen├úo gera um novo
-    // trace_id ÔÇö ver docs/03-CONTRATOS-API.md ┬º1 "Rastreamento".
+    // Propaga o traceparent recebido (W3C) quando houver; senão gera um novo
+    // trace_id — ver docs/03-CONTRATOS-API.md §1 "Rastreamento".
     let trace_id = trace
         .trace_id
         .unwrap_or_else(|| Uuid::new_v4().simple().to_string());
@@ -131,9 +145,9 @@ pub async fn get_job(
     TenantScope(tenant_id): TenantScope,
     Path(job_id): Path<Uuid>,
 ) -> Result<Json<JobSummary>, (StatusCode, String)> {
-    // Antes desta rota nem exigia JWT. tenant_id escopa a busca ÔÇö job de
-    // outro tenant d├í o mesmo 404 de um job inexistente, nunca um 403 (ver
-    // docs/08-SEGURANCA-MULTITENANCY.md ┬º3).
+    // Antes desta rota nem exigia JWT. tenant_id escopa a busca — job de
+    // outro tenant dá o mesmo 404 de um job inexistente, nunca um 403 (ver
+    // docs/08-SEGURANCA-MULTITENANCY.md §3).
     let job = state
         .repo
         .get_job(job_id, tenant_id)
@@ -148,6 +162,8 @@ pub async fn get_job(
     }))
 }
 
+/// `POST /api/v1/jobs/{job_id}/cancel` — cancelamento real chega no Lote 2
+/// (este commit só fecha o gap do `save_job`; ver CHANGELOG C6).
 pub async fn cancel_job(
     State(state): State<AppState>,
     TenantScope(tenant_id): TenantScope,
@@ -155,8 +171,8 @@ pub async fn cancel_job(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Placeholder: cancelamento real (mudar status e liberar a fila) precisa
     // do estado de fila de verdade (Sprint 1+). Mesmo como placeholder, a
-    // rota j├í ├® escopada por tenant ÔÇö nunca cancela (nem finge cancelar) um
-    // job que n├úo pertence a quem chamou.
+    // rota já é escopada por tenant — nunca cancela (nem finge cancelar) um
+    // job que não pertence a quem chamou.
     let job = state
         .repo
         .get_job(job_id, tenant_id)
@@ -260,5 +276,16 @@ mod tests {
         let job_id = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let key = format!("tenant-{}/artifacts/{}/remix.wav", tenant_id, job_id);
         assert_eq!(key, "tenant-00000000-0000-0000-0000-000000000001/artifacts/00000000-0000-0000-0000-000000000002/remix.wav");
+    }
+
+    /// O `JobMode` serializa em snake_case; o `create_job` grava exatamente
+    /// essa string no `JobMeta.mode`, e é o valor que o worker compara com
+    /// `job.mode.as_deref() == Some("assisted")`.
+    #[test]
+    fn job_mode_serializa_como_string_que_o_worker_compara() {
+        let assisted = serde_json::to_value(JobMode::Assisted).unwrap();
+        let manual = serde_json::to_value(JobMode::Manual).unwrap();
+        assert_eq!(assisted, serde_json::json!("assisted"));
+        assert_eq!(manual, serde_json::json!("manual"));
     }
 }

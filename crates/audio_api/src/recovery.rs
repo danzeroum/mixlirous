@@ -327,7 +327,7 @@ mod tests {
         // Create a job via save_job and transition to Processing (stale)
         state
             .repo
-            .save_job(job_id, tenant_id, user_id, &default_config, &default_blocks)
+            .save_job(job_id, tenant_id, user_id, &default_config, &default_blocks, &JobMeta::default())
             .await
             .unwrap();
 
@@ -354,7 +354,7 @@ mod tests {
 
         state
             .repo
-            .save_job(job_id, tenant_id, user_id, &default_config, &default_blocks)
+            .save_job(job_id, tenant_id, user_id, &default_config, &default_blocks, &JobMeta::default())
             .await
             .unwrap();
 

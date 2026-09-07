@@ -3,6 +3,20 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+/// Metadados de um job que o `save_job` precisa persistir atomicamente
+/// junto do registro (era o gap de integração fechado no Lote 2 do plano
+/// Pareto: os adapters ignoravam mode/user_prompt/track_id, e o worker
+/// nunca recebia o `track_id` — o pipeline falhava com
+/// "no track_id/object_key associated with job" em todo job criado via
+/// `POST /jobs`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct JobMeta {
+    /// "manual" | "assisted"
+    pub mode: Option<String>,
+    pub user_prompt: Option<String>,
+    pub track_id: Option<Uuid>,
+}
+
 #[async_trait::async_trait]
 pub trait AudioRepo: Send + Sync {
     async fn save_job(
@@ -12,7 +26,16 @@ pub trait AudioRepo: Send + Sync {
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
+        meta: &JobMeta,
     ) -> Result<(), RepoError>;
+
+    /// Cancelamento real (Lote 2, C6): transição validada + registro de
+    /// auditoria, atômicos no adapter. Só cancela job em `Queued` ou
+    /// `Processing` — estado terminal devolve `RepoError::InvalidState`
+    /// (o handler traduz para 409 `job_not_editable`). Retorna o registro
+    /// atualizado para o handler publicar o evento SSE.
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid)
+    -> Result<JobRecord, RepoError>;
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError>;
     async fn list_jobs(&self, tenant_id: Uuid) -> Result<Vec<JobRecord>, RepoError>;
     async fn save_fingerprint(
@@ -118,6 +141,7 @@ pub enum JobStatus {
     Processing,
     Completed,
     Failed,
+    Cancelled,
     RolledBack,
 }
 
@@ -131,4 +155,6 @@ pub enum RepoError {
     Backend(String),
     #[error("job already claimed by another worker: {0}")]
     AlreadyClaimed(Uuid),
+    #[error("job {0} não aceita esta transição a partir do estado atual")]
+    InvalidState(Uuid),
 }
