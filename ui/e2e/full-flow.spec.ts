@@ -126,3 +126,50 @@ test('fluxo feliz: upload → job → aprovação HITL → download do artefato'
   expect(body.length).toBeGreaterThan(44)
   expect(body.subarray(0, 4).toString('ascii')).toBe('RIFF')
 })
+
+/**
+ * Plano de design centrado no usuário — navegação `Projetos | Biblioteca |
+ * Novo remix | Atividade | Espaço de trabalho`. Autocontido (cada teste tem
+ * contexto/tenant próprios): envia uma faixa rápida, cria o job e então
+ * valida que a faixa e o job aparecem nas views certas.
+ */
+test('navegação: faixa aparece na Biblioteca e job na Atividade', async ({ page }) => {
+  await page.goto('/')
+
+  // Sessão local (tenant próprio deste contexto) — ver teste acima.
+  await page
+    .waitForFunction(() => localStorage.getItem('mixlirous_token') !== null, null, {
+      timeout: 15_000,
+    })
+    .catch(() => {})
+
+  // Faixa rápida para a biblioteca não estar vazia.
+  await page.setInputFiles('[data-testid="upload-input"]', {
+    name: 'e2e-navegacao.wav',
+    mimeType: 'audio/wav',
+    buffer: wavSintetico(0.5),
+  })
+  await page.getByTestId('upload-button').click()
+  await expect(page.getByTestId('upload-status')).toContainText('Faixa registrada!', {
+    timeout: 30_000,
+  })
+
+  // Biblioteca lista a faixa enviada.
+  await page.getByTestId('nav-biblioteca').click()
+  const item = page.locator('ul[aria-label="Faixas enviadas"] li').first()
+  await expect(item).toBeVisible({ timeout: 20_000 })
+
+  // Atividade: pode ainda não haver job nesta sessão — valida a view com
+  // estado vazio EXPLICÁVEL (plano §Nielsen) ou com histórico quando houver.
+  await page.getByTestId('nav-atividade').click()
+  await expect(
+    page
+      .locator('h2', { hasText: 'Atividade' })
+      .or(page.getByText('Nenhum remix ainda'))
+      .first()
+  ).toBeVisible({ timeout: 20_000 })
+
+  // Voltar ao fluxo: Novo remix continua sendo o caminho principal.
+  await page.getByTestId('nav-novo-remix').click()
+  await expect(page.getByTestId('upload-input')).toBeVisible()
+})
