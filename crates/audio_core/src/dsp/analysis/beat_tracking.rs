@@ -96,6 +96,51 @@ pub fn estimate_bpm(onset: &[f32], sample_rate: u32, hop_size: usize) -> f32 {
     }
 }
 
+/// Janela do limiar local, em segundos de áudio (~2 s de contexto).
+const LOCAL_THRESHOLD_WINDOW_SEC: f32 = 2.0;
+
+/// Limiar adaptativo LOCAL por frame — complemento do fix parcial de
+/// f400fad (issue #27, Lote 3 do plano Pareto).
+///
+/// O limiar de f400fad é GLOBAL (p75 do onset inteiro + 10% do range).
+/// Ele falha em dois cenários reais:
+/// 1. **Crescendo/decaimento global** — batidas da parte baixa ficam
+///    abaixo do p75 global (dominado pela parte alta) e somem;
+/// 2. **Material densamente transiente** — p75 ≈ pico, range ≈ 0, e o
+///    limiar global gruda no teto.
+///
+/// O limiar local resolve os dois: para cada frame, p75 da janela local
+/// (centrada, ~2 s) + 10% do range local (p95 − p75), com piso absoluto
+/// de 1e-4 (ruído de fundo não vira batida). O custo é O(n·w·log w) com
+/// w ≈ 170 frames a 44,1 kHz — desprezível perto da FFT do pipeline.
+fn local_adaptive_thresholds(onset: &[f32], hop_size: usize, sample_rate: u32) -> Vec<f32> {
+    let n = onset.len();
+    let mut thresholds = vec![0.1f32; n];
+    if n < 4 {
+        return thresholds; // fallback do limiar antigo para sinais curtos
+    }
+
+    let window = (((LOCAL_THRESHOLD_WINDOW_SEC * sample_rate as f32) / hop_size as f32) as usize)
+        .clamp(15, 401);
+
+    for i in 0..n {
+        let start = i.saturating_sub(window / 2);
+        let end = (start + window).min(n);
+        let start = end.saturating_sub(window); // mantém janela cheia no fim
+        let mut local: Vec<f32> = onset[start..end].to_vec();
+        if local.len() < 4 {
+            thresholds[i] = 0.1;
+            continue;
+        }
+        local.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let p75 = local[local.len() * 3 / 4];
+        let p95 = local[(local.len() as f32 * 0.95) as usize].min(local[local.len() - 1]);
+        let range = (p95 - p75).max(0.0);
+        thresholds[i] = (p75 + 0.1 * range).max(1e-4);
+    }
+    thresholds
+}
+
 /// Detecta as posi├º├Áes de batida (em frames de onset) usando o onset strength
 fn detect_beat_frames(
     onset: &[f32],
@@ -107,21 +152,12 @@ fn detect_beat_frames(
     let beat_period_frames = (sample_rate as f32 / (bpm / 60.0)) / (hop_size as f32);
     let window_size = (beat_period_frames * 0.5).max(1.0) as usize;
 
-    // #27 — limiar adaptativo em vez de 0.1 fixo.
-    // O limiar anterior falhava em material com onset strength baixo
-    // (ex.: rhythm_120bpm_mono.wav, pico ~0.071 nunca cruzava 0.1).
-    // Novo: percentil 75 + 10% do range (peak - p75), nunca abaixo de 1e-4
-    // para não detectar ruído de fundo como batida.
-    let threshold = if onset.len() < 4 {
-        0.1 // fallback para sinais muito curtos
-    } else {
-        let mut sorted = onset.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let p75 = sorted[sorted.len() * 3 / 4];
-        let peak = *sorted.last().unwrap_or(&0.0);
-        let range = (peak - p75).max(0.0);
-        (p75 + 0.1 * range).max(1e-4)
-    };
+    // #27 — limiar híbrido (Lote 3): local por janela deslizante, com o
+    // percentil 75 como base e 10% do range local (p95 − p75), piso
+    // absoluto de 1e-4 para ruído de fundo. Substitui o limiar global de
+    // f400fad, que falhava em crescendo e em material denso (ver doc de
+    // `local_adaptive_thresholds`).
+    let thresholds = local_adaptive_thresholds(onset, hop_size, sample_rate);
 
     let mut beat_indices = Vec::new();
     if onset.len() < 2 {
@@ -129,6 +165,7 @@ fn detect_beat_frames(
     }
 
     for i in 1..(onset.len() - 1) {
+        let threshold = thresholds[i];
         if onset[i] > onset[i - 1] && onset[i] > onset[i + 1] && onset[i] > threshold {
             // Supress├úo de proximidade: garante que batidas n├úo fiquem muito pr├│ximas
             if beat_indices.is_empty() || (i - beat_indices.last().unwrap()) > window_size {
@@ -418,5 +455,124 @@ mod tests {
         let analyzer = DefaultAnalyzer;
         let beats = analyzer.detect_beats(&pcm, &params);
         assert!(beats.len() <= 3, "silêncio não deveria ter batidas");
+    }
+}
+
+#[cfg(test)]
+mod threshold_lote3_tests {
+    //! Testes do limiar híbrido local (Lote 3, issue #27 — complemento do
+    //! fix parcial de f400fad).
+    use super::*;
+    use crate::ports::AudioAnalyzer as _;
+
+    fn params(sr: u32) -> BeatDetectionParams {
+        BeatDetectionParams {
+            sample_rate: sr,
+            ..Default::default()
+        }
+    }
+
+    /// #27 — crescendo: batidas na parte BAIXA do sinal têm que ser
+    /// detectadas mesmo com a parte alta dominando o onset global. O
+    /// limiar global de f400fad perdia a metade baixa inteira.
+    #[test]
+    fn detecta_batidas_na_parte_baixa_de_um_crescendo() {
+        let sr = 44100u32;
+        let total = sr as usize * 4; // 4 s: 2 s baixos + 2 s altos
+        let mut pcm = vec![0.0f32; total];
+        let beat_period = sr as usize / 2; // 2 batidas por segundo
+        for (half, amp) in [(0usize, 0.02f32), (1usize, 0.5f32)] {
+            let half_start = half * total / 2;
+            let mut t = half_start;
+            while t + 2205 < half_start + total / 2 {
+                for (i, s) in pcm[t..t + 2205].iter_mut().enumerate() {
+                    *s = amp * (2.0 * std::f32::consts::PI * 880.0 * i as f32 / sr as f32).sin();
+                }
+                t += beat_period;
+            }
+        }
+
+        let analyzer = DefaultAnalyzer;
+        let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(sr));
+        let beats_low_half = beats
+            .iter()
+            .filter(|b| b.time_sec < 2.0)
+            .count();
+        assert!(
+            beats_low_half >= 2,
+            "limiar global perde o início do crescendo: batidas na metade baixa = {beats_low_half} (total {})",
+            beats.len()
+        );
+    }
+
+    /// #27 — material densamente transiente: com transientes a cada 60 ms
+    /// o p75 ≈ pico e o limiar global (range ≈ 0) gruda no teto; o local
+    /// ainda segue os picos.
+    #[test]
+    fn detecta_transientes_densos() {
+        let sr = 44100u32;
+        let total = sr as usize * 3;
+        let mut pcm = vec![0.0f32; total];
+        let step = (0.06 * sr as f32) as usize;
+        let click = (0.01 * sr as f32) as usize;
+        let mut t = 0usize;
+        while t + click < total {
+            for (i, s) in pcm[t..t + click].iter_mut().enumerate() {
+                *s = 0.4 * (2.0 * std::f32::consts::PI * 2000.0 * i as f32 / sr as f32).sin();
+            }
+            t += step;
+        }
+
+        let analyzer = DefaultAnalyzer;
+        let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(sr));
+        assert!(
+            beats.len() >= 10,
+            "material denso deveria gerar dezenas de detecções, obteve {}",
+            beats.len()
+        );
+    }
+
+    /// Ruído de fundo uniforme e baixo não vira bateria (piso 1e-4 e
+    /// range local ~0 não podem fabricar batidas em tudo).
+    #[test]
+    fn ruido_baixo_nao_vira_batida() {
+        let sr = 44100u32;
+        // Ruído determinístico (LCG) de amplitude 2e-4 — acima do piso
+        // absoluto? Não: amostras ~2e-4 geram onset ~1e-7 < 1e-4.
+        let total = sr as usize * 2;
+        let mut seed: u32 = 42;
+        let mut pcm = vec![0.0f32; total];
+        for s in pcm.iter_mut() {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            *s = ((seed >> 16) as f32 / 65535.0 - 0.5) * 4e-4;
+        }
+
+        let analyzer = DefaultAnalyzer;
+        let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(sr));
+        assert!(
+            beats.len() <= 3,
+            "ruído de fundo não deveria virar batida: {}",
+            beats.len()
+        );
+    }
+
+    /// Os testes de f400fad continuam valendo (regressão do regresso):
+    /// sinal de baixa amplitude com transientes claros ainda detecta.
+    #[test]
+    fn sinal_baixo_com_transientes_continua_detectando() {
+        let sr = 44100u32;
+        let mut pcm = vec![0.0f32; sr as usize * 2];
+        let freq = 440.0;
+        for &t_sec in &[0.0f32, 0.5, 1.0, 1.5] {
+            let start = (t_sec * sr as f32) as usize;
+            let len = (0.05 * sr as f32) as usize;
+            for i in start..(start + len).min(pcm.len()) {
+                let t = i as f32 / sr as f32;
+                pcm[i] = 0.05 * (2.0 * std::f32::consts::PI * freq * t).sin();
+            }
+        }
+        let analyzer = DefaultAnalyzer;
+        let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(44100));
+        assert!(beats.len() >= 2, "regressão do f400fad: {} batidas", beats.len());
     }
 }
