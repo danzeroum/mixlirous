@@ -271,6 +271,23 @@ export interface ToolParam {
   unit?: string
 }
 
+// ─── Peaks / Waveform (Lote 2 + plano de design P1) ─────────────────────
+
+/** Resposta de `GET /tracks/{id}/peaks?resolution=N` (docs/03 §3.2). */
+export interface PeaksResponse {
+  resolution: number
+  /** Por bucket: `[min, max]` normalizado em amostras float (-1..1). */
+  peaks: Array<[number, number]>
+}
+
+// ─── Consentimento (LGPD — plano de design §IA/dados) ───────────────────
+
+/** Resposta de `GET|POST /tenants/me/consent` (mock no backend atual). */
+export interface ConsentInfo {
+  assisted_mode_accepted_at: string | null
+  provider_at_accept: string | null
+}
+
 // ─── SSE Events ─────────────────────────────────────────────────────────
 
 export type SSEEventType =

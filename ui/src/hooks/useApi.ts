@@ -4,9 +4,11 @@ import { authHeaders } from '../lib/authHeaders'
 import type {
   ApiError,
   ApproveRequestBody,
+  ConsentInfo,
   JobMode,
   JobRequest,
   JobResponse,
+  PeaksResponse,
   PipelineConfig,
   PresignRequest,
   PresignResponse,
@@ -184,6 +186,79 @@ export function useApi() {
     [withLoading]
   )
 
+  // ─── Plano de design centrado no usuário (etapa única) ─────────────
+
+  /** Biblioteca: `GET /tracks` — usado pela view Biblioteca. */
+  const listTracks = useCallback(
+    () => withLoading(() => fetchJson<TrackResponse[]>(`${BASE_URL}/tracks`)),
+    [withLoading]
+  )
+
+  /** Waveform real (Lote 2): `GET /tracks/{id}/peaks?resolution=N`. */
+  const getTrackPeaks = useCallback(
+    (trackId: string, resolution = 1024) =>
+      withLoading(() =>
+        fetchJson<PeaksResponse>(
+          `${BASE_URL}/tracks/${trackId}/peaks?resolution=${resolution}`
+        )
+      ),
+    [withLoading]
+  )
+
+  /** C6 (Lote 2): cancela job queued/processing; terminal devolve 409. */
+  const cancelJob = useCallback(
+    (jobId: string) =>
+      withLoading(() =>
+        fetchJson<{ job_id: string; status: string }>(
+          `${BASE_URL}/jobs/${jobId}/cancel`,
+          { method: 'POST' }
+        )
+      ),
+    [withLoading]
+  )
+
+  /** C12 (Lote 2): retry só para failed; cria NOVO job_id. */
+  const retryJob = useCallback(
+    (jobId: string) =>
+      withLoading(() =>
+        fetchJson<{ new_job_id: string; status: string }>(
+          `${BASE_URL}/jobs/${jobId}/retry`,
+          { method: 'POST' }
+        )
+      ),
+    [withLoading]
+  )
+
+  /** HITL — "pedir alternativa": POST /proposals/{id}/replan. */
+  const replanProposal = useCallback(
+    (jobId: string, proposalId: string) =>
+      withLoading(() =>
+        fetchJson<unknown>(
+          `${BASE_URL}/jobs/${jobId}/proposals/${proposalId}/replan`,
+          { method: 'POST' }
+        )
+      ),
+    [withLoading]
+  )
+
+  /** LGPD: estado do consentimento do tenant (mock no backend). */
+  const getConsent = useCallback(
+    () => withLoading(() => fetchJson<ConsentInfo>(`${BASE_URL}/tenants/me/consent`)),
+    [withLoading]
+  )
+
+  /** LGPD: registra consentimento para o modo assistido (provider atual). */
+  const postConsent = useCallback(
+    (provider: string) =>
+      withLoading(() =>
+        fetchJson<ConsentInfo>(`${BASE_URL}/tenants/me/consent`, {
+          method: 'POST',
+          body: JSON.stringify({ accepted: true, provider }),
+        })
+      ),
+    [withLoading]
+  )
+
   return {
     loading,
     error,
@@ -197,5 +272,12 @@ export function useApi() {
     rejectProposal,
     getSystemInfo,
     listTools,
+    listTracks,
+    getTrackPeaks,
+    cancelJob,
+    retryJob,
+    replanProposal,
+    getConsent,
+    postConsent,
   }
 }
