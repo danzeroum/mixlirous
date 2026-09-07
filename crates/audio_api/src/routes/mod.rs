@@ -5,6 +5,7 @@ use axum::{
     Router,
 };
 
+mod auth;
 mod dev_slice;
 mod health;
 mod jobs;
@@ -31,6 +32,8 @@ pub fn api_router() -> Router<AppState> {
         .route("/jobs/{job_id}", get(jobs::get_job))
         .route("/jobs/{job_id}/artifact", get(jobs::download_artifact))
         .route("/jobs/{job_id}/cancel", post(jobs::cancel_job))
+        // Lote 2 (C12): requeue simples de job failed — docs/03 §3.3.
+        .route("/jobs/{job_id}/retry", post(jobs::retry_job))
         .route("/jobs/{job_id}/events", get(sse::job_stream))
         .route("/prompts", get(prompts::list_prompts))
         .route("/prompts/{prompt_id}", get(prompts::get_prompt))
@@ -57,15 +60,21 @@ pub fn api_router() -> Router<AppState> {
             "/jobs/{job_id}/proposals/{proposal_id}/replan",
             post(proposals::ProposalHandlers::replan_proposal),
         )
+        // Lote 2 (issue #33): sessão local + cookie de SSE same-origin.
+        .route("/auth/local-session", get(auth::get_local_session))
+        .route("/auth/sse-session", post(auth::post_sse_session))
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
-        .route("/uploads/{object_key}", put(uploads::upload_put))
+        .route("/uploads/{*object_key}", put(uploads::upload_put))
         .route(
             "/tracks",
             post(tracks::create_track).get(tracks::list_tracks),
         )
         .route("/tracks/{track_id}", get(tracks::get_track))
         .route("/tracks/{track_id}/peaks", get(tracks::get_track_peaks))
+        // Lote 2 (item 2): áudio ORIGINAL por track_id — alimenta o lado
+        // "original" do player A/B sem upload manual.
+        .route("/tracks/{track_id}/raw", get(tracks::get_track_raw))
 }
 
 /// Rotas de diagnostico. **So entram no router se `MIXLIROUS_DEV_SLICE=1`**

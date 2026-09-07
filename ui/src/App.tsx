@@ -186,7 +186,11 @@ function App() {
             />
           )}
           {jobCompleted && jobId && (
-            <Player jobId={jobId} downloadUrl={jobCompleted.downloadUrl} />
+            <Player
+              jobId={jobId}
+              trackId={trackId}
+              downloadUrl={jobCompleted.downloadUrl}
+            />
           )}
         </ReactFlowProvider>
       </div>

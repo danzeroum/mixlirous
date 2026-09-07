@@ -1,5 +1,5 @@
 use audio_core::ports::repo_trait::{
-    AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError, TrackRecord,
+    AudioRepo, AuditRecord, ConsentRecord, JobMeta, JobRecord, JobStatus, RepoError, TrackRecord,
     TrackStatus,
 };
 use audio_core::{AudioFingerprint, BeatBlock, PipelineConfig};
@@ -63,17 +63,27 @@ impl SqliteRepo {
         // 002_tracks: ALTER TABLE may fail if columns already exist (idempotent).
         let migration_002 = std::include_str!("migrations/002_tracks.sql");
         for stmt in migration_002.split(';') {
-            let trimmed = stmt.trim();
+            // O statement pode começar com comentários SQL antes do ALTER —
+            // strip para a checagem de idempotência não errar o tipo (sem
+            // isto, o SEGUNDO boot com o banco já migrado morre em
+            // "duplicate column name" porque o statement não "começa" com
+            // ALTER na visão da checagem).
+            let sem_comentarios = stmt
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let trimmed = sem_comentarios.trim().to_string();
             if trimmed.is_empty() {
                 continue;
             }
             // ALTER TABLE ADD COLUMN fails if column exists — ignore.
             if trimmed.starts_with("ALTER TABLE") {
-                if sqlx::query(trimmed).execute(&pool).await.is_err() {
+                if sqlx::query(&trimmed).execute(&pool).await.is_err() {
                     // Column already exists — safe to continue.
                 }
             } else {
-                sqlx::query(trimmed)
+                sqlx::query(&trimmed)
                     .execute(&pool)
                     .await
                     .map_err(|e| RepoError::Backend(format!("migration 002: {e}")))?;
@@ -92,6 +102,7 @@ impl SqliteRepo {
             "Processing" => JobStatus::Processing,
             "Completed" => JobStatus::Completed,
             "Failed" => JobStatus::Failed,
+            "Cancelled" => JobStatus::Cancelled,
             "RolledBack" => JobStatus::RolledBack,
             _ => return Err(RepoError::Backend(format!("unknown status: {status_str}"))),
         };
@@ -203,14 +214,15 @@ impl AudioRepo for SqliteRepo {
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
+        meta: &JobMeta,
     ) -> Result<(), RepoError> {
         let config_json = serde_json::to_value(config)?;
         let blocks_json = serde_json::to_value(blocks)?;
         let now = Utc::now().to_rfc3339();
 
         sqlx::query(
-            "INSERT INTO jobs (id, tenant_id, user_id, config, blocks, status, worker_id, attempts, last_heartbeat, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 'Queued', NULL, 0, NULL, ?6, ?6)",
+            "INSERT INTO jobs (id, tenant_id, user_id, config, blocks, status, worker_id, attempts, last_heartbeat, created_at, updated_at, mode, user_prompt, track_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'Queued', NULL, 0, NULL, ?6, ?6, ?7, ?8, ?9)",
         )
         .bind(job_id.to_string())
         .bind(tenant_id.to_string())
@@ -218,10 +230,71 @@ impl AudioRepo for SqliteRepo {
         .bind(config_json.to_string())
         .bind(blocks_json.to_string())
         .bind(&now)
+        .bind(meta.mode.clone())
+        .bind(meta.user_prompt.clone())
+        .bind(meta.track_id.map(|u| u.to_string()))
         .execute(&self.pool)
         .await
         .map_err(|e| RepoError::Backend(format!("save_job: {e}")))?;
         Ok(())
+    }
+
+    /// Cancelamento real (C6): UPDATE condicional ao estado cancelável,
+    /// sob transação com o registro de auditoria. `rows_affected == 0`
+    /// significa job inexistente (de outro tenant) OU em estado terminal —
+    /// um SELECT decide qual dos dois devolver.
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| RepoError::Backend(format!("cancel begin: {e}")))?;
+
+        let updated = sqlx::query(
+            "UPDATE jobs SET status = 'Cancelled', worker_id = NULL, updated_at = ?1 \
+             WHERE id = ?2 AND tenant_id = ?3 AND status IN ('Queued', 'Processing')",
+        )
+        .bind(Utc::now().to_rfc3339())
+        .bind(job_id.to_string())
+        .bind(tenant_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| RepoError::Backend(format!("cancel update: {e}")))?;
+
+        if updated.rows_affected() == 0 {
+            let exists = sqlx::query("SELECT 1 FROM jobs WHERE id = ?1 AND tenant_id = ?2")
+                .bind(job_id.to_string())
+                .bind(tenant_id.to_string())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| RepoError::Backend(format!("cancel exists: {e}")))?;
+            if exists.is_none() {
+                return Err(RepoError::NotFound(job_id));
+            }
+            return Err(RepoError::InvalidState(job_id));
+        }
+
+        sqlx::query(
+            "INSERT INTO audit_records (job_id, action, new_status, occurred_at) \
+             VALUES (?1, 'JOB_CANCELLED', 'Cancelled', ?2)",
+        )
+        .bind(job_id.to_string())
+        .bind(Utc::now().to_rfc3339())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| RepoError::Backend(format!("cancel audit: {e}")))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| RepoError::Backend(format!("cancel commit: {e}")))?;
+
+        let row = sqlx::query("SELECT * FROM jobs WHERE id = ?1 AND tenant_id = ?2")
+            .bind(job_id.to_string())
+            .bind(tenant_id.to_string())
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| RepoError::Backend(format!("cancel fetch: {e}")))?;
+        Self::parse_job_row(row)
     }
 
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
@@ -652,9 +725,16 @@ mod sqlite_tests {
         let job_id = Uuid::new_v4();
         let tenant_id = Uuid::new_v4();
         let user_id = Uuid::new_v4();
-        repo.save_job(job_id, tenant_id, user_id, &PipelineConfig::default(), &[])
-            .await
-            .unwrap();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            user_id,
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
         let job = repo.get_job(job_id, tenant_id).await.unwrap();
         assert_eq!(job.id, job_id);
         assert_eq!(job.status, JobStatus::Queued);
@@ -676,6 +756,7 @@ mod sqlite_tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -686,6 +767,7 @@ mod sqlite_tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -705,6 +787,7 @@ mod sqlite_tests {
                 Uuid::new_v4(),
                 &PipelineConfig::default(),
                 &[],
+                &JobMeta::default(),
             )
             .await
             .unwrap();
@@ -737,6 +820,7 @@ mod sqlite_tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -783,6 +867,7 @@ mod sqlite_tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();

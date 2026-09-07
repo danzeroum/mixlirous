@@ -1,7 +1,7 @@
 #[cfg(test)]
 use audio_core::ports::repo_trait::TrackStatus;
 use audio_core::ports::repo_trait::{
-    AudioRepo, AuditRecord, ConsentRecord, JobRecord, JobStatus, RepoError, TrackRecord,
+    AudioRepo, AuditRecord, ConsentRecord, JobMeta, JobRecord, JobStatus, RepoError, TrackRecord,
 };
 use audio_core::{AudioFingerprint, BeatBlock, PipelineConfig};
 use chrono::Utc;
@@ -40,6 +40,7 @@ impl AudioRepo for InMemoryRepo {
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
+        meta: &JobMeta,
     ) -> Result<(), RepoError> {
         let mut state = self.state.write().await;
         let now = Utc::now();
@@ -55,12 +56,47 @@ impl AudioRepo for InMemoryRepo {
             last_heartbeat: None,
             created_at: now,
             updated_at: now,
-            mode: None,
-            user_prompt: None,
-            track_id: None,
+            mode: meta.mode.clone(),
+            user_prompt: meta.user_prompt.clone(),
+            track_id: meta.track_id,
         };
         state.jobs.insert(job_id, record);
         Ok(())
+    }
+
+    /// Cancelamento real (C6): transição + auditoria sob o mesmo lock.
+    /// Estados terminais (`Completed`/`Failed`/`Cancelled`/`RolledBack`)
+    /// devolvem `InvalidState` — nunca sobrescrevem o resultado de um job
+    /// que já terminou.
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
+        let mut state = self.state.write().await;
+        {
+            let state_read = &state;
+            let job = state_read
+                .jobs
+                .get(&job_id)
+                .filter(|r| r.tenant_id == tenant_id)
+                .ok_or(RepoError::NotFound(job_id))?;
+            match job.status {
+                JobStatus::Queued | JobStatus::Processing => {},
+                _ => return Err(RepoError::InvalidState(job_id)),
+            }
+        }
+        let now = Utc::now();
+        let job_clone = {
+            let job = state.jobs.get_mut(&job_id).expect("job checado acima");
+            job.status = JobStatus::Cancelled;
+            job.worker_id = None;
+            job.updated_at = now;
+            job.clone()
+        };
+        state.audit.push(AuditRecord {
+            job_id,
+            action: "JOB_CANCELLED".to_string(),
+            new_status: JobStatus::Cancelled,
+            occurred_at: now,
+        });
+        Ok(job_clone)
     }
 
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
@@ -280,6 +316,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -290,6 +327,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -316,6 +354,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -350,6 +389,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -372,6 +412,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -394,6 +435,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -414,6 +456,7 @@ mod tests {
                 Uuid::new_v4(),
                 &PipelineConfig::default(),
                 &[],
+                &JobMeta::default(),
             )
             .await
             .unwrap();
@@ -446,6 +489,7 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
@@ -515,11 +559,155 @@ mod tests {
             Uuid::new_v4(),
             &PipelineConfig::default(),
             &[],
+            &JobMeta::default(),
         )
         .await
         .unwrap();
         repo.claim_next_job(Uuid::new_v4()).await.unwrap();
         let processing = repo.list_processing_jobs().await.unwrap();
         assert_eq!(processing.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod cancel_tests {
+    //! Testes do cancelamento real (Lote 2, item 3 — CHANGELOG C6).
+    use super::*;
+
+    #[tokio::test]
+    async fn cancela_job_em_queued_e_registra_auditoria() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
+
+        let job = repo.cancel_job(job_id, tenant_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Cancelled);
+        assert_eq!(job.worker_id, None);
+
+        let audit = repo.list_audit_records(job_id).await.unwrap();
+        assert_eq!(audit.last().unwrap().action, "JOB_CANCELLED");
+        assert_eq!(audit.last().unwrap().new_status, JobStatus::Cancelled);
+    }
+
+    #[tokio::test]
+    async fn cancela_job_em_processing() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
+        repo.claim_next_job(Uuid::new_v4()).await.unwrap();
+
+        let job = repo.cancel_job(job_id, tenant_id).await.unwrap();
+        assert_eq!(job.status, JobStatus::Cancelled);
+        assert_eq!(job.worker_id, None, "worker liberado no cancelamento");
+    }
+
+    #[tokio::test]
+    async fn recusa_cancelar_job_completo() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
+        repo.transition_job(job_id, JobStatus::Completed, "JOB_COMPLETED")
+            .await
+            .unwrap();
+
+        let err = repo.cancel_job(job_id, tenant_id).await.unwrap_err();
+        assert!(matches!(err, RepoError::InvalidState(_)));
+    }
+
+    #[tokio::test]
+    async fn recusa_cancelar_job_de_outro_tenant() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
+
+        let err = repo.cancel_job(job_id, Uuid::new_v4()).await.unwrap_err();
+        assert!(matches!(err, RepoError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn job_cancelado_nao_e_mais_reivindicado() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta::default(),
+        )
+        .await
+        .unwrap();
+        repo.cancel_job(job_id, tenant_id).await.unwrap();
+
+        assert!(repo.claim_next_job(Uuid::new_v4()).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn save_job_persiste_meta_mode_prompt_track() {
+        let repo = InMemoryRepo::new();
+        let tenant_id = Uuid::new_v4();
+        let job_id = Uuid::new_v4();
+        let track_id = Uuid::new_v4();
+        repo.save_job(
+            job_id,
+            tenant_id,
+            Uuid::new_v4(),
+            &PipelineConfig::default(),
+            &[],
+            &JobMeta {
+                mode: Some("assisted".to_string()),
+                user_prompt: Some("versão de 30s".to_string()),
+                track_id: Some(track_id),
+            },
+        )
+        .await
+        .unwrap();
+
+        let job = repo.get_job(job_id, tenant_id).await.unwrap();
+        assert_eq!(job.mode.as_deref(), Some("assisted"));
+        assert_eq!(job.user_prompt.as_deref(), Some("versão de 30s"));
+        assert_eq!(job.track_id, Some(track_id));
     }
 }
