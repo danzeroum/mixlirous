@@ -44,7 +44,7 @@ function UploadPanel({ onUploadComplete, onCreateJob, mode, onModeChange }: Prop
       // Step 2: PUT the file bytes to the upload URL
       const uploadResp = await fetch(upload_url, {
         method: 'PUT',
-        headers: { 'Content-Type': file.type || 'audio/wav' },
+        headers: { 'Content-Type': file.type || 'audio/wav', ...authHeaders() },
         body: file,
       })
       if (!uploadResp.ok) throw new Error('Failed to upload file')
