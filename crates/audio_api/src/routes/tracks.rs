@@ -341,14 +341,17 @@ mod tests {
         assert_eq!(peaks[1], [-0.75, 0.25]);
     }
 
-    /// Resolution maior que o número de amostras: buckets vazios não
-    /// aparecem (último bucket parcial só).
+    /// Resolution maior que o número de amostras: bucket_len cai para 1
+    /// (div_ceil nunca é 0) e cada amostra vira seu próprio bucket —
+    /// a garantia do contrato é "no máximo resolution buckets", nunca
+    /// "exatamente".
     #[test]
     fn compute_peaks_resolution_maior_que_amostras() {
         let pcm = vec![0.3f32, -0.3];
         let peaks = compute_peaks(&pcm, 1024);
-        assert_eq!(peaks.len(), 1);
-        assert_eq!(peaks[0], [-0.3, 0.3]);
+        assert_eq!(peaks.len(), 2);
+        assert_eq!(peaks[0], [0.3, 0.3]);
+        assert_eq!(peaks[1], [-0.3, -0.3]);
     }
 
     /// Amostra NaN não vira pico fantasma (I15 na costura do peaks).

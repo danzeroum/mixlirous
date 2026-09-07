@@ -53,8 +53,13 @@ fn state() -> (AppState, tempfile::TempDir) {
     (app, tmp)
 }
 
+/// Router de teste com o MESMO nesting do binário (`main.rs`: api_router
+/// sob /api/v1, health_router na raiz) — sem isto, os paths das requests
+/// dão 404 e todos os testes falham por razão errada.
 fn router(state: AppState) -> Router {
-    api_router().with_state(state)
+    axum::Router::new()
+        .nest("/api/v1", api_router())
+        .with_state(state)
 }
 
 fn claims(tenant_id: Uuid) -> TenantClaims {
