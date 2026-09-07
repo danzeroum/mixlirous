@@ -63,6 +63,22 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   SSE — é o que a UI espera para abrir o overlay (a decisão continua
   automática; pausar no ProposalStore é o item B5, fora dos lotes).
 - `.dev/module-status.yaml` — ui 80→88 (canvas executável + E2E).
+- **Suítes de propriedade DSP realinhadas ao limiter pós-#37** —
+  `dc_offset.rs` deixa de afirmar média zero para o `brickwall_limiter`
+  (a propriedade valia por linearidade de ganho UNIFORME; com o ganho
+  por amostra do #37 ela deixa de valer por construção — DC residual
+  medido ~7e-4, inaudível) e `thd.rs` documenta o novo regime (teto de
+  0,1% em vez de piso numérico; THD medido ~1.6e-6 escalando). Garantias
+  reais do limiter seguem com cobertura dedicada em
+  `dsp::mastering::limiter`. docs/17.1 §3.1 e §7 atualizados em consonância.
+- **`ui/e2e/full-flow.spec.ts`** — bootstrap de sessão determinístico:
+  fulfill de `GET /auth/local-session` com JWT assinado em-processo
+  (HS256, segredo de dev do modo local) + cookie de SSE pela rota REAL
+  `POST /auth/sse-session` (Lote 2); auto-pula com motivo explícito em
+  backend sem a rota.
+- **`ui/package-lock.json`** — ressincronizado com o `package.json`
+  (entrada de `@tailwindcss/vite` trouxe platform packages ausentes do
+  lock; `npm ci` — gate do Frontend CI — quebrava).
 
 ## [Unreleased] — 2026-08-20
 
