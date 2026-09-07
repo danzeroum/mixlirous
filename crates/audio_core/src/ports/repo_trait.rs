@@ -55,6 +55,12 @@ pub trait AudioRepo: Send + Sync {
         tenant_id: Uuid,
         provider: String,
     ) -> Result<ConsentRecord, RepoError>;
+    /// Revogação real de consentimento (plano de design §IA/dados/LGPD):
+    /// remove o registro ativo do tenant. O histórico de jobs, artefatos e
+    /// registros de auditoria JÁ existentes NÃO é apagado — a revogação
+    /// vale para o uso futuro do modo assistido. Idempotente: revogar sem
+    /// consentimento ativo é `Ok(())`.
+    async fn revoke_consent(&self, tenant_id: Uuid) -> Result<(), RepoError>;
     async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError>;
     async fn heartbeat(&self, job_id: Uuid, worker_id: Uuid) -> Result<(), RepoError>;
     async fn fail_and_retry(&self, job_id: Uuid, max_attempts: u8) -> Result<(), RepoError>;

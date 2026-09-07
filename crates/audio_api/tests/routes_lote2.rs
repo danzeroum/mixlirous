@@ -52,13 +52,7 @@ fn state_com_config(config: AppConfig) -> (AppState, tempfile::TempDir) {
     let mock = Arc::new(MockLlm::new());
     let orchestrator = Arc::new(ReActOrchestrator::<MockLlm>::new(validator, mock, 5));
     let hub = Arc::new(audio_api::sse::EventHub::new());
-    let app = AppState::new(
-        repo,
-        orchestrator,
-        Arc::new(config),
-        hub,
-        storage,
-    );
+    let app = AppState::new(repo, orchestrator, Arc::new(config), hub, storage);
     (app, tmp)
 }
 
@@ -130,9 +124,17 @@ fn wav_bytes(sample_rate: u32) -> Vec<u8> {
 
 /// Track com WAV real no storage; retorna (track_id, tenant, bytes).
 async fn track_com_audio(app: &AppState) -> (Uuid, Uuid, Vec<u8>) {
-    let tenant_id = Uuid::new_v4();
+    track_com_audio_com_bytes(app, Uuid::new_v4(), wav_bytes(44100), 1).await
+}
+
+/// Variante com bytes, tenant e canais explícitos (fixtures estéreo etc.).
+async fn track_com_audio_com_bytes(
+    app: &AppState,
+    tenant_id: Uuid,
+    bytes: Vec<u8>,
+    channels: u16,
+) -> (Uuid, Uuid, Vec<u8>) {
     let track_id = Uuid::new_v4();
-    let bytes = wav_bytes(44100);
     let object_key = format!("tenant-{}/raw/{track_id}.wav", tenant_id.simple());
     app.storage
         .put(&object_key, bytes::Bytes::from(bytes.clone()))
@@ -149,7 +151,7 @@ async fn track_com_audio(app: &AppState) -> (Uuid, Uuid, Vec<u8>) {
             status: TrackStatus::Uploaded,
             duration_sec: Some(0.1),
             sample_rate: Some(44100),
-            channels: Some(1),
+            channels: Some(channels),
             sha256: None,
             analysis: None,
             created_at: Utc::now(),
@@ -500,4 +502,175 @@ async fn local_session_fora_do_modo_local_e_404() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// WAV ESTÉREO válido (intercalado L/R distintos) — Fase A do épico estéreo.
+/// Montado à mão (RIFF/PCM16): o `encode_wav_to_vec` do mixer é mono por
+/// design ("encode_wav só escreve mono hoje") — exatamente a divergência
+/// registrada no adendo; o decode, por outro lado, preserva canais.
+fn wav_bytes_estereo(sample_rate: u32) -> Vec<u8> {
+    let n = (sample_rate as f32 * 0.1) as usize;
+    let data_bytes = (n * 2 * 2) as u32; // frames * canais * PCM16
+    let mut buf = Vec::with_capacity(44 + data_bytes as usize);
+
+    buf.extend_from_slice(b"RIFF");
+    buf.extend_from_slice(&(36 + data_bytes).to_le_bytes());
+    buf.extend_from_slice(b"WAVE");
+    buf.extend_from_slice(b"fmt ");
+    buf.extend_from_slice(&16u32.to_le_bytes()); // PCM header size
+    buf.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    buf.extend_from_slice(&2u16.to_le_bytes()); // ESTÉREO
+    buf.extend_from_slice(&sample_rate.to_le_bytes());
+    buf.extend_from_slice(&(sample_rate * 4).to_le_bytes()); // byte rate
+    buf.extend_from_slice(&4u16.to_le_bytes()); // block align
+    buf.extend_from_slice(&16u16.to_le_bytes()); // bits
+    buf.extend_from_slice(b"data");
+    buf.extend_from_slice(&data_bytes.to_le_bytes());
+
+    for i in 0..n {
+        let t = i as f32 / sample_rate as f32;
+        // L e D com fases distintas — canais de verdade, não duplicados.
+        let l = (0.5 * (2.0 * std::f32::consts::PI * 440.0 * t).sin() * 32767.0) as i16;
+        let r = (0.5 * (2.0 * std::f32::consts::PI * 330.0 * t).sin() * 32767.0) as i16;
+        buf.extend_from_slice(&l.to_le_bytes());
+        buf.extend_from_slice(&r.to_le_bytes());
+    }
+    buf
+}
+
+/// Fase A (transparência de canais): peaks da faixa ESTÉREO expõem
+/// channels=2 e sample_rate reais — é daqui que a UI tira o aviso
+/// "arquivo original estéreo, processamento mono" sem adivinhar.
+#[tokio::test]
+async fn peaks_de_faixa_estereo_expoe_channels_reais() {
+    let (app, _tmp) = state();
+    let tenant_id = Uuid::new_v4();
+    let (track_id, _job_id, _bytes) =
+        track_com_audio_com_bytes(&app, tenant_id, wav_bytes_estereo(8000), 2).await;
+
+    let resp = router(app)
+        .oneshot(get(
+            &format!("/api/v1/tracks/{track_id}/peaks"),
+            &bearer(tenant_id),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        json["channels"], 2,
+        "peaks deve expor os canais do original"
+    );
+    assert_eq!(json["sample_rate"], 8000);
+    assert!(!json["peaks"].as_array().expect("peaks array").is_empty());
+}
+
+/// DELETE /tenants/me/consent — revogação REAL via HTTP: aceitar → GET tem
+/// valores → DELETE limpa → GET volta nulls. Segundo DELETE idempotente.
+#[tokio::test]
+async fn delete_consent_revoga_e_get_volta_nulo() {
+    let (app, _tmp) = state();
+    let tenant_id = Uuid::new_v4();
+
+    // POST consent (provider do AppConfig::default é String::default() =
+    // vazio; provider precisa bater com o config — usamos o mesmo valor).
+    let provider = app.config.llm.provider.clone();
+    let post = Request::builder()
+        .method("POST")
+        .uri("/api/v1/tenants/me/consent")
+        .header("Authorization", &bearer(tenant_id))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::json!({ "accepted": true, "provider": provider }).to_string(),
+        ))
+        .unwrap();
+    let resp = router(app.clone()).oneshot(post).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let resp = router(app.clone())
+        .oneshot(get("/api/v1/tenants/me/consent", &bearer(tenant_id)))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(json["assisted_mode_accepted_at"].is_string());
+
+    // DELETE revoga.
+    let del = Request::builder()
+        .method("DELETE")
+        .uri("/api/v1/tenants/me/consent")
+        .header("Authorization", &bearer(tenant_id))
+        .body(Body::empty())
+        .unwrap();
+    let resp = router(app.clone()).oneshot(del).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(json["assisted_mode_accepted_at"].is_null());
+
+    // GET confirma nulls.
+    let resp = router(app.clone())
+        .oneshot(get("/api/v1/tenants/me/consent", &bearer(tenant_id)))
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(json["assisted_mode_accepted_at"].is_null());
+    assert!(json["provider_at_accept"].is_null());
+
+    // Segundo DELETE: idempotente (200, não 404 — DELETE não vaza existência).
+    let del = Request::builder()
+        .method("DELETE")
+        .uri("/api/v1/tenants/me/consent")
+        .header("Authorization", &bearer(tenant_id))
+        .body(Body::empty())
+        .unwrap();
+    let resp = router(app).oneshot(del).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// GET /system/privacy-policy — a política auditável servida precisa
+/// declarar audio_sent=false e prompt/metadata=true, com provider/model
+/// da config ativa. É ESTE contrato que autoriza a UI a afirmar
+/// "o áudio não é enviado".
+#[tokio::test]
+async fn privacy_policy_expoe_campos_auditaveis() {
+    let (app, _tmp) = state();
+    let tenant_id = Uuid::new_v4();
+
+    let resp = router(app)
+        .oneshot(get("/api/v1/system/privacy-policy", &bearer(tenant_id)))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["audio_sent_to_provider"], false);
+    assert_eq!(json["prompt_sent_to_provider"], true);
+    assert_eq!(json["analysis_metadata_sent_to_provider"], true);
+    assert!(json["provider"].as_str().is_some());
+    assert!(json["model"].as_str().is_some());
+    assert!(!json["retention_policy"]
+        .as_str()
+        .unwrap_or_default()
+        .is_empty());
+    assert!(!json["training_opt_out"]
+        .as_str()
+        .unwrap_or_default()
+        .is_empty());
+    assert!(!json["region"].as_str().unwrap_or_default().is_empty());
 }
