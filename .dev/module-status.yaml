@@ -28,23 +28,27 @@ audio_agent: code 95%, integration 80%
   # Próximo passo: system_prompt hardcoded em build_llm_request deve vir
   # do prompt_loader (item M2 do relatório — não fechado).
 
-audio_api: code 95%, integration 80%
+audio_api: code 95%, integration 85%
   routes:
     jobs: create/list/get + download_artifact (B4) + cancel REAL (C6, Lote 2) +
       retry (C12 parcial, Lote 2)
     tracks: create/get/list + peaks REAL (C9, Lote 2) + raw (Lote 2, player A/B)
+      + channels/sample_rate reais no peaks (PR #59, Fase A estéreo)
     uploads: presign + PUT
     proposals: list/approve/reject/replan (store morto — B5 pendente)
     prompts: list/get (lê catalog.json)
     tools: list (espelha limits::tool_registry)
-    tenants: quota + consent (mock)
-    system: info (sem resources nem scale)
+    tenants: quota + consent (GET/POST + DELETE de revogação REAL, PR #59;
+      registro em log estruturado — audit_event persistido é backlog)
+    system: info + privacy-policy AUDITÁVEL (PR #59 — fonte autorizada para
+      a UI afirmar o que sai da máquina)
     sse: job_stream (sem Last-Event-ID — B7 pendente) + handshake autenticado
       por cookie de sessão same-origin (issue #33, Lote 2; rotas em
-      routes/auth.rs: local-session + sse-session)
+      routes/auth.rs: local-session + sse-session; modo lido de
+      AppConfig.config_env — fix de corrida do CI Linux, PR #59)
     dev_slice: diagnóstico (gated MIXLIROUS_DEV_SLICE=1)
   sse: EventHub broadcast conectado ao job_stream
-  adapters: InMemoryRepo, SqliteRepo
+  adapters: InMemoryRepo, SqliteRepo (revoke_consent nos dois, PR #59)
   worker: pipeline DSP real + heartbeat + callbacks SSE (agent.thought/error/replan)
     # Lote 2: worker cancel-aware — job cancelado não é sobrescrito por
     # completed/failed e não volta para a fila via fail_and_retry
@@ -52,21 +56,30 @@ audio_api: code 95%, integration 80%
     # B4 FECHADO: download_url agora aponta para /api/v1/jobs/{id}/artifact
     # C4 FECHADO: erro do agente vira agent.error estruturado em vez de panic
     # M7 FECHADO: job.warning segue schema do contrato (code/severity/hint)
-  middleware: auth JWT, rate_limit
+    # PR #59: job.warning mono_downmix com metadados de canais para
+    # entrada multicanal (Fase A do épico estéreo — aviso, não estéreo)
+  middleware: auth JWT, rate_limit (budget configurável:
+    features.rate_limit_per_minute, default 60 — PR #59)
   resiliência: atomic_write, recovery loop
 
-ui: code 95%, integration 90%
+ui: code 95%, integration 92%
   # Lote 1 do plano Pareto (+5): ToolPalette respeita available=false de
   # GET /tools — ghost tools (compression, dynamic_eq) desabilitadas com
   # motivo no tooltip; lógica em lib/toolFilter.ts com testes Vitest.
   # Lote 3: canvas EXECUTÁVEL — graphStore serializa para o
   # pipeline_config do job (graphToPipeline.ts, contrato duplo com Rust);
   # spec Playwright do fluxo feliz; sessão local na app (token+cookie).
-  # Plano de design (etapa única): navegação em 5 visões, wizard guiado
-  # (upload→análise→objetivo→receita→render→preview), HITL explicável com
-  # alternativa/manual, waveform A/B + manifesto sha256, timeline de job
-  # com cancel/retry, painel de IA/privacidade com consentimento, a11y
-  # (foco visível, aria-live, reduced-motion, estados explicáveis).
+  # Plano de design (etapa única): navegação em 5 visões (Projetos virou
+  # VISÃO GERAL — sem domínio Project no backend, adendo §1.11), wizard
+  # guiado (upload→análise→objetivo→receita→render→preview), HITL
+  # explicável com alternativa/manual, waveform A/B + manifesto sha256,
+  # timeline de job com cancel/retry + job.warning em texto, painel de
+  # IA/privacidade com consentimento + REVOGAÇÃO real (DELETE) e linguagem
+  # condicional baseada em GET /system/privacy-policy (nunca afirmação
+  # hardcoded), aviso mono/estéreo na análise e no preview, a11y (foco
+  # visível, aria-live, reduced-motion, estados explicáveis).
+  # Bootstrap: sessão local garantida ANTES dos GETs autenticados (fix
+  # de 401 transitório que travava o painel de privacidade).
   components:
     UploadPanel: modo manual/assisted selecionável (B3)
     ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
@@ -103,9 +116,13 @@ sprints:
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 490+ rust (nextest, com fixtures; Lote 3: +6 limiter, +4 onset,
-  +2 contrato do grafo) + 31 ui/vitest (13 + 11 graphToPipeline + 7
-  wavPeaks) + 2 specs Playwright (fluxo feliz + navegação)
+tests: 500+ rust (nextest, com fixtures; Lote 3: +6 limiter, +4 onset,
+  +2 contrato do grafo; PR #59: +5 privacy-policy/consent-handler,
+  +3 HTTP revogação/política/peaks-estéreo, +4 avisos de canal e
+  contexto do agente) + 37 ui/vitest (13 + 11 graphToPipeline + 10
+  wavPeaks (+3 avisoCanais) + 7 toolFilter) + 4 specs Playwright
+  (fluxo feliz + atividade vazia + atividade job real + consentimento
+  com revogação)
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -121,5 +138,7 @@ fmt: OK (--check)
 #             (divergência adendo §1.7)
 # Lote 3 Pareto: canvas executável (grafo→pipeline_config), #37 (limiter
 #             de pico), #27 (limiar local), spec Playwright do fluxo
-# Plano de design: wizard + 5 visões + HITL explicável + waveform/manifesto
-#             + privacidade/consentimento + a11y (divergências adendo §1.8-9)
+# Plano de design: wizard + 5 visões (Visão geral) + HITL explicável +
+#             waveform/manifesto + privacidade/consentimento com revogação
+#             real + política auditável + aviso mono/estéreo + fix da
+#             corrida de CONFIG_ENV no CI (adendo §1.10-13)

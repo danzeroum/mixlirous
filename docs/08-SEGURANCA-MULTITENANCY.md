@@ -197,6 +197,28 @@ enviados a terceiro. O **áudio nunca é enviado**. A UI precisa dizer isso na
 primeira execução, com opção de trocar para LLM local. Para a persona P3
 (estúdio profissional), essa frase é a diferença entre adotar e desinstalar.
 
+**Regra de comunicação (PR #59, correção 4.2):** essa afirmação absoluta só
+pode ser renderizada pela UI quando vem da política auditável
+`GET /api/v1/system/privacy-policy` (`audio_sent_to_provider: false`),
+derivada da configuração real e coberta por teste de integração — nunca
+hardcoded no frontend. Sem a política carregada, o painel usa linguagem
+condicional. O que efetivamente sai (prompt + metadados numéricos da faixa,
+via `worker.rs::agent_context_for_track`) é declarado explicitamente.
+
+**Consentimento — revogação real (PR #59, correção 4.3):** `DELETE
+/api/v1/tenants/me/consent` remove o registro ativo do tenant (contrato em
+`03-CONTRATOS-API.md` §3.8). Trocar para modo manual na UI **não** revoga
+nada. A revogação vale para uso futuro, não apaga jobs/artefatos/auditoria
+anteriores, e registra data, ator (`sub`), tenant e provedor vigente em log
+estruturado. Persistir a revogação como `audit_event` imutável é backlog
+(adendo Pareto).
+
+**Rate limiter (nota operacional):** `features.rate_limit` (default on) e
+`features.rate_limit_per_minute` (default 60 req/min por chave) são
+configuração auditável — perfis alteram o orçamento explicitamente
+(ex.: `config/local.yaml` usa 6000 para o E2E single-user, com o limiter
+ATIVO). Nunca desligar o limiter em produção para "fazer o E2E passar".
+
 ---
 
 ## 9. Gestão de segredos
