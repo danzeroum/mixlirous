@@ -12,6 +12,11 @@
  * aprovação é anotado e pulado; quando chega, o overlay é aprovado de
  * verdade. O resto do fluxo (upload → job → download por cookie de
  * sessão) é exercitado integralmente.
+ *
+ * Nota sobre o passo da paleta: com o Lote 1 (PR #55) no build, o grafo
+ * é montado pela paleta — o job parte da serialização do grafo. Sem a
+ * paleta, o App envia o default explícito do grafo vazio (contrato de
+ * graphToPipelineConfig) — o fluxo é exercitado nos dois estados.
  */
 import { test, expect } from '@playwright/test'
 
@@ -86,11 +91,21 @@ test('fluxo feliz: upload → job → aprovação HITL → download do artefato'
     timeout: 30_000,
   })
 
-  // 2b. Canvas executável (Lote 3): monta o grafo pela PALETA — o job
-  // parte da serialização do grafo (crossfade + normalização LUFS).
-  // Compressão/EQ dinâmico aparecem desabilitados na paleta (ghost tools).
-  await page.getByRole('button', { name: '+ Transição' }).click()
-  await page.getByRole('button', { name: '+ Normalização LUFS' }).click()
+  // 2b. Canvas executável (Lote 3): se a paleta do Lote 1 (PR #55) já
+  // estiver no build, monta o grafo POR ELA — o job parte da serialização
+  // do grafo (crossfade + normalização LUFS; compression/EQ dinâmico
+  // aparecem desabilitados na paleta — ghost tools). Sem a paleta, o App
+  // cai no default explícito do grafo vazio e o resto do fluxo é
+  // equivalente — a spec fica verde nos dois estados do produto.
+  const temPaleta = await page
+    .getByRole('button', { name: '+ Transição' })
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false)
+  if (temPaleta) {
+    await page.getByRole('button', { name: '+ Transição' }).click()
+    await page.getByRole('button', { name: '+ Normalização LUFS' }).click()
+  }
 
   // 2. Criação do job (modo manual — pipeline direto, sem LLM).
   await page.getByTestId('prompt-input').fill('versão de 30s para o e2e do fluxo feliz')

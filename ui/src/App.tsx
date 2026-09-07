@@ -6,7 +6,7 @@ import UploadPanel from './components/UploadPanel'
 import Player from './components/Player'
 import { useSSE } from './hooks/useSSE'
 import { useApi } from './hooks/useApi'
-import type { JobMode, PipelineConfig } from './types/api'
+import { defaultPipelineConfig, type JobMode, type PipelineConfig } from './types/api'
 import { GraphValidationError, graphToPipelineConfig } from './lib/graphToPipeline'
 import { useGraphStore } from './store/graphStore'
 import { setStoredToken } from './lib/authHeaders'
@@ -57,18 +57,26 @@ function App() {
       // pipeline_config deixa de ser o default fixo e passa a ser a
       // SERIALIZAÇÃO REAL do grafo montado no canvas (graphStore →
       // PipelineConfig). O que o usuário montou é o que o backend executa.
-      // Grafo vazio → erro explícito pedindo uma ferramenta da paleta;
-      // grafo cíclico → invalid_graph antes de gastar um job.
+      // Grafo cíclico → invalid_graph antes de gastar um job; ferramenta
+      // ghost → ghost_tool. Grafo VAZIO → default explícito (opção
+      // documentada no próprio contrato de graphToPipelineConfig): enquanto
+      // a paleta do Lote 1 (PR #55) não estiver no build, o canvas não tem
+      // como ganhar nós pela UI, e o canvas vazio se comporta exatamente
+      // como antes do Lote 3 — job criável, sem dead end.
       setGraphError(null)
       let pipelineConfig: PipelineConfig
       try {
         pipelineConfig = graphToPipelineConfig(graphNodes, graphEdges)
       } catch (e) {
         if (e instanceof GraphValidationError) {
-          setGraphError(e.message)
-          return
+          if (e.code !== 'empty_graph') {
+            setGraphError(e.message)
+            return
+          }
+          pipelineConfig = defaultPipelineConfig()
+        } else {
+          throw e
         }
-        throw e
       }
       try {
         const job = await api.createJob(tkId, mode, prompt, pipelineConfig)

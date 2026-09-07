@@ -17,7 +17,10 @@ versionamento [SemVer](https://semver.org/lang/pt-BR/).
   registrados como unmapped; ghost tools (compression, dynamic_eq,
   stem_separation) **nunca** serializadas — regra do plano. Grafo
   cíclico → erro `invalid_graph` antes de gastar um job; grafo vazio →
-  erro explícito pedindo ferramenta da paleta.
+  fallback para o `defaultPipelineConfig()` explícito (opção prevista no
+  próprio contrato de `graphToPipelineConfig`): enquanto a paleta do
+  Lote 1 (PR #55) não estiver no build, o canvas vazio se comporta como
+  antes do Lote 3 — job sempre criável, sem dead end na UI.
 - **Testes de contrato do grafo** — `graphToPipeline.spec.ts` (11
   testes, golden canônico) espelhado em
   `contract_ts_rust.rs::grafo_canonico_do_canvas_desserializa_no_rust`
