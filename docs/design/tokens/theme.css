@@ -1,0 +1,139 @@
+/*
+ * Mixlirous — tokens de tema (Tailwind CSS v4)
+ * Fonte canônica da paleta. Copiar este bloco para `ui/src/index.css`,
+ * imediatamente após `@import 'tailwindcss';`.
+ *
+ * REGRA: nenhum valor hex de cor pode existir fora deste arquivo e de
+ * `ui/src/lib/theme.ts`. Ver docs/design/03-REGRAS-SEMANTICAS.md.
+ *
+ * Origem das cores (amostragem por região sobre os materiais de marca):
+ *   Poster de estúdio   → violeta #572C5F | coral #C68278 | âmbar #9B6530 | escuro #180E11
+ *   Mockup de landing   → chrome #293038  | CTA teal #1F8481
+ *
+ * Contraste WCAG 2.1 verificado contra --color-surface-900 (#141010).
+ * Tabela completa em docs/design/01-TOKENS.md.
+ */
+
+@theme {
+  /* =======================================================================
+   * SURFACE — base neutra-quente (H=8°, saturação baixa).
+   * Substitui integralmente a escala `gray-*` do Tailwind.
+   * ===================================================================== */
+  --color-surface-950: #0d0a0a; /* poços, backdrop de modal */
+  --color-surface-900: #141010; /* fundo da aplicação           (era gray-900) */
+  --color-surface-850: #1b1615; /* sidebar — corrige o bug bg-gray-850 */
+  --color-surface-800: #241d1c; /* painéis, cards               (era gray-800) */
+  --color-surface-700: #392f2d; /* controles, tracks, chips     (era gray-700) */
+  --color-surface-600: #4a3d3b; /* bordas, divisores            (era gray-600) */
+  --color-surface-500: #6a5b58; /* bordas de ênfase             (era gray-500) */
+
+  /* =======================================================================
+   * INK — texto sobre surface. Substitui `text-gray-*` e `text-white`.
+   * ===================================================================== */
+  --color-ink-100: #f4f1f0; /* texto principal        16.8:1 */
+  --color-ink-200: #e5dedc; /* títulos secundários    14.2:1 */
+  --color-ink-300: #c1b6b3; /* texto de apoio          9.6:1 */
+  --color-ink-400: #a69996; /* labels, metadados       6.9:1 */
+  --color-ink-500: #928481; /* mínimo permitido        5.3:1 */
+
+  /* =======================================================================
+   * ACTION — ação primária. Teal amostrado do CTA da landing (#1F8481).
+   * Substitui integralmente `green-*`.
+   * ===================================================================== */
+  --color-action-200: #b5e3e1;
+  --color-action-300: #8bd0cd;
+  --color-action-400: #3eb1ae; /* texto/ícone sobre escuro   7.3:1 */
+  --color-action-500: #2b9c98; /* hover de botão preenchido */
+  --color-action-600: #1f8481; /* cor de marca da ação (CTA original) */
+  --color-action-700: #1a6b68; /* fundo de botão + texto branco  6.3:1 */
+  --color-action-800: #144d4b;
+  --color-action-950: #0d2b2a; /* fundo tênue, badge de sucesso */
+
+  /* =======================================================================
+   * AI — modo assistido / proposta do agente. Violeta do poster (#572C5F).
+   * Substitui integralmente `purple-*` e `violet-*`.
+   * ===================================================================== */
+  --color-ai-200: #e3c9e8;
+  --color-ai-300: #cda5d5;
+  --color-ai-400: #b57dbf; /* texto/ícone sobre escuro + anel de foco  6.0:1 */
+  --color-ai-500: #9752a3;
+  --color-ai-600: #773b81; /* fundo de botão + texto branco  7.7:1 */
+  --color-ai-700: #572b5e; /* amostrado do banner do poster */
+  --color-ai-800: #412046;
+  --color-ai-950: #2a152e;
+
+  /* =======================================================================
+   * MANUAL — modo manual / faixa original. Azul-ciano do holograma.
+   * Substitui integralmente `blue-*`.
+   * ===================================================================== */
+  --color-manual-200: #bed8e4;
+  --color-manual-300: #94bed1;
+  --color-manual-400: #5c9ebc; /* texto/ícone sobre escuro  6.4:1 */
+  --color-manual-500: #3380a3;
+  --color-manual-600: #256583; /* fundo de botão + texto branco  6.4:1 */
+  --color-manual-700: #1d4d63;
+  --color-manual-800: #153747;
+  --color-manual-950: #0f242f;
+
+  /* =======================================================================
+   * BRAND — coral do logo e do backdrop. USO EXCLUSIVO DE MARCA.
+   * Proibido em estado funcional (ver 03-REGRAS-SEMANTICAS.md).
+   * ===================================================================== */
+  --color-brand-300: #e6b0a8;
+  --color-brand-400: #d5877b;
+  --color-brand-500: #c06b5d;
+  --color-brand-600: #a85548;
+  --color-brand-700: #824035;
+  --color-brand-950: #331915;
+
+  /* =======================================================================
+   * WARN — atenção, degradação, recurso indisponível. Âmbar do case tweed.
+   * Substitui integralmente `orange-*` e `yellow-*`.
+   * ===================================================================== */
+  --color-warn-200: #f1d1b1;
+  --color-warn-300: #e0ad7b;
+  --color-warn-400: #d69451; /* texto/ícone sobre escuro  7.4:1 */
+  --color-warn-500: #c8823c;
+  --color-warn-600: #a1662b; /* fundo de botão + texto branco  4.7:1 */
+  --color-warn-800: #613d1a;
+  --color-warn-950: #33210f;
+
+  /* =======================================================================
+   * DANGER — erro e destruição. Substitui integralmente `red-*`.
+   * Matiz deslocado para 357° para não colidir com o coral da marca.
+   * ===================================================================== */
+  --color-danger-200: #f4bdc0;
+  --color-danger-300: #eb9498;
+  --color-danger-400: #e25057; /* texto de erro sobre escuro  5.0:1 */
+  --color-danger-500: #cf3038;
+  --color-danger-600: #ae292f; /* fundo de botão + texto branco  6.7:1 */
+  --color-danger-700: #872227;
+  --color-danger-800: #63171b;
+  --color-danger-950: #340e10;
+}
+
+/* ---------------------------------------------------------------------------
+ * Acessibilidade base — preservada do PR #59, agora ligada aos tokens.
+ * ------------------------------------------------------------------------ */
+:focus-visible {
+  outline: 2px solid var(--color-ai-400); /* 6.0:1 sobre surface-900 */
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar coerente com a base quente */
+* {
+  scrollbar-color: var(--color-surface-600) var(--color-surface-900);
+  scrollbar-width: thin;
+}
