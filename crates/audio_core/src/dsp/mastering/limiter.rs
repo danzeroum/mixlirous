@@ -42,7 +42,11 @@ pub fn brickwall_limiter(pcm: &mut [f32], max_peak_db: f32, sample_rate: u32) {
     // o teto do contrato é aplicado com folga de −1 dBTP no config).
     let mut current_peak = 0.0f32;
     for &sample in pcm.iter() {
-        let abs = if sample.is_finite() { sample.abs() } else { 0.0 };
+        let abs = if sample.is_finite() {
+            sample.abs()
+        } else {
+            0.0
+        };
         if abs > current_peak {
             current_peak = abs;
         }
@@ -77,7 +81,8 @@ pub fn brickwall_limiter(pcm: &mut [f32], max_peak_db: f32, sample_rate: u32) {
     // monótono — O(n) (uma janela deslizante ingênua seria O(n·L)).
     let lookahead = (((LOOKAHEAD_MS / 1000.0) * sample_rate as f32) as usize).clamp(1, n);
     let mut env = vec![1.0f32; n];
-    let mut dq: std::collections::VecDeque<usize> = std::collections::VecDeque::with_capacity(lookahead + 1);
+    let mut dq: std::collections::VecDeque<usize> =
+        std::collections::VecDeque::with_capacity(lookahead + 1);
     for i in (0..n).rev() {
         while let Some(&front) = dq.front() {
             if front >= i + lookahead {
@@ -159,7 +164,10 @@ mod tests {
 
         let target = -14.0f32;
         let outcome = crate::dsp::mastering::apply_lufs_gain(&mut pcm, sr, target);
-        assert!(matches!(outcome, crate::dsp::mastering::LufsGainOutcome::Applied { .. }));
+        assert!(matches!(
+            outcome,
+            crate::dsp::mastering::LufsGainOutcome::Applied { .. }
+        ));
 
         let ceiling_db = -1.0f32;
         brickwall_limiter(&mut pcm, ceiling_db, sr);
@@ -167,7 +175,10 @@ mod tests {
         // Teto respeitado.
         let ceiling = 10f32.powf(ceiling_db / 20.0);
         let peak = pcm.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
-        assert!(peak <= ceiling * 1.001, "pico {peak} estourou teto {ceiling}");
+        assert!(
+            peak <= ceiling * 1.001,
+            "pico {peak} estourou teto {ceiling}"
+        );
 
         // Loudness sobrevive: |final − alvo| ≤ 1.5 LU (a versão antiga
         // ficava a ~3 LU de distância — o "−17 LU" da issue).

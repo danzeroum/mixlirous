@@ -494,10 +494,7 @@ mod threshold_lote3_tests {
 
         let analyzer = DefaultAnalyzer;
         let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(sr));
-        let beats_low_half = beats
-            .iter()
-            .filter(|b| b.time_sec < 2.0)
-            .count();
+        let beats_low_half = beats.iter().filter(|b| b.time_sec < 2.0).count();
         assert!(
             beats_low_half >= 2,
             "limiar global perde o início do crescendo: batidas na metade baixa = {beats_low_half} (total {})",
@@ -573,6 +570,10 @@ mod threshold_lote3_tests {
         }
         let analyzer = DefaultAnalyzer;
         let beats = analyzer.detect_beats(&crate::ndarray::Array1::from_vec(pcm), &params(44100));
-        assert!(beats.len() >= 2, "regressão do f400fad: {} batidas", beats.len());
+        assert!(
+            beats.len() >= 2,
+            "regressão do f400fad: {} batidas",
+            beats.len()
+        );
     }
 }
