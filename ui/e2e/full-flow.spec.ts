@@ -46,7 +46,7 @@ function wavSintetico(duracaoSeg = 1, sampleRate = 8000): Buffer {
 }
 
 test.beforeAll(async ({ request }) => {
-  const health = await request.get('/api/v1/system/info').catch(() => null)
+  const health = await request.get('/healthz').catch(() => null)
   if (!health || !health.ok()) {
     test.skip(
       true,
