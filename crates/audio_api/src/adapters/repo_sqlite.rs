@@ -204,6 +204,7 @@ impl AudioRepo for SqliteRepo {
         user_id: Uuid,
         config: &PipelineConfig,
         blocks: &[BeatBlock],
+        meta: &JobMeta,
     ) -> Result<(), RepoError> {
         let config_json = serde_json::to_value(config)?;
         let blocks_json = serde_json::to_value(blocks)?;
@@ -232,11 +233,7 @@ impl AudioRepo for SqliteRepo {
     /// sob transação com o registro de auditoria. `rows_affected == 0`
     /// significa job inexistente (de outro tenant) OU em estado terminal —
     /// um SELECT decide qual dos dois devolver.
-    async fn cancel_job(
-        &self,
-        job_id: Uuid,
-        tenant_id: Uuid,
-    ) -> Result<JobRecord, RepoError> {
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
         let mut tx = self
             .pool
             .begin()
@@ -726,8 +723,8 @@ mod sqlite_tests {
             &[],
             &JobMeta::default(),
         )
-            .await
-            .unwrap();
+        .await
+        .unwrap();
         let job = repo.get_job(job_id, tenant_id).await.unwrap();
         assert_eq!(job.id, job_id);
         assert_eq!(job.status, JobStatus::Queued);

@@ -8,9 +8,6 @@
 //! Usa `tower::ServiceExt::oneshot` sobre o `api_router()` real com
 //! `InMemoryRepo` + `LocalFsStorage` em tempdir — sem rede.
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use axum::Router;
 use audio_agent::llm::mock::MockLlm;
 use audio_agent::validator::ValidationLayer;
 use audio_agent::ReActOrchestrator;
@@ -26,6 +23,9 @@ use audio_core::ndarray::Array1;
 use audio_core::ports::repo_trait::{AudioRepo, JobMeta, JobStatus, TrackRecord, TrackStatus};
 use audio_core::ports::Storage;
 use audio_core::{AudioFormat, PipelineConfig};
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use axum::Router;
 use chrono::Utc;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -43,7 +43,13 @@ fn state() -> (AppState, tempfile::TempDir) {
     let mock = Arc::new(MockLlm::new());
     let orchestrator = Arc::new(ReActOrchestrator::<MockLlm>::new(validator, mock, 5));
     let hub = Arc::new(audio_api::sse::EventHub::new());
-    let app = AppState::new(repo, orchestrator, Arc::new(AppConfig::default()), hub, storage);
+    let app = AppState::new(
+        repo,
+        orchestrator,
+        Arc::new(AppConfig::default()),
+        hub,
+        storage,
+    );
     (app, tmp)
 }
 
@@ -64,7 +70,10 @@ fn claims(tenant_id: Uuid) -> TenantClaims {
 }
 
 fn bearer(tenant_id: Uuid) -> String {
-    format!("Bearer {}", encode_claims(&claims(tenant_id), TEST_SECRET).unwrap())
+    format!(
+        "Bearer {}",
+        encode_claims(&claims(tenant_id), TEST_SECRET).unwrap()
+    )
 }
 
 fn get(path: &str, auth: &str) -> Request<Body> {
@@ -140,11 +149,14 @@ async fn track_com_audio(app: &AppState) -> (Uuid, Uuid, Vec<u8>) {
 
 #[tokio::test]
 async fn peaks_da_faixa_voltam_reais_nao_array_vazio() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let (track_id, tenant_id, _bytes) = track_com_audio(&app).await;
 
     let resp = router(app)
-        .oneshot(get(&format!("/api/v1/tracks/{track_id}/peaks?resolution=16"), &bearer(tenant_id)))
+        .oneshot(get(
+            &format!("/api/v1/tracks/{track_id}/peaks?resolution=16"),
+            &bearer(tenant_id),
+        ))
         .await
         .expect("oneshot");
 
@@ -160,10 +172,7 @@ async fn peaks_da_faixa_voltam_reais_nao_array_vazio() {
         "C9: peaks não pode mais ser array vazio para faixa com áudio real"
     );
     for p in peaks {
-        let (min, max) = (
-            p[0].as_f64().unwrap(),
-            p[1].as_f64().unwrap(),
-        );
+        let (min, max) = (p[0].as_f64().unwrap(), p[1].as_f64().unwrap());
         assert!(min <= max, "min {min} > max {max}");
     }
     // Sinal senoidal com pico 0.5 — nenhum bucket pode passar disso.
@@ -176,7 +185,7 @@ async fn peaks_da_faixa_voltam_reais_nao_array_vazio() {
 
 #[tokio::test]
 async fn peaks_sem_audio_no_storage_da_404() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let tenant_id = Uuid::new_v4();
     let track_id = Uuid::new_v4();
     app.repo
@@ -199,7 +208,10 @@ async fn peaks_sem_audio_no_storage_da_404() {
         .unwrap();
 
     let resp = router(app)
-        .oneshot(get(&format!("/api/v1/tracks/{track_id}/peaks"), &bearer(tenant_id)))
+        .oneshot(get(
+            &format!("/api/v1/tracks/{track_id}/peaks"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -207,20 +219,28 @@ async fn peaks_sem_audio_no_storage_da_404() {
 
 #[tokio::test]
 async fn raw_entrega_o_wav_original_escopado_por_tenant() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let (track_id, tenant_id, bytes) = track_com_audio(&app).await;
 
     let resp = router(app.clone())
-        .oneshot(get(&format!("/api/v1/tracks/{track_id}/raw"), &bearer(tenant_id)))
+        .oneshot(get(
+            &format!("/api/v1/tracks/{track_id}/raw"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 22).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 22)
+        .await
+        .unwrap();
     assert_eq!(body.as_ref(), bytes.as_slice(), "raw ≠ bytes enviados");
 
     // Outro tenant: 404 (mesma resposta de inexistente — docs/08 §3).
     let resp = router(app)
-        .oneshot(get(&format!("/api/v1/tracks/{track_id}/raw"), &bearer(Uuid::new_v4())))
+        .oneshot(get(
+            &format!("/api/v1/tracks/{track_id}/raw"),
+            &bearer(Uuid::new_v4()),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -229,7 +249,7 @@ async fn raw_entrega_o_wav_original_escopado_por_tenant() {
 /// C6 — cancel real: transição + auditoria + 409 no segundo cancel.
 #[tokio::test]
 async fn cancel_transiciona_para_cancelled_e_recusa_segunda_vez() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let tenant_id = Uuid::new_v4();
     let job_id = Uuid::new_v4();
     let track_id = Uuid::new_v4();
@@ -250,11 +270,16 @@ async fn cancel_transiciona_para_cancelled_e_recusa_segunda_vez() {
         .unwrap();
 
     let resp = router(app.clone())
-        .oneshot(post(&format!("/api/v1/jobs/{job_id}/cancel"), &bearer(tenant_id)))
+        .oneshot(post(
+            &format!("/api/v1/jobs/{job_id}/cancel"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["status"], "cancelled");
 
@@ -265,7 +290,10 @@ async fn cancel_transiciona_para_cancelled_e_recusa_segunda_vez() {
 
     // Segundo cancel: job já terminal → 409 job_not_editable.
     let resp = router(app)
-        .oneshot(post(&format!("/api/v1/jobs/{job_id}/cancel"), &bearer(tenant_id)))
+        .oneshot(post(
+            &format!("/api/v1/jobs/{job_id}/cancel"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
@@ -274,7 +302,7 @@ async fn cancel_transiciona_para_cancelled_e_recusa_segunda_vez() {
 /// C12 — retry: só em failed, cria NOVO job reusando receita e track_id.
 #[tokio::test]
 async fn retry_de_job_failed_cria_novo_job_com_a_mesma_receita() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let tenant_id = Uuid::new_v4();
     let old_job = Uuid::new_v4();
     let track_id = Uuid::new_v4();
@@ -301,11 +329,16 @@ async fn retry_de_job_failed_cria_novo_job_com_a_mesma_receita() {
         .unwrap();
 
     let resp = router(app.clone())
-        .oneshot(post(&format!("/api/v1/jobs/{old_job}/retry"), &bearer(tenant_id)))
+        .oneshot(post(
+            &format!("/api/v1/jobs/{old_job}/retry"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::ACCEPTED);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let new_id: Uuid = json["job_id"].as_str().unwrap().parse().unwrap();
     assert_ne!(new_id, old_job, "contrato: retry cria NOVO job_id");
@@ -314,9 +347,16 @@ async fn retry_de_job_failed_cria_novo_job_com_a_mesma_receita() {
     assert_eq!(new_job.status, JobStatus::Queued);
     assert_eq!(new_job.track_id, Some(track_id), "retry reusa o track_id");
     assert_eq!(new_job.mode.as_deref(), Some("assisted"));
-    assert_eq!(new_job.user_prompt.as_deref(), Some("versão de 30s pra Reels"));
+    assert_eq!(
+        new_job.user_prompt.as_deref(),
+        Some("versão de 30s pra Reels")
+    );
     let restored: PipelineConfig = serde_json::from_value(new_job.config.clone()).unwrap();
-    assert_eq!(restored.crossfade.max_duration_ms.get(), 1200, "retry reusa a receita");
+    assert_eq!(
+        restored.crossfade.max_duration_ms.get(),
+        1200,
+        "retry reusa a receita"
+    );
 
     // Original permanece failed como histórico.
     assert_eq!(
@@ -327,7 +367,7 @@ async fn retry_de_job_failed_cria_novo_job_com_a_mesma_receita() {
 
 #[tokio::test]
 async fn retry_de_job_nao_failed_da_409() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let tenant_id = Uuid::new_v4();
     let job_id = Uuid::new_v4();
     app.repo
@@ -343,7 +383,10 @@ async fn retry_de_job_nao_failed_da_409() {
         .unwrap();
 
     let resp = router(app)
-        .oneshot(post(&format!("/api/v1/jobs/{job_id}/retry"), &bearer(tenant_id)))
+        .oneshot(post(
+            &format!("/api/v1/jobs/{job_id}/retry"),
+            &bearer(tenant_id),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
@@ -353,7 +396,7 @@ async fn retry_de_job_nao_failed_da_409() {
 /// sem header Authorization, um token em `mixlirous_session` autentica.
 #[tokio::test]
 async fn handshake_sse_aceita_cookie_de_sessao() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     let tenant_id = Uuid::new_v4();
     let job_id = Uuid::new_v4();
     app.repo
@@ -384,10 +427,7 @@ async fn handshake_sse_aceita_cookie_de_sessao() {
         .header("Cookie", format!("mixlirous_session={token}"))
         .body(Body::empty())
         .unwrap();
-    let resp = router(app)
-        .oneshot(req)
-        .await
-        .unwrap();
+    let resp = router(app).oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let content_type = resp
         .headers()
@@ -404,7 +444,7 @@ async fn handshake_sse_aceita_cookie_de_sessao() {
 /// Issue #33 — local-session no modo local: 200 com token + Set-Cookie.
 #[tokio::test]
 async fn local_session_emite_token_e_cookie_no_modo_local() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     std::env::set_var("CONFIG_ENV", "local");
 
     let resp = router(app)
@@ -423,7 +463,9 @@ async fn local_session_emite_token_e_cookie_no_modo_local() {
     assert!(cookie.contains("HttpOnly"));
     assert!(cookie.contains("SameSite=Lax"));
 
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json["token"].as_str().is_some());
 }
@@ -431,7 +473,7 @@ async fn local_session_emite_token_e_cookie_no_modo_local() {
 /// Issue #33 — local-session FAIL-CLOSED fora do modo local.
 #[tokio::test]
 async fn local_session_fora_do_modo_local_e_404() {
-    let (app, _tmp) = state().await;
+    let (app, _tmp) = state();
     std::env::set_var("CONFIG_ENV", "production");
 
     let resp = router(app)

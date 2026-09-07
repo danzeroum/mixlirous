@@ -68,7 +68,11 @@ fn extract_token(parts: &Parts) -> Option<String> {
         }
     }
 
-    let cookie_header = parts.headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+    let cookie_header = parts
+        .headers
+        .get(axum::http::header::COOKIE)?
+        .to_str()
+        .ok()?;
     for pair in cookie_header.split(';') {
         let pair = pair.trim();
         if let Some(value) = pair.strip_prefix(SSE_SESSION_COOKIE) {
@@ -105,7 +109,10 @@ where
     }
 }
 
-fn decode_claims(token: &str, secret: &str) -> Result<TenantClaims, jsonwebtoken::errors::Error> {
+pub(crate) fn decode_claims(
+    token: &str,
+    secret: &str,
+) -> Result<TenantClaims, jsonwebtoken::errors::Error> {
     use jsonwebtoken::{decode, DecodingKey, Validation};
 
     let key = DecodingKey::from_secret(secret.as_bytes());
@@ -115,16 +122,32 @@ fn decode_claims(token: &str, secret: &str) -> Result<TenantClaims, jsonwebtoken
 
 /// Assina um JWT com as claims dadas. Compartilhado pelo boot (token de
 /// sessão local) e pelas rotas de auth (`routes/auth.rs`).
-pub fn encode_claims(claims: &TenantClaims, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn encode_claims(
+    claims: &TenantClaims,
+    secret: &str,
+) -> Result<String, jsonwebtoken::errors::Error> {
     use jsonwebtoken::{encode, EncodingKey, Header};
 
-    encode(&Header::default(), claims, &EncodingKey::from_secret(secret.as_bytes()))
+    encode(
+        &Header::default(),
+        claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
+    use jsonwebtoken::{encode, EncodingKey, Header};
+
+    fn parts_with(headers: Vec<(axum::http::HeaderName, &'static str)>) -> Parts {
+        let mut builder = axum::http::Request::builder();
+        for (name, value) in headers {
+            builder = builder.header(name, value);
+        }
+        let (parts, _body) = builder.body(()).expect("request").into_parts();
+        parts
+    }
 
     fn sample_claims() -> TenantClaims {
         TenantClaims {
@@ -209,15 +232,10 @@ mod tests {
     /// #33 — extração de token: Bearer no header tem precedência.
     #[test]
     fn extract_token_prefere_header_bearer() {
-        let mut parts = Parts::default();
-        parts.headers.insert(
-            axum::http::header::AUTHORIZATION,
-            HeaderValue::from_static("Bearer header-token"),
-        );
-        parts.headers.insert(
-            axum::http::header::COOKIE,
-            HeaderValue::from_static("mixlirous_session=cookie-token"),
-        );
+        let parts = parts_with(vec![
+            (axum::http::header::AUTHORIZATION, "Bearer header-token"),
+            (axum::http::header::COOKIE, "mixlirous_session=cookie-token"),
+        ]);
         assert_eq!(extract_token(&parts).as_deref(), Some("header-token"));
     }
 
@@ -225,27 +243,22 @@ mod tests {
     /// (é o caminho do handshake do EventSource).
     #[test]
     fn extract_token_cai_para_cookie_de_sessao() {
-        let mut parts = Parts::default();
-        parts.headers.insert(
+        let parts = parts_with(vec![(
             axum::http::header::COOKIE,
-            HeaderValue::from_static("outro=v1; mixlirous_session=cookie-token; mais=v2"),
-        );
+            "outro=v1; mixlirous_session=cookie-token; mais=v2",
+        )]);
         assert_eq!(extract_token(&parts).as_deref(), Some("cookie-token"));
     }
 
     #[test]
     fn extract_token_sem_nada_e_none() {
-        let parts = Parts::default();
+        let parts = parts_with(vec![]);
         assert_eq!(extract_token(&parts), None);
     }
 
     #[test]
     fn extract_token_cookie_vazio_e_none() {
-        let mut parts = Parts::default();
-        parts.headers.insert(
-            axum::http::header::COOKIE,
-            HeaderValue::from_static("mixlirous_session="),
-        );
+        let parts = parts_with(vec![(axum::http::header::COOKIE, "mixlirous_session=")]);
         assert_eq!(extract_token(&parts), None);
     }
 
@@ -256,11 +269,8 @@ mod tests {
         let claims = sample_claims();
         let token = encode_claims(&claims, "test-secret").unwrap();
 
-        let mut parts = Parts::default();
-        parts.headers.insert(
-            axum::http::header::COOKIE,
-            HeaderValue::from_str(&format!("{SSE_SESSION_COOKIE}={token}")).unwrap(),
-        );
+        let cookie_value = Box::leak(format!("{SSE_SESSION_COOKIE}={token}").into_boxed_str());
+        let parts = parts_with(vec![(axum::http::header::COOKIE, cookie_value)]);
 
         let extracted = extract_token(&parts).unwrap();
         let decoded = decode_claims(&extracted, "test-secret").unwrap();

@@ -68,11 +68,7 @@ impl AudioRepo for InMemoryRepo {
     /// Estados terminais (`Completed`/`Failed`/`Cancelled`/`RolledBack`)
     /// devolvem `InvalidState` — nunca sobrescrevem o resultado de um job
     /// que já terminou.
-    async fn cancel_job(
-        &self,
-        job_id: Uuid,
-        tenant_id: Uuid,
-    ) -> Result<JobRecord, RepoError> {
+    async fn cancel_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
         let mut state = self.state.write().await;
         {
             let state_read = &state;
@@ -87,17 +83,20 @@ impl AudioRepo for InMemoryRepo {
             }
         }
         let now = Utc::now();
-        let job = state.jobs.get_mut(&job_id).expect("job checado acima");
-        job.status = JobStatus::Cancelled;
-        job.worker_id = None;
-        job.updated_at = now;
+        let job_clone = {
+            let job = state.jobs.get_mut(&job_id).expect("job checado acima");
+            job.status = JobStatus::Cancelled;
+            job.worker_id = None;
+            job.updated_at = now;
+            job.clone()
+        };
         state.audit.push(AuditRecord {
             job_id,
             action: "JOB_CANCELLED".to_string(),
             new_status: JobStatus::Cancelled,
             occurred_at: now,
         });
-        Ok(job.clone())
+        Ok(job_clone)
     }
 
     async fn get_job(&self, job_id: Uuid, tenant_id: Uuid) -> Result<JobRecord, RepoError> {
@@ -457,6 +456,7 @@ mod tests {
                 Uuid::new_v4(),
                 &PipelineConfig::default(),
                 &[],
+                &JobMeta::default(),
             )
             .await
             .unwrap();

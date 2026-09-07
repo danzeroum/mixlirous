@@ -18,7 +18,7 @@ use crate::state::AppState;
 use axum::{
     extract::State,
     http::{header, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
     Json,
 };
 use serde::Serialize;
@@ -75,8 +75,16 @@ pub async fn post_sse_session(
     _state: State<AppState>,
     AuthContext(claims): AuthContext,
 ) -> Result<Response, (StatusCode, String)> {
-    let token = encode_claims(&mint_claims(&claims, SSE_COOKIE_TTL_SEC as i64), &crate::middleware::auth::jwt_secret())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("mint sse token: {e}")))?;
+    let token = encode_claims(
+        &mint_claims(&claims, SSE_COOKIE_TTL_SEC as i64),
+        &crate::middleware::auth::jwt_secret(),
+    )
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("mint sse token: {e}"),
+        )
+    })?;
 
     let resp = Response::builder()
         .status(StatusCode::NO_CONTENT)
@@ -91,9 +99,7 @@ pub async fn post_sse_session(
 /// sessão do single-user local no corpo E no cookie (mesmo token), para
 /// que a UI consiga: (a) mandar Bearer nos comandos REST e (b) abrir o
 /// `EventSource` com o cookie de sessão sem segunda chamada.
-pub async fn get_local_session(
-    _state: State<AppState>,
-) -> Result<Response, (StatusCode, String)> {
+pub async fn get_local_session(_state: State<AppState>) -> Result<Response, (StatusCode, String)> {
     let config_env = std::env::var("CONFIG_ENV").unwrap_or_else(|_| "local".to_string());
     if config_env != "local" {
         // 404 de propósito: fora do modo local a rota não existe. Nunca
@@ -111,28 +117,36 @@ pub async fn get_local_session(
         exp: (now + chrono::Duration::seconds(LOCAL_SESSION_TTL_SEC)).timestamp() as usize,
     };
 
-    let token = encode_claims(&claims, &crate::middleware::auth::jwt_secret())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("mint local token: {e}")))?;
+    let token = encode_claims(&claims, &crate::middleware::auth::jwt_secret()).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("mint local token: {e}"),
+        )
+    })?;
 
     // Sanidade: o token emitido precisa validar com o MESMO segredo que o
     // extractor vai usar — pega o bug de dois segredos divergentes na hora.
-    decode_claims(&token, &crate::middleware::auth::jwt_secret())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("self-check: {e}")))?;
+    decode_claims(&token, &crate::middleware::auth::jwt_secret()).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("self-check: {e}"),
+        )
+    })?;
 
-    let body = Json(LocalSessionResponse {
+    let body = LocalSessionResponse {
         token: token.clone(),
         expires_at: (now + chrono::Duration::seconds(LOCAL_SESSION_TTL_SEC)).to_rfc3339(),
         tenant_id: claims.tenant_id,
         user_id: claims.sub,
-    });
+    };
 
-    let resp = Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(axum::body::Body::new(body))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("body: {e}")))?;
+    let resp = Json(body).into_response();
 
-    Ok(set_session_cookie(resp, &token, LOCAL_SESSION_TTL_SEC as u64))
+    Ok(set_session_cookie(
+        resp,
+        &token,
+        LOCAL_SESSION_TTL_SEC as u64,
+    ))
 }
 
 #[cfg(test)]
