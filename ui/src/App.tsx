@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import RemixCanvas from './components/RemixCanvas'
 import ProposalOverlay, { type Proposal } from './components/ProposalOverlay'
@@ -7,7 +7,9 @@ import Player from './components/Player'
 import { useSSE } from './hooks/useSSE'
 import { useApi } from './hooks/useApi'
 import type { JobMode, PipelineConfig } from './types/api'
-import { defaultPipelineConfig } from './types/api'
+import { GraphValidationError, graphToPipelineConfig } from './lib/graphToPipeline'
+import { useGraphStore } from './store/graphStore'
+import { setStoredToken } from './lib/authHeaders'
 
 function App() {
   const [jobId, setJobId] = useState<string | undefined>(undefined)
@@ -18,6 +20,30 @@ function App() {
   const [mode, setMode] = useState<JobMode>('manual')
   const { events, connected } = useSSE(jobId)
   const api = useApi()
+  // Lote 3 (item 1): o grafo do canvas é a fonte do pipeline_config —
+  // o que o usuário montou é o que o backend executa.
+  const graphNodes = useGraphStore((s) => s.nodes)
+  const graphEdges = useGraphStore((s) => s.edges)
+  const [graphError, setGraphError] = useState<string | null>(null)
+
+  // Sessão local (docs/03 §1): token para os comandos REST + cookie
+  // same-origin para o handshake SSE e para o download do artefato.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/v1/auth/local-session', {
+          credentials: 'same-origin',
+        })
+        if (res.ok) {
+          const body = (await res.json()) as { token?: string }
+          if (body?.token) setStoredToken(body.token)
+        }
+      } catch {
+        // Modo SaaS cuida do próprio login — sem token local não há nada
+        // a fazer aqui.
+      }
+    })()
+  }, [])
 
   const handleUploadComplete = useCallback((id: string) => {
     setTrackId(id)
@@ -26,10 +52,24 @@ function App() {
   const handleCreateJob = useCallback(
     async (tkId: string, prompt: string) => {
       // Item B3: agora usamos o `mode` do state em vez de hardcoded 'manual'.
-      // O `pipeline_config` enviado agora é o default válido do Rust
-      // (defaultPipelineConfig gera a struct que desserializa corretamente).
-      // Antes, o shape era incompatível e a request falhava com 422.
-      const pipelineConfig: PipelineConfig = defaultPipelineConfig()
+      //
+      // Lote 3 (item 1 do plano Pareto — canvas executável): o
+      // pipeline_config deixa de ser o default fixo e passa a ser a
+      // SERIALIZAÇÃO REAL do grafo montado no canvas (graphStore →
+      // PipelineConfig). O que o usuário montou é o que o backend executa.
+      // Grafo vazio → erro explícito pedindo uma ferramenta da paleta;
+      // grafo cíclico → invalid_graph antes de gastar um job.
+      setGraphError(null)
+      let pipelineConfig: PipelineConfig
+      try {
+        pipelineConfig = graphToPipelineConfig(graphNodes, graphEdges)
+      } catch (e) {
+        if (e instanceof GraphValidationError) {
+          setGraphError(e.message)
+          return
+        }
+        throw e
+      }
       try {
         const job = await api.createJob(tkId, mode, prompt, pipelineConfig)
         setJobId(job.job_id)
@@ -39,7 +79,7 @@ function App() {
         console.error('Failed to create job:', e)
       }
     },
-    [api, mode]
+    [api, mode, graphNodes, graphEdges]
   )
 
   const pendingProposal = useMemo<Proposal | null>(() => {
@@ -118,6 +158,13 @@ function App() {
             <p className="text-sm text-gray-300">Job: {jobId.slice(0, 8)}...</p>
             <p className="text-xs text-gray-400">Status: {jobStatus || 'aguardando'}</p>
             {connected && <p className="text-xs text-green-400">SSE conectado</p>}
+          </div>
+        )}
+
+        {graphError && (
+          <div className="bg-orange-900/50 p-3 rounded-lg mt-4">
+            <p className="text-sm text-orange-300 font-semibold">Grafo inválido</p>
+            <p className="text-sm text-orange-300 mt-1">{graphError}</p>
           </div>
         )}
 

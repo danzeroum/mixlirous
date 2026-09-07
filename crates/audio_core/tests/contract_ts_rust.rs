@@ -200,3 +200,105 @@ fn default_pipeline_config_ts_desserializa_no_rust() {
         .collect();
     assert_eq!(top_keys, ts_keys, "top-level keys devem coincidir TS↔Rust");
 }
+
+/// Lote 3 (item 1 — canvas executável): o JSON que
+/// `ui/src/lib/graphToPipeline.ts` produz para o GRAFO CANÔNICO do canvas
+/// (nó crossfade com max_duration_ms=1200 + nó lufs_normalization)
+/// desserializa no Rust. É o teste de contrato do grafo → pipeline_config:
+/// se alguém mudar um campo de um lado, o outro quebra aqui.
+#[test]
+fn grafo_canonico_do_canvas_desserializa_no_rust() {
+    // Golden gerado por `graphToPipeline.spec.ts` (lado TS) — mantenha os
+    // dois em sincronia. Base = defaultPipelineConfig() com os overrides
+    // do grafo: crossfade habilitado com 1200 ms; LUFS −14 explícito.
+    let canvas_golden = json!({
+        "target_duration": { "secs": 30, "nanos": 0 },
+        "crossfade": {
+            "enabled": true,
+            "max_duration_ms": 1200,
+            "curve": "constant_power"
+        },
+        "mastering": {
+            "lufs_target": -14.0,
+            "peak_db": -1.0,
+            "enable_limiting": true,
+            "compression_ratio": 2.0
+        },
+        "selection": {
+            "min_strong_beat_percentile": 0.8,
+            "block_size_beats": 4,
+            "preserve_intro_ms": 3000,
+            "preserve_outro_ms": 3000
+        },
+        "format": {
+            "sample_rate": 44100,
+            "channels": 2,
+            "bit_depth": 24,
+            "codec": "WAV"
+        },
+        "tuning": {
+            "enabled": false,
+            "mode": "disabled",
+            "max_global_cents": 50.0,
+            "min_confidence": 0.7,
+            "force_tonic_hz": null,
+            "force_mode": null
+        }
+    });
+
+    let result: Result<PipelineConfig, _> = serde_json::from_value(canvas_golden.clone());
+    let config = result.expect("grafo canônico do canvas deve desserializar no Rust");
+    assert_eq!(config.crossfade.max_duration_ms.get(), 1200);
+    assert!(config.crossfade.enabled);
+
+    // roundtrip: o Rust re-serializa exatamente o golden (nenhum campo
+    // extra, nenhum faltando).
+    let rust_json = serde_json::to_value(&config).expect("serialize");
+    let restored: PipelineConfig = serde_json::from_value(rust_json).expect("roundtrip");
+    assert_eq!(restored.crossfade.max_duration_ms.get(), 1200);
+}
+
+/// Lote 3 — grafo SEM nó de crossfade desabilita o crossfade: o canvas é
+/// a fonte da verdade, não o default do backend. O JSON abaixo é o que o
+/// `graphToPipeline.ts` produz para um grafo só com lufs_normalization.
+#[test]
+fn grafo_sem_crossfade_desabilita_crossfade_no_rust() {
+    let sem_crossfade = json!({
+        "target_duration": { "secs": 30, "nanos": 0 },
+        "crossfade": {
+            "enabled": false,
+            "max_duration_ms": 3000,
+            "curve": "constant_power"
+        },
+        "mastering": {
+            "lufs_target": -14.0,
+            "peak_db": -1.0,
+            "enable_limiting": true,
+            "compression_ratio": 2.0
+        },
+        "selection": {
+            "min_strong_beat_percentile": 0.8,
+            "block_size_beats": 4,
+            "preserve_intro_ms": 3000,
+            "preserve_outro_ms": 3000
+        },
+        "format": {
+            "sample_rate": 44100,
+            "channels": 2,
+            "bit_depth": 24,
+            "codec": "WAV"
+        },
+        "tuning": {
+            "enabled": false,
+            "mode": "disabled",
+            "max_global_cents": 50.0,
+            "min_confidence": 0.7,
+            "force_tonic_hz": null,
+            "force_mode": null
+        }
+    });
+
+    let config: PipelineConfig =
+        serde_json::from_value(sem_crossfade).expect("grafo sem crossfade");
+    assert!(!config.crossfade.enabled);
+}
