@@ -48,10 +48,15 @@ audio_api: code 95%, integration 70%
   middleware: auth JWT, rate_limit
   resiliência: atomic_write, recovery loop
 
-ui: code 95%, integration 80%
+ui: code 95%, integration 85%
+  # Lote 1 do plano Pareto (+5): ToolPalette respeita available=false de
+  # GET /tools — ghost tools (compression, dynamic_eq) desabilitadas com
+  # motivo no tooltip; lógica em lib/toolFilter.ts com testes Vitest.
   components:
     UploadPanel: modo manual/assisted selecionável (B3)
     ProposalOverlay: parâmetros editáveis antes de aceitar (C3)
+    ToolPalette (NOVO): paleta de ferramentas de GET /tools com filtro de
+      disponibilidade (Lote 1 item 4)
     RemixCanvas: DAG React Flow (nós estáticos — pendente integração com
       graph do backend quando get_job retornar JobResponse completo)
     Player: player A/B comparativo (C2)
@@ -59,7 +64,7 @@ ui: code 95%, integration 80%
     useSSE (NOVO): addEventListener para eventos nomeados (B2);
       useParamStream virou re-export para compat
     useApi: ApiRequestError estruturado (C1) + approveProposal com body
-  store: graphStore (Zustand)
+  store: graphStore (Zustand) + addToolNode (Lote 1)
   types: api.ts reescrito com PipelineConfig mirror do Rust (B3) +
     defaultPipelineConfig() helper + ApiError RFC 7807
 
@@ -69,11 +74,14 @@ sprints:
   S3: 100% — ReAct, LlmProvider, prompt_guard, HITL, frontend (backend tasks 3.1-3.11)
   S4: 100% — atomic_write, recovery, heartbeat, rate_limit, métricas
   # Sprint de integração (esta iteração): B1, B2, B3, B4, C1, C2, C3, C4 — fechados
+  # Lote 1 do plano Pareto: docs sincronizados (README/08/14), CI
+  # incondicional em PR (#5), redes do compose restauradas, paleta com
+  # filtro de ghost tools (item 4).
   # Próxima sprint (pendentes): B5 (HITL store populado), B7 (Last-Event-ID replay),
   # C4 do relatório (JobResponse completo em get_job), C9 (peaks TODO),
   # C12 (9 endpoints documentados mas não implementados)
 
-tests: 430+ (199 core + 71 agent + 96 api + 4 e2e + 4 contract_ts_rust + 5 ui/vitest)
+tests: 461 rust (nextest, com fixtures) + 13 ui/vitest
 build: OK
 clippy: OK (-D warnings)
 fmt: OK (--check)
@@ -82,3 +90,5 @@ fmt: OK (--check)
 # 2026-08-20: B1 (recipe aplicada), B2 (SSE hook fix), B3 (contract sync),
 #             B4 (artifact endpoint), C1-C4 (UI), T1/T2/T3 (tests),
 #             D1-D4 (docs)
+# Lote 1 Pareto: docs (adendo §1), CI incondicional (#5), compose [mixlirous],
+#             ToolPalette + toolFilter (ui 80→85)
