@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { ApiRequestError } from '../types/api'
+import { authHeaders } from '../lib/authHeaders'
 import type {
   ApiError,
   ApproveRequestBody,
@@ -29,6 +30,9 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      // Token da sessão local (docs/03 §1) quando existir — no modo SaaS
+      // o login futuro grava o mesmo storage key e nada muda aqui.
+      ...authHeaders(),
       ...options?.headers,
     },
   })
