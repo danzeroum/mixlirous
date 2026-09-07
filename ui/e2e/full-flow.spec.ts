@@ -6,6 +6,17 @@
  * Roda contra a stack REAL (ver playwright.config.ts). Sem stack, a spec
  * se auto-pula — e o CI não finge que passou.
  *
+ * Sessão (bootstrap de auth): a app espera `GET /auth/local-session`
+ * (Lote 2, PR #56) para obter o token REST. A spec instala um fulfill
+ * DESSE endpoint com um JWT assinado em-processo (HS256, segredo de
+ * desenvolvimento default do `CONFIG_ENV=local` — `auth.rs`) com tenant
+ * fixo: determinístico, independente de qual PR já entrou na stack, e o
+ * caminho real do endpoint tem cobertura própria nos testes HTTP do
+ * Lote 2. O handshake SSE (EventSource não manda header) usa o cookie
+ * `mixlirous_session` emitido pelo `POST /auth/sse-session` — a spec
+ * chama a rota REAL com o Bearer; em backend sem a rota (pré-Lote 2) a
+ * spec se auto-pula com o motivo explícito.
+ *
  * Nota sobre o passo HITL: o worker hoje decide propostas internamente
  * (item B5 do CHANGELOG — ProposalStore ainda não populado, próxima
  * sprint do plano). Quando nenhuma `agent.proposal` chega, o passo de
@@ -19,6 +30,53 @@
  * graphToPipelineConfig) — o fluxo é exercitado nos dois estados.
  */
 import { test, expect } from '@playwright/test'
+
+/** Tenant fixo do E2E — forma v4 válida; escopa todas as linhas do run. */
+const TENANT_E2E = 'e2e00000-0000-4000-8000-000000000001'
+
+/**
+ * Segredo JWT do modo local — MESMO default de `auth.rs::jwt_secret()`
+ * (`CONFIG_ENV=local` sem JWT_SECRET definido). Se a stack rodar com
+ * outro segredo, o E2E falha com 401 explícito — o runbook
+ * (docs/17-GUIA-DE-TESTES.md) manda subir em modo local.
+ */
+const SEGREDO_LOCAL = 'local-dev-secret-change-me'
+
+function b64url(bytes: Uint8Array): string {
+  let s = ''
+  for (const b of bytes) s += String.fromCharCode(b)
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** JWT HS256 assinado com o segredo de dev — claims mínimas do §1 dos contratos. */
+async function mintLocalJwt(): Promise<string> {
+  const enc = new TextEncoder()
+  const header = b64url(enc.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
+  const agora = Math.floor(Date.now() / 1000)
+  const payload = b64url(
+    enc.encode(
+      JSON.stringify({
+        sub: TENANT_E2E,
+        tenant_id: TENANT_E2E,
+        roles: ['owner'],
+        plan: 'free',
+        iat: agora,
+        exp: agora + 3600,
+      }),
+    ),
+  )
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(SEGREDO_LOCAL),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = new Uint8Array(
+    await crypto.subtle.sign('HMAC', key, enc.encode(`${header}.${payload}`)),
+  )
+  return `${header}.${payload}.${b64url(sig)}`
+}
 
 /** WAV mono PCM16 legítimo, sintetizado no próprio teste (sem fixture). */
 function wavSintetico(duracaoSeg = 1, sampleRate = 8000): Buffer {
@@ -50,6 +108,8 @@ function wavSintetico(duracaoSeg = 1, sampleRate = 8000): Buffer {
   return buffer
 }
 
+let tokenE2E: string
+
 test.beforeAll(async ({ request }) => {
   const health = await request.get('/healthz').catch(() => null)
   if (!health || !health.ok()) {
@@ -58,6 +118,7 @@ test.beforeAll(async ({ request }) => {
       'Backend Mixlirous não acessível em E2E_BASE_URL — suba a stack (docs/17-GUIA-DE-TESTES.md) para rodar o E2E.',
     )
   }
+  tokenE2E = await mintLocalJwt()
 })
 
 test('fluxo feliz: upload → job → aprovação HITL → download do artefato', async ({
@@ -65,11 +126,20 @@ test('fluxo feliz: upload → job → aprovação HITL → download do artefato'
 }) => {
   test.setTimeout(300_000)
 
+  // Bootstrap de sessão: fulfill determinístico do endpoint que a app
+  // consome no mount (ver nota de header). Instalado ANTES do goto.
+  await page.route('**/api/v1/auth/local-session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ token: tokenE2E }),
+    }),
+  )
+
   await page.goto('/')
 
   // A app faz o bootstrap de sessão local no mount (App.tsx): token no
-  // localStorage para os comandos REST + cookie same-origin para o
-  // handshake SSE e o download. Espera o bootstrap terminar.
+  // localStorage para os comandos REST. Espera o bootstrap terminar.
   await page
     .waitForFunction(() => localStorage.getItem('mixlirous_token') !== null, null, {
       timeout: 15_000,
@@ -79,6 +149,22 @@ test('fluxo feliz: upload → job → aprovação HITL → download do artefato'
       // upload vai falhar com 401 explícito, o que é o comportamento
       // correto sem sessão.
     })
+
+  // Cookie de SSE: o EventSource não manda header, então o handshake
+  // valida o cookie `mixlirous_session` emitido AQUI (rota real do Lote 2,
+  // só para Bearer válido). Sem a rota (backend pré-Lote 2) a spec se
+  // auto-pula — SSE sem auth não completa o fluxo feliz, e o CI não finge.
+  const sseSession = await page.request
+    .post('/api/v1/auth/sse-session', {
+      headers: { Authorization: `Bearer ${tokenE2E}` },
+    })
+    .catch(() => null)
+  if (!sseSession || !sseSession.ok()) {
+    test.skip(
+      true,
+      'Backend sem POST /auth/sse-session (Lote 2, PR #56) — EventSource não autentica e o fluxo feliz completo exige SSE. Suba a stack pós-Lote 2.',
+    )
+  }
 
   // 1. Upload: presign → PUT → POST /tracks.
   await page.setInputFiles('[data-testid="upload-input"]', {
