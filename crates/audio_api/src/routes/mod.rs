@@ -66,6 +66,9 @@ pub fn api_router() -> Router<AppState> {
         )
         .route("/tracks/{track_id}", get(tracks::get_track))
         .route("/tracks/{track_id}/peaks", get(tracks::get_track_peaks))
+        // Lote 2 (item 2): áudio ORIGINAL por track_id — alimenta o lado
+        // "original" do player A/B sem upload manual.
+        .route("/tracks/{track_id}/raw", get(tracks::get_track_raw))
 }
 
 /// Rotas de diagnostico. **So entram no router se `MIXLIROUS_DEV_SLICE=1`**
