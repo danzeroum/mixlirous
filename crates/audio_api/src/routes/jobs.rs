@@ -55,6 +55,17 @@ pub struct JobListResponse {
     pub next_cursor: Option<String>,
 }
 
+/// Resposta de `POST /jobs/{job_id}/retry` (contrato docs/03 §3.3: 202 com
+/// **novo** `job_id`, reusando a mesma receita e o mesmo `track_id`).
+#[derive(Debug, Serialize)]
+pub struct RetryJobResponse {
+    pub job_id: Uuid,
+    pub status: &'static str,
+    pub stream_url: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub retried_from: Uuid,
+}
+
 pub async fn create_job(
     State(state): State<AppState>,
     AuthContext(claims): AuthContext,
@@ -215,6 +226,52 @@ pub async fn cancel_job(
 /// mesma receita (`config`) e o mesmo `track_id`/modo/prompt. Blocks não
 /// são reaproveitados — a seleção é refeita pelo pipeline. O job original
 /// permanece em `failed` como histórico.
+pub async fn retry_job(
+    State(state): State<AppState>,
+    AuthContext(claims): AuthContext,
+    Path(job_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<RetryJobResponse>), (StatusCode, String)> {
+    let old = state
+        .repo
+        .get_job(job_id, claims.tenant_id)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "not_found".to_string()))?;
+
+    if old.status != audio_core::ports::repo_trait::JobStatus::Failed {
+        return Err((
+            StatusCode::CONFLICT,
+            "job_not_editable: retry só é válido em jobs failed".to_string(),
+        ));
+    }
+
+    let config: PipelineConfig = serde_json::from_value(old.config.clone()).unwrap_or_default();
+    let meta = JobMeta {
+        mode: old.mode.clone(),
+        user_prompt: old.user_prompt.clone(),
+        track_id: old.track_id,
+    };
+
+    let new_job_id = Uuid::new_v4();
+    state
+        .repo
+        .save_job(new_job_id, claims.tenant_id, claims.sub, &config, &[], &meta)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tracing::info!(%job_id, new_job_id = %new_job_id, "job reenfileirado via retry");
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(RetryJobResponse {
+            job_id: new_job_id,
+            status: "queued",
+            stream_url: format!("/api/v1/jobs/{new_job_id}/events"),
+            created_at: chrono::Utc::now(),
+            retried_from: job_id,
+        }),
+    ))
+}
+
 /// `GET /api/v1/jobs/{job_id}/artifact` — download do WAV masterizado.
 ///
 /// Item B4 do mapa de ação: o worker publica `download_url` para esta rota

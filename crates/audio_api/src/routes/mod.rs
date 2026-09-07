@@ -31,6 +31,8 @@ pub fn api_router() -> Router<AppState> {
         .route("/jobs/{job_id}", get(jobs::get_job))
         .route("/jobs/{job_id}/artifact", get(jobs::download_artifact))
         .route("/jobs/{job_id}/cancel", post(jobs::cancel_job))
+        // Lote 2 (C12): requeue simples de job failed — docs/03 §3.3.
+        .route("/jobs/{job_id}/retry", post(jobs::retry_job))
         .route("/jobs/{job_id}/events", get(sse::job_stream))
         .route("/prompts", get(prompts::list_prompts))
         .route("/prompts/{prompt_id}", get(prompts::get_prompt))
