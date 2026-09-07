@@ -263,6 +263,7 @@ mod tests {
                 grafana_url: String::new(),
             },
             features: Default::default(),
+            config_env: "local".to_string(),
         };
         let repo = InMemoryRepo::new();
         let v = Arc::new(ValidationLayer::new());

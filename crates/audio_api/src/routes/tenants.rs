@@ -151,6 +151,7 @@ mod tests {
                 grafana_url: String::new(),
             },
             features: Default::default(),
+            config_env: "local".to_string(),
         };
         let validator = Arc::new(ValidationLayer::new());
         let mock = Arc::new(MockLlm::new());

@@ -34,6 +34,15 @@ use uuid::Uuid;
 const TEST_SECRET: &str = "test-secret-routes-lote2";
 
 fn state() -> (AppState, tempfile::TempDir) {
+    state_com_config(AppConfig::default())
+}
+
+/// Variante para testes que precisam de config específica (ex.: modo
+/// fail-closed). fix CI (PR #59): os testes de local-session NÃO mutam mais
+/// `CONFIG_ENV` com `set_var` — a env de processo é global e os testes do
+/// mesmo binário rodam em paralelo; o modo agora vem do `AppConfig` do
+/// estado (determinístico, sem corrida).
+fn state_com_config(config: AppConfig) -> (AppState, tempfile::TempDir) {
     std::env::set_var("JWT_SECRET", TEST_SECRET);
     let repo: Arc<dyn AudioRepo> = InMemoryRepo::new();
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -46,7 +55,7 @@ fn state() -> (AppState, tempfile::TempDir) {
     let app = AppState::new(
         repo,
         orchestrator,
-        Arc::new(AppConfig::default()),
+        Arc::new(config),
         hub,
         storage,
     );
@@ -447,10 +456,11 @@ async fn handshake_sse_aceita_cookie_de_sessao() {
 }
 
 /// Issue #33 — local-session no modo local: 200 com token + Set-Cookie.
+/// O modo vem do `AppConfig::default()` do estado (config_env = "local") —
+/// sem `set_var` global (corrida de paralelismo — ver `state_com_config`).
 #[tokio::test]
 async fn local_session_emite_token_e_cookie_no_modo_local() {
     let (app, _tmp) = state();
-    std::env::set_var("CONFIG_ENV", "local");
 
     let resp = router(app)
         .oneshot(get("/api/v1/auth/local-session", "Bearer irrelevante"))
@@ -476,10 +486,14 @@ async fn local_session_emite_token_e_cookie_no_modo_local() {
 }
 
 /// Issue #33 — local-session FAIL-CLOSED fora do modo local.
+/// O modo "production" vem do AppConfig do estado — o comportamento da rota
+/// não depende mais da env global do processo.
 #[tokio::test]
 async fn local_session_fora_do_modo_local_e_404() {
-    let (app, _tmp) = state();
-    std::env::set_var("CONFIG_ENV", "production");
+    let (app, _tmp) = state_com_config(AppConfig {
+        config_env: "production".to_string(),
+        ..AppConfig::default()
+    });
 
     let resp = router(app)
         .oneshot(get("/api/v1/auth/local-session", "Bearer x"))
