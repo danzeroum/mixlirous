@@ -32,6 +32,12 @@ pub struct TrackResponse {
 pub struct TrackPeaksResponse {
     pub resolution: u32,
     pub peaks: Vec<[f32; 2]>,
+    /// Canais do ARQUIVO ORIGINAL (fonte da verdade é o decode real).
+    /// Fase A do épico estéreo: a UI usa isto para avisar "arquivo estéreo,
+    /// processamento mono" antes do render — sem adivinhar pelo browser.
+    pub channels: u16,
+    /// Sample rate do arquivo original (idem — exibido junto do aviso).
+    pub sample_rate: u32,
 }
 
 impl From<&TrackRecord> for TrackResponse {
@@ -225,7 +231,12 @@ pub async fn get_track_peaks(
 
     Ok((
         StatusCode::OK,
-        Json(TrackPeaksResponse { resolution, peaks }),
+        Json(TrackPeaksResponse {
+            resolution,
+            peaks,
+            channels: decoded.channels,
+            sample_rate: decoded.sample_rate,
+        }),
     ))
 }
 
@@ -313,10 +324,14 @@ mod tests {
         let resp = TrackPeaksResponse {
             resolution: 1024,
             peaks: vec![[-0.5, 0.5], [-0.3, 0.3]],
+            channels: 2,
+            sample_rate: 44100,
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert!(json.contains("1024"));
         assert!(json.contains("-0.5"));
+        assert!(json.contains("\"channels\":2"));
+        assert!(json.contains("\"sample_rate\":44100"));
     }
 
     /// C9 — comportamento do reducer de picos: 8 amostras em 4 buckets.

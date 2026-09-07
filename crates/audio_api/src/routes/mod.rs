@@ -41,9 +41,16 @@ pub fn api_router() -> Router<AppState> {
         .route("/tenants/me/quota", get(tenants::get_quota))
         .route(
             "/tenants/me/consent",
-            get(tenants::get_consent).post(tenants::post_consent),
+            get(tenants::get_consent)
+                .post(tenants::post_consent)
+                // Revogação REAL do consentimento (plano de design §LGPD):
+                // remove o registro ativo; uso futuro volta a exigir aceite.
+                .delete(tenants::delete_consent),
         )
         .route("/system/info", get(system::get_system_info))
+        // Política de privacidade auditável — a UI só declara "o áudio não
+        // é enviado" quando este endpoint (testado) diz audio_sent=false.
+        .route("/system/privacy-policy", get(system::get_privacy_policy))
         .route(
             "/jobs/{job_id}/proposals",
             get(proposals::ProposalHandlers::list_proposals),

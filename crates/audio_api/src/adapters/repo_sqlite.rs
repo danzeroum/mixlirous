@@ -484,6 +484,18 @@ impl AudioRepo for SqliteRepo {
         })
     }
 
+    /// Revogação real (plano de design §LGPD): DELETE do registro ativo.
+    /// Idempotente — revogar sem consentimento é Ok. Jobs, artefatos e
+    /// `audit_records` anteriores permanecem intactos.
+    async fn revoke_consent(&self, tenant_id: Uuid) -> Result<(), RepoError> {
+        sqlx::query("DELETE FROM consent_records WHERE tenant_id = ?1")
+            .bind(tenant_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RepoError::Backend(format!("revoke_consent: {e}")))?;
+        Ok(())
+    }
+
     async fn claim_next_job(&self, worker_id: Uuid) -> Result<Option<JobRecord>, RepoError> {
         let tx = self
             .pool
