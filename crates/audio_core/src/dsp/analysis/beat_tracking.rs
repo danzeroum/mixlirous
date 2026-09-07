@@ -123,20 +123,20 @@ fn local_adaptive_thresholds(onset: &[f32], hop_size: usize, sample_rate: u32) -
     let window = (((LOCAL_THRESHOLD_WINDOW_SEC * sample_rate as f32) / hop_size as f32) as usize)
         .clamp(15, 401);
 
-    for i in 0..n {
+    for (i, thr) in thresholds.iter_mut().enumerate() {
         let start = i.saturating_sub(window / 2);
         let end = (start + window).min(n);
         let start = end.saturating_sub(window); // mantém janela cheia no fim
         let mut local: Vec<f32> = onset[start..end].to_vec();
         if local.len() < 4 {
-            thresholds[i] = 0.1;
+            *thr = 0.1;
             continue;
         }
         local.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let p75 = local[local.len() * 3 / 4];
         let p95 = local[(local.len() as f32 * 0.95) as usize].min(local[local.len() - 1]);
         let range = (p95 - p75).max(0.0);
-        thresholds[i] = (p75 + 0.1 * range).max(1e-4);
+        *thr = (p75 + 0.1 * range).max(1e-4);
     }
     thresholds
 }

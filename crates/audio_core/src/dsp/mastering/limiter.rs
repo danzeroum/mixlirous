@@ -27,6 +27,8 @@
 /// dele); em toda amostra com |x| ≤ ceiling, o ganho aplicado é ≤ 1. Logo
 /// `|y| ≤ ceiling` para todo n.
 
+// Constantes de tempo do envelope.
+///
 /// Janela de lookahead (ms). Pega o transiente antes de ele acontecer —
 /// 2 ms é o padrão de limiters de pico; maior engoliria transientes.
 const LOOKAHEAD_MS: f32 = 2.0;
