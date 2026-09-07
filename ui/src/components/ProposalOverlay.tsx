@@ -155,7 +155,7 @@ function ProposalOverlay({ proposal, onApprove, onReject }: Props) {
   }, [])
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div data-testid="proposal-overlay" className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-gray-800 rounded-lg p-6 w-[480px] max-w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-white">Proposta do assistente</h3>
@@ -210,12 +210,14 @@ function ProposalOverlay({ proposal, onApprove, onReject }: Props) {
         <div className="flex gap-3 justify-end">
           <button
             onClick={onReject}
+            data-testid="proposal-reject"
             className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white"
           >
             Recusar
           </button>
           <button
             onClick={() => onApprove(hasEdits ? editedParams : undefined)}
+            data-testid="proposal-approve"
             className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-white"
           >
             {hasEdits ? 'Aprovar com ajuste' : 'Aprovar'}

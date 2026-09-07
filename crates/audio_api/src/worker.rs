@@ -152,7 +152,16 @@ impl ReActCallbacks for HubCallbacks {
     async fn await_proposal_decision(&self) -> ProposalDecision {
         ProposalDecision::Approved
     }
-    async fn on_proposal_created(&self, _proposal: &serde_json::Value) {}
+    /// Lote 3 (item 1 do E2E HITL): a proposta é publicada no hub SSE
+    /// (`agent.proposal`) — é o que a UI espera para abrir o overlay
+    /// (contrato docs/03 §5). A decisão continua automática aqui
+    /// (`await_proposal_decision → Approved`): pausar o job no
+    /// ProposalStore é o item B5, fora do escopo dos lotes Pareto.
+    async fn on_proposal_created(&self, proposal: &serde_json::Value) {
+        self.hub
+            .publish(self.job_id, "agent.proposal", proposal.clone())
+            .await;
+    }
 }
 
 pub struct Worker {
