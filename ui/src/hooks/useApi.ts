@@ -12,6 +12,7 @@ import type {
   PipelineConfig,
   PresignRequest,
   PresignResponse,
+  PrivacyPolicy,
   ProposalResponse,
   SystemInfo,
   TrackRequest,
@@ -259,6 +260,32 @@ export function useApi() {
     [withLoading]
   )
 
+  /**
+   * LGPD (plano de design): revogação REAL do consentimento do modo
+   * assistido — DELETE /tenants/me/consent. Não é o mesmo que trocar
+   * para modo manual: remove o registro persistido; a revogação vale
+   * para uso futuro e não apaga jobs/auditoria anteriores.
+   */
+  const revokeConsent = useCallback(
+    () =>
+      withLoading(() =>
+        fetchJson<ConsentInfo>(`${BASE_URL}/tenants/me/consent`, {
+          method: 'DELETE',
+        })
+      ),
+    [withLoading]
+  )
+
+  /**
+   * Política de privacidade auditável (GET /system/privacy-policy).
+   * A UI só afirma "o áudio não é enviado" com base neste campo servido
+   * pelo backend — nunca hardcoded.
+   */
+  const getPrivacyPolicy = useCallback(
+    () => withLoading(() => fetchJson<PrivacyPolicy>(`${BASE_URL}/system/privacy-policy`)),
+    [withLoading]
+  )
+
   return {
     loading,
     error,
@@ -279,5 +306,7 @@ export function useApi() {
     replanProposal,
     getConsent,
     postConsent,
+    revokeConsent,
+    getPrivacyPolicy,
   }
 }

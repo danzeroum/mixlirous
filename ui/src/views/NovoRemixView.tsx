@@ -7,9 +7,16 @@ import Player from '../components/Player'
 import Waveform from '../components/Waveform'
 import JobTimeline from '../components/JobTimeline'
 import PrivacyPanel from '../components/PrivacyPanel'
-import type { ConsentInfo, PeaksResponse, SystemInfo, ToolInfo, JobMode } from '../types/api'
+import type {
+  ConsentInfo,
+  PeaksResponse,
+  PrivacyPolicy,
+  SystemInfo,
+  ToolInfo,
+  JobMode,
+} from '../types/api'
 import type { StreamEvent } from '../hooks/useSSE'
-import { formatarDuracao } from '../lib/wavPeaks'
+import { avisoCanais, formatarDuracao } from '../lib/wavPeaks'
 import type { WavMetrics } from '../lib/wavPeaks'
 
 interface Props {
@@ -31,8 +38,12 @@ interface Props {
   onCancelJob: () => void
   // privacidade / análise
   systemInfo: SystemInfo | null
+  /** Política de privacidade auditável (GET /system/privacy-policy). */
+  politica: PrivacyPolicy | null
   consent: ConsentInfo | null
   onAceitarConsent: () => Promise<void>
+  /** Revogação REAL (DELETE /tenants/me/consent). */
+  onRevogarConsent: () => Promise<void>
   peaks: PeaksResponse | null
 }
 
@@ -57,7 +68,7 @@ function NovoRemixView(props: Props) {
   const {
     mode, onModeChange, onCreateJob, trackId, trackName, onUploadComplete,
     tools, toolsLoading, graphError, jobId, events, jobCompleted, onCancelJob,
-    systemInfo, consent, onAceitarConsent, peaks,
+    systemInfo, politica, consent, onAceitarConsent, onRevogarConsent, peaks,
   } = props
 
   const [prompt, setPrompt] = useState('')
@@ -107,9 +118,26 @@ function NovoRemixView(props: Props) {
           {peaks ? (
             <>
               <Waveform peaks={peaks.peaks} height={72} ariaLabel={`Forma de onda da faixa ${trackName ?? ''}`} />
+              {avisoCanais(peaks.channels) && (
+                <p
+                  role="status"
+                  data-testid="mono-notice"
+                  className="mt-2 p-2 rounded bg-orange-950/60 border border-orange-800 text-xs text-orange-200"
+                >
+                  {avisoCanais(peaks.channels)}
+                  {peaks.channels !== undefined && (
+                    <span className="block mt-1 text-orange-300/80 font-mono">
+                      source_channels: {peaks.channels} · processing_channels: 1 ·
+                      output_channels: 1 · channel_policy: downmix_arithmetic_mean
+                    </span>
+                  )}
+                </p>
+              )}
               <p className="text-xs text-gray-400 mt-2">
-                {peaks.resolution} buckets · BPM, tom e seções aparecem aqui quando a análise musical
-                for exposta pelo backend (roadmap Beta — não simulamos valores).
+                {peaks.resolution} buckets
+                {peaks.sample_rate ? ` · ${peaks.sample_rate} Hz` : ''} · BPM, tom e seções aparecem
+                aqui quando a análise musical for exposta pelo backend (roadmap Beta — não
+                simulamos valores).
               </p>
             </>
           ) : (
@@ -147,12 +175,18 @@ function NovoRemixView(props: Props) {
             soObjetivo
             criarDesabilitado={!consentOk}
           />
-          {!consentOk && (
+          {mode === 'assisted' && (
             <div className="mt-3">
+              {/* Plano de design §LGPD: o painel fica VISÍVEL no modo assistido
+                  mesmo com consentimento aceito — é onde o usuário vê a
+                  política vigente e REVOGA (4.3). Escondê-lo após o aceite
+                  deixaria a revogação inacessível no fluxo principal. */}
               <PrivacyPanel
                 info={systemInfo}
+                politica={politica}
                 consentAceitoEm={consent?.assisted_mode_accepted_at ?? null}
                 onAceitar={onAceitarConsent}
+                onRevogar={onRevogarConsent}
                 compacto
               />
             </div>

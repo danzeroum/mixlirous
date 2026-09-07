@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Waveform from './Waveform'
 import { authHeaders } from '../lib/authHeaders'
-import { parseWav, sha256Hex, formatarDuracao } from '../lib/wavPeaks'
+import { parseWav, sha256Hex, formatarDuracao, avisoCanais } from '../lib/wavPeaks'
 import type { WavMetrics } from '../lib/wavPeaks'
 
 interface Props {
@@ -46,6 +46,9 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
   const [metricsRemix, setMetricsRemix] = useState<WavMetrics | null>(null)
   const [peaksRemix, setPeaksRemix] = useState<Array<[number, number]> | null>(null)
   const [peaksOriginal, setPeaksOriginal] = useState<Array<[number, number]> | null>(null)
+  // Fase A do épico estéreo: canais do ORIGINAL (decode real no backend) —
+  // alimenta o aviso "arquivo estéreo → render mono" do preview.
+  const [canaisOriginal, setCanaisOriginal] = useState<number | null>(null)
   const [manifesto, setManifesto] = useState<Manifesto | null>(null)
   const [erroRemix, setErroRemix] = useState<string | null>(null)
 
@@ -99,8 +102,11 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
           headers: authHeaders(),
         })
         if (!resp.ok) return
-        const body = (await resp.json()) as { peaks: Array<[number, number]> }
-        if (!cancelado) setPeaksOriginal(body.peaks)
+        const body = (await resp.json()) as { peaks: Array<[number, number]>; channels?: number }
+        if (!cancelado) {
+          setPeaksOriginal(body.peaks)
+          if (typeof body.channels === 'number') setCanaisOriginal(body.channels)
+        }
       } catch {
         // waveform original é opcional — não bloqueia o preview
       }
@@ -234,6 +240,11 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
             />
           ) : (
             <div className="h-14 rounded bg-gray-900/60" aria-hidden />
+          )}
+          {avisoCanais(canaisOriginal) && (
+            <p role="status" data-testid="player-mono-notice" className="mt-1 text-[11px] text-orange-300">
+              {avisoCanais(canaisOriginal)}
+            </p>
           )}
         </div>
       </div>

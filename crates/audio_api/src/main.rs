@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Rate limiter middleware (optional via config)
     if app_config.features.rate_limit {
-        let limiter = Arc::new(RateLimiter::new(60));
+        let limiter = Arc::new(RateLimiter::new(app_config.features.rate_limit_per_minute));
         let mw = middleware::rate_limit::rate_limit_middleware(limiter);
         app = app.layer(axum::middleware::from_fn(mw));
     }

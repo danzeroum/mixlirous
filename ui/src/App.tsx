@@ -9,6 +9,7 @@ import type {
   JobResponse,
   PeaksResponse,
   PipelineConfig,
+  PrivacyPolicy,
   SystemInfo,
   ToolInfo,
   TrackResponse,
@@ -26,7 +27,10 @@ import WorkspaceView from './views/WorkspaceView'
 type View = 'projetos' | 'biblioteca' | 'novo-remix' | 'atividade' | 'workspace'
 
 const NAV: Array<{ id: View; label: string }> = [
-  { id: 'projetos', label: 'Projetos' },
+  // 4.4 do PR #59: o backend não tem domínio Project persistido — a visão
+  // é um RESUMO do espaço único do tenant (projeto implícito). Chamar de
+  // "Projetos" vendia gerenciamento de projetos que não existe.
+  { id: 'projetos', label: 'Visão geral' },
   { id: 'biblioteca', label: 'Biblioteca' },
   { id: 'novo-remix', label: 'Novo remix' },
   { id: 'atividade', label: 'Atividade' },
@@ -35,10 +39,10 @@ const NAV: Array<{ id: View; label: string }> = [
 
 /**
  * AppShell do plano de design centrado no usuário (etapa única):
- * navegação `Projetos | Biblioteca | Novo remix | Atividade | Espaço de
- * trabalho`, com o fluxo guiado por intenção como caminho principal e o
- * canvas como modo avançado. O `PipelineConfig` continua fonte de verdade
- * (Lote 3): o grafo é a projeção editável.
+ * navegação `Visão geral | Biblioteca | Novo remix | Atividade |
+ * Espaço de trabalho`, com o fluxo guiado por intenção como caminho
+ * principal e o canvas como modo avançado. O `PipelineConfig` continua
+ * fonte de verdade (Lote 3): o grafo é a projeção editável.
  */
 function App() {
   const [view, setView] = useState<View>('novo-remix')
@@ -55,6 +59,9 @@ function App() {
   // Plano de design: transparência de IA/dados + análise + biblioteca/atividade.
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [consent, setConsent] = useState<ConsentInfo | null>(null)
+  // Política de privacidade auditável (4.2): fonte autorizada para o
+  // PrivacyPanel afirmar o que sai da máquina — nunca texto hardcoded.
+  const [politica, setPolitica] = useState<PrivacyPolicy | null>(null)
   const [peaks, setPeaks] = useState<PeaksResponse | null>(null)
   const [tracks, setTracks] = useState<TrackResponse[] | null>(null)
   const [jobs, setJobs] = useState<JobResponse[] | null>(null)
@@ -67,34 +74,55 @@ function App() {
     let cancelled = false
     // toolsLoading já começa true; o effect só roda uma vez (listTools é
     // estável via useCallback) — sem setState síncrono no corpo.
-    listTools()
-      .then((r) => {
-        if (!cancelled) setTools(r.tools)
+    //
+    // PR #59: a sessão local é garantida ANTES dos GETs autenticados —
+    // sem isto, systemInfo/consent/política podiam 401 por dispararem
+    // antes do token existir e ficarem null para sempre (o painel de
+    // privacidade travava com o botão "Concordo" desabilitado).
+    const bootstrap = async () => {
+      await ensureLocalSession().catch(() => {
+        // Modo SaaS cuida do próprio login — os GETs vão 401 e os
+        // painéis mostram estado pendente, que é o correto sem sessão.
       })
-      .catch((e) => {
-        // A paleta degrada com aviso próprio; não vira erro vermelho global.
-        console.error('Falha ao carregar ferramentas:', e)
-        if (!cancelled) setTools(null)
-      })
-      .finally(() => {
-        if (!cancelled) setToolsLoading(false)
-      })
-    api
-      .getSystemInfo()
-      .then((info) => {
-        if (!cancelled) setSystemInfo(info)
-      })
-      .catch(() => {
-        /* painel de privacidade mostra "carregando" */
-      })
-    api
-      .getConsent()
-      .then((c) => {
-        if (!cancelled) setConsent(c)
-      })
-      .catch(() => {
-        /* consentimento segue pendente — o wizard pede quando precisar */
-      })
+      if (cancelled) return
+      listTools()
+        .then((r) => {
+          if (!cancelled) setTools(r.tools)
+        })
+        .catch((e) => {
+          // A paleta degrada com aviso próprio; não vira erro vermelho global.
+          console.error('Falha ao carregar ferramentas:', e)
+          if (!cancelled) setTools(null)
+        })
+        .finally(() => {
+          if (!cancelled) setToolsLoading(false)
+        })
+      api
+        .getSystemInfo()
+        .then((info) => {
+          if (!cancelled) setSystemInfo(info)
+        })
+        .catch(() => {
+          /* painel de privacidade mostra "carregando" */
+        })
+      api
+        .getConsent()
+        .then((c) => {
+          if (!cancelled) setConsent(c)
+        })
+        .catch(() => {
+          /* consentimento segue pendente — o wizard pede quando precisar */
+        })
+      api
+        .getPrivacyPolicy()
+        .then((p) => {
+          if (!cancelled) setPolitica(p)
+        })
+        .catch(() => {
+          /* sem política o painel usa linguagem condicional (não absoluta) */
+        })
+    }
+    void bootstrap()
     return () => {
       cancelled = true
     }
@@ -242,6 +270,13 @@ function App() {
     const c = await api.postConsent(provider)
     setConsent(c)
   }, [api, systemInfo])
+
+  // 4.3 do PR #59: revogação REAL — DELETE remove o registro persistido;
+  // trocar para modo manual não revoga nada.
+  const handleRevogarConsent = useCallback(async () => {
+    const c = await api.revokeConsent()
+    setConsent(c)
+  }, [api])
 
   // ── Proposta HITL (com campos explicáveis quando existirem) ──
   const pendingProposal = useMemo<Proposal | null>(() => {
@@ -431,8 +466,10 @@ function App() {
             jobCompleted={jobCompleted}
             onCancelJob={() => jobId && handleCancelJob(jobId)}
             systemInfo={systemInfo}
+            politica={politica}
             consent={consent}
             onAceitarConsent={handleAceitarConsent}
+            onRevogarConsent={handleRevogarConsent}
             peaks={trackId ? peaks : null}
           />
         )}

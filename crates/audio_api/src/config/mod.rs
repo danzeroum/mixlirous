@@ -115,6 +115,16 @@ pub struct FeaturesConfig {
     pub golden_master_enabled: bool,
     #[serde(default = "default_true")]
     pub rate_limit: bool,
+    /// Orçamento do rate limiter (req/min por chave, default 60).
+    /// O browser excede 60 req/min numa única sessão (bootstrap + SSE +
+    /// polling de Atividade/Biblioteca), então o E2E usa o perfil local
+    /// com um valor adequado a single-user — o limiter continua ATIVO.
+    #[serde(default = "default_rate_limit_per_minute")]
+    pub rate_limit_per_minute: u32,
+}
+
+fn default_rate_limit_per_minute() -> u32 {
+    60
 }
 
 fn default_true() -> bool {

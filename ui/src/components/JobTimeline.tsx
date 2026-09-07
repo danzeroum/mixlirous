@@ -45,6 +45,26 @@ function JobTimeline({ events, terminal }: Props) {
     [events]
   )
 
+  /**
+   * Avisos do pipeline (job.warning) — plano de design: "todo aviso é
+   * explicável". O aviso `mono_downmix` (Fase A do épico estéreo) carrega
+   * nos `measured` os canais source/analysis/processing/output e a política
+   * de downmix; exibimos a mensagem do backend SEMPRE em texto (nunca só
+   * cor) e os metadados quando vierem.
+   */
+  const avisos = useMemo(
+    () =>
+      events
+        .filter((e) => e.type === 'job.warning')
+        .map((e) => ({
+          code: String(e.data.code ?? 'pipeline_warning'),
+          message: String(e.data.message_ptbr ?? ''),
+          hint: e.data.hint_ptbr != null ? String(e.data.hint_ptbr) : null,
+          measured: (e.data.measured ?? null) as Record<string, unknown> | null,
+        })),
+    [events]
+  )
+
   return (
     <div aria-live="polite" data-testid="job-timeline">
       <ol className="space-y-2 mt-2">
@@ -82,6 +102,29 @@ function JobTimeline({ events, terminal }: Props) {
             fica guardado no histórico.
           </p>
         </div>
+      )}
+
+      {avisos.length > 0 && (
+        <ul className="mt-3 space-y-2" aria-label="Avisos do processamento">
+          {avisos.map((a, i) => (
+            <li
+              key={`${a.code}-${i}`}
+              role="status"
+              data-testid={`job-warning-${a.code}`}
+              className="p-3 rounded bg-orange-950/60 border border-orange-800"
+            >
+              <p className="text-sm text-orange-200">{a.message}</p>
+              {a.hint && <p className="text-xs text-orange-300/90 mt-1">{a.hint}</p>}
+              {a.measured && (
+                <p className="text-[11px] text-orange-300/80 mt-1 font-mono">
+                  {Object.entries(a.measured)
+                    .map(([k, v]) => `${k}: ${String(v)}`)
+                    .join(' · ')}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
 
       {cancelado && (

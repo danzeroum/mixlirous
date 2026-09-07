@@ -9,10 +9,14 @@ interface Props {
 }
 
 /**
- * Projetos — a home (plano de design §"Navegação"). Hoje o Mixlirous opera
- * com um projeto implícito (o tenant local); a visão resume o que existe e
- * oferece a próxima ação: um novo remix. Estado honesto — nada de contadores
- * fake.
+ * Visão geral (plano de design §"Navegação").
+ *
+ * 4.4 do PR #59: o backend NÃO tem domínio `Project` persistido — o
+ * sistema opera com um projeto implícito por tenant. Esta visão é o
+ * resumo do SEU ESPAÇO ("projeto atual do seu espaço"), não um
+ * gerenciador de projetos; não sugerimos criação/lista/versionamento
+ * de projetos que não existem. Estado honesto — nada de contadores
+ * fake. Evolução para domínio Project real: backlog no adendo.
  */
 function ProjetosView({ jobs, tracksCount, systemInfo, onNovoRemix, onVerAtividade }: Props) {
   const prontos = jobs?.filter((j) => j.status.toLowerCase() === 'completed').length ?? 0
@@ -21,6 +25,9 @@ function ProjetosView({ jobs, tracksCount, systemInfo, onNovoRemix, onVerAtivida
   return (
     <div className="space-y-4">
       <div className="p-6 bg-gradient-to-br from-purple-900/60 to-gray-800 rounded-lg border border-purple-800">
+        <p className="text-xs uppercase tracking-wide text-purple-300 mb-1" data-testid="espaco-rotulo">
+          Projeto atual do seu espaço
+        </p>
         <h2 className="text-xl font-bold text-white">Bem-vindo ao Mixlirous</h2>
         <p className="text-gray-200 mt-2 max-w-2xl text-sm">
           Descreva a intenção musical, ouça a proposta do assistente, compare com o original e
@@ -67,6 +74,12 @@ function ProjetosView({ jobs, tracksCount, systemInfo, onNovoRemix, onVerAtivida
           {systemInfo.llm_provider}
         </p>
       )}
+
+      <p className="text-xs text-gray-500">
+        O Mixlirous opera hoje com um projeto único e implícito (o seu espaço). Gestão completa
+        de projetos (criar, listar, versionar) não existe ainda — está registrada como evolução
+        posterior no backlog (docs/ADENDO-PARETO-PRODUCAO.md).
+      </p>
     </div>
   )
 }

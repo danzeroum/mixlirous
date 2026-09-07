@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseWav, reduzirPeaks, formatarDuracao } from '../wavPeaks'
+import { parseWav, reduzirPeaks, formatarDuracao, avisoCanais } from '../wavPeaks'
 
 /** Monta um WAV PCM16 mono válido (mesmo formato que o backend produz). */
 function wavPcm16(
@@ -102,5 +102,25 @@ describe('formatarDuracao', () => {
     expect(formatarDuracao(65)).toBe('1:05')
     expect(formatarDuracao(9)).toBe('0:09')
     expect(formatarDuracao(Number.NaN)).toBe('—')
+  })
+})
+
+describe('avisoCanais — Fase A do épico estéreo (transparência de downmix)', () => {
+  it('não avisa para mono e para undefined/null (respostas antigas)', () => {
+    expect(avisoCanais(1)).toBeNull()
+    expect(avisoCanais(undefined)).toBeNull()
+    expect(avisoCanais(null)).toBeNull()
+  })
+
+  it('avisa com texto honesto para estéreo', () => {
+    const aviso = avisoCanais(2)
+    expect(aviso).toBeTruthy()
+    expect(aviso).toContain('estéreo')
+    expect(aviso).toContain('mono')
+    expect(aviso).toContain('esquerda e direita')
+  })
+
+  it('avisa para multicanal sem nomear errado', () => {
+    expect(avisoCanais(6)).toContain('6 canais')
   })
 })

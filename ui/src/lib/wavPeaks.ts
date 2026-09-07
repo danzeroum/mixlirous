@@ -176,3 +176,21 @@ export function formatarDuracao(seg: number): string {
   const s = Math.round(seg - m * 60)
   return `${m}:${String(s).padStart(2, '0')}`
 }
+
+/**
+ * Transparência de canais (Fase A do épico estéreo — PR #59, item 4.5).
+ *
+ * O pipeline principal é MONO (downmix pela média aritmética); um arquivo
+ * com mais de um canal perde a separação L/R. Este helper centraliza a
+ * mensagem honesta usada pelo wizard (análise) e pelo preview — `null`
+ * quando não há nada a avisar. Usado com `channels` do decode REAL no
+ * backend (GET /tracks/{id}/peaks) ou do manifesto (parseWav).
+ */
+export function avisoCanais(channels?: number | null): string | null {
+  if (!channels || channels <= 1) return null
+  const nome = channels === 2 ? 'estéreo' : `${channels} canais`
+  return (
+    `Arquivo original: ${nome}. O processamento atual é mono; a separação ` +
+    'entre esquerda e direita pode não ser preservada no render.'
+  )
+}
