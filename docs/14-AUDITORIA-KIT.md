@@ -1,17 +1,33 @@
 # 14 — Auditoria do Kit Existente
 
-> Estado real do `remix-ai-kit.zip` (94 arquivos), verificado arquivo por
-> arquivo. **Nem o Rust nem o frontend compilam hoje.** Isso é normal para um
-> esqueleto gerado — mas precisa estar explícito antes de alguém tentar
-> construir por cima.
+> **REGISTRO HISTÓRICO — estado de 2026-07, Sprint 0.** Este documento
+> audita o `remix-ai-kit.zip` original (94 arquivos), não o estado atual do
+> repositório. Os 19 erros catalogados (C1–C19 e afins) foram corrigidos:
+> `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D
+> warnings`, `cargo fmt --all --check` e `cargo test --workspace` estão
+> verdes na `main` (evidência: CI do repo; ver issue #34). O que segue é
+> mantido pelo valor histórico do diagnóstico — **não** como pendência
+> atual. Pendências reais: ver `CHANGELOG.md`, `.dev/module-status.yaml` e
+> o adendo `docs/ADENDO-PARETO-PRODUCAO.md`. Lembrete que segue verdadeiro:
+> compila não é funciona — as pendências de integração (canvas →
+> `pipeline_config`, peaks, cancel/retry, SSE auth) estão listadas no
+> `CHANGELOG.md`.
+
+> Estado real do `remix-ai-kit.zip` **na época da auditoria** (94 arquivos),
+> verificado arquivo por arquivo. Naquele momento, nem o Rust nem o frontend
+> compilavam — isso era normal para um esqueleto gerado, e precisava estar
+> explícito antes de alguém tentar construir por cima.
 >
-> Todas as correções abaixo compõem a **Sprint 0**.
+> Todas as correções abaixo compuseram a **Sprint 0** (executada).
 
 ---
 
 ## 1. Panorama
 
-| Área | Estado | Aproveitável |
+> ⚠️ Tabela abaixo é o **snapshot da auditoria original** — cada linha já foi
+> tratada; não reflete o código atual.
+
+| Área | Estado (original) | Aproveitável |
 | --- | --- | --- |
 | Estrutura de diretórios | ✅ Boa | Manter como está |
 | Modelo de domínio (`domain/`) | ✅ Bom | Manter, estender |
