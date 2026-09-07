@@ -5,6 +5,7 @@ use axum::{
     Router,
 };
 
+mod auth;
 mod dev_slice;
 mod health;
 mod jobs;
@@ -58,6 +59,15 @@ pub fn api_router() -> Router<AppState> {
         .route(
             "/jobs/{job_id}/proposals/{proposal_id}/replan",
             post(proposals::ProposalHandlers::replan_proposal),
+        )
+        // Lote 2 (issue #33): sessão local + cookie de SSE same-origin.
+        .route(
+            "/auth/local-session",
+            get(auth::get_local_session),
+        )
+        .route(
+            "/auth/sse-session",
+            post(auth::post_sse_session),
         )
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
