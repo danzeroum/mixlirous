@@ -18,6 +18,7 @@ classes antigas mudam de degrau para atingir contraste. Onde a coluna
 | `bg-gray-600` | `bg-surface-600` | |
 | `bg-gray-500` | `bg-surface-500` | |
 | `bg-black/60` | `bg-surface-950/70` | backdrop de modal; preto puro some contra a base quente |
+| `bg-transparent` | `bg-transparent` | bolinha vazia de etapa não atingida (JobTimeline): ausência de preenchimento não é família de cor — a borda vira `border-surface-500` |
 | `border-gray-700` | `border-surface-700` | |
 | `border-gray-600` | `border-surface-600` | |
 | `border-gray-500` | `border-surface-500` | |
@@ -55,7 +56,10 @@ classes antigas mudam de degrau para atingir contraste. Onde a coluna
 | `bg-purple-950/30` | `bg-ai-950/40` | opacidade sobe: a base quente absorve mais |
 | `bg-purple-900/60` | `bg-ai-800/60` | |
 | `text-purple-300` `text-purple-200` | `text-ai-300` `text-ai-200` | 9 + 1 ocorrências |
-| `border-purple-400/500/700/800` | `border-ai-400/500/700/800` | |
+| `border-purple-400` | `border-ai-400` | |
+| `border-purple-500` | `border-ai-400` | borda do item selecionado (par de `bg-ai-950/40`): 5.76:1 ≥ 3 (R4); `ai-500` daria 3.51:1, menos proeminente que o par original (~4.6:1) |
+| `border-purple-700` | `border-ai-600` | borda do chip "Processando" (AtividadeView): texto `ai-200` sobre `bg-ai-800/60` dá 10.51:1; borda sutil coerente com os chips irmãos (action-800, manual-700, danger-700), significado carregado pelo texto (R1) |
+| `border-purple-800` | `border-ai-700` | borda decorativa do card de cabeçalho com gradiente (ProjetosView); cabeçalho editorial pode usar marca (R2) |
 | `#a78bfa` (focus em `index.css`) | `var(--color-ai-400)` | |
 
 ## 5. Modo manual / faixa original (blue → manual)
@@ -80,25 +84,27 @@ classes antigas mudam de degrau para atingir contraste. Onde a coluna
 
 ## 7. Erro (red → danger)
 
-| Classe antiga | Token novo |
-|---|---|
-| `bg-red-950` `bg-red-950/60` | `bg-danger-950` `bg-danger-950/60` |
-| `bg-red-900` `bg-red-900/50` `/60` `/70` | `bg-danger-800` + mesma opacidade |
-| `text-red-400` `text-red-300` `text-red-200` | `text-danger-400` `-300` `-200` |
-| `border-red-700` `border-red-800` | `border-danger-700` `border-danger-800` |
+| Classe antiga | Token novo | Observação |
+|---|---|---|
+| `bg-red-950` `bg-red-950/60` | `bg-danger-950` `bg-danger-950/60` | |
+| `bg-red-900` `bg-red-900/50` `/60` `/70` | `bg-danger-800` + mesma opacidade | |
+| `bg-red-800` (hover) | `bg-danger-700` | hover do botão de revogar consentimento (PrivacyPanel): `danger-700` é o "hover destrutivo" documentado em 01-TOKENS; `danger-200` sobre ele dá 5.63:1 |
+| `text-red-100` | `text-danger-200` | texto do mesmo botão: 9.08:1 sobre `bg-danger-800/70` (repouso) |
+| `text-red-400` `text-red-300` `text-red-200` | `text-danger-400` `-300` `-200` | |
+| `border-red-700` `border-red-800` | `border-danger-700` `border-danger-800` | |
 
 ## 8. Hex literais fora do CSS
 
 Estes **não** viram classe: os componentes desenham em Canvas 2D / React Flow.
 Devem importar de `ui/src/lib/theme.ts`.
 
-| Arquivo | Linha aprox. | Hex antigo | Substituir por |
-|---|---|---|---|
-| `components/Waveform.tsx` | 60 | `#374151` | `canvasColors.waveformTrack` |
-| `components/Waveform.tsx` | 65 | `#a78bfa` | `canvasColors.waveformSource` |
-| `components/Waveform.tsx` | 73 | `#34d399` | `canvasColors.waveformRendered` |
-| `components/RemixCanvas.tsx` | 50 | `#2563eb` | `canvasColors.graphEdge` |
-| `src/index.css` | 10 | `#a78bfa` | `var(--color-ai-400)` |
+| Arquivo | Linha aprox. | Hex antigo | Substituir por | Observação |
+|---|---|---|---|---|
+| `components/Waveform.tsx` | 60 | `#374151` | `canvasColors.waveformTrack` | stroke da linha de base do SVG |
+| `components/Waveform.tsx` | 65 | `#a78bfa` | `canvasColors.waveformSource` | stroke da forma de onda |
+| `components/Waveform.tsx` | 73 | `#34d399` | `canvasColors.waveformPlayhead` | **divergência registrada**: a linha atual é o cursor de reprodução (agulha), não a forma de onda renderizada; `waveformPlayhead` (ink-100) é a constante do spec para esse papel — `waveformRendered` fica para quando o render for desenhado |
+| `components/RemixCanvas.tsx` | 50 | `#2563eb` | `canvasColors.graphEdge` | usado como `nodeColor` do `<MiniMap>` do React Flow; destino conforme spec (azul manual) |
+| `src/index.css` | 10 | `#a78bfa` | `var(--color-ai-400)` | anel de foco; comentário atualizado para citar token e contraste reais (6.0:1 sobre surface-900) |
 
 ## 9. Arquivos a alterar
 
