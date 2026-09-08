@@ -1,0 +1,27 @@
+QA-0001 — Upload >2MB: antes/depois (empírico, curl contra localhost:8080)
+
+ANTES (fix):
+  PUT /api/v1/uploads/{key} WAV 5.115.644 bytes (5 MB)
+    -> status=413 (envio cortado em ~2,75 MB; default do axum = 2 MB)
+    -> via proxy vite (5173): 502 (conexão abortada no meio do corpo)
+  PUT 1,5 MB -> 204 (upload abaixo do default funcionava)
+  nginx produção (docs/18 §5.3): client_max_body_size 100M já liberava
+  => upload real de WAV quebrado EM PRODUÇÃO (nginx deixa passar, axum nega)
+
+DEPOIS (fix: DefaultBodyLimit::max(LIMITE_UPLOAD_BYTES) na rota real
++ validação antecipada no presign):
+  PUT /api/v1/uploads/{key} WAV 5.115.644 bytes
+    -> status=204 (5.115.644 bytes recebidos)
+  POST /api/v1/uploads/presign size_bytes=104857600 (100 MiB exato) -> 200
+    (teto é inclusivo: limite é o máximo aceito)
+  POST /api/v1/uploads/presign size_bytes=104857601 (100 MiB + 1) -> 413
+    (recusa cedo, com mensagem explicando o teto)
+
+Regressão (cargo test -p audio_api --test routes_lote2):
+  upload_put_aceita_corpo_acima_do_default_do_axum ... ok (3 MB -> 204)
+  presign_recusa_tamanho_acima_do_teto ... ok (101 MB -> 413)
+
+Nota técnica (backlog): upload_put recebe `Bytes` — o corpo é buffers em
+memória antes do storage. Com o teto de 100 MB isso dimensiona o pico de
+RAM por upload; streaming para disco é melhoria recomendada (registrada
+no BACKLOG, não bloqueia este ciclo).

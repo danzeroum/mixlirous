@@ -35,10 +35,10 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-/// Teto de corpo do upload. Casa com o `client_max_body_size` do nginx
-/// (`docs/18-DEPLOY-PUBLICO-NGINX.md`) — descasar os dois faz o upload morrer
-/// com 413 do proxy, sem mensagem da aplicação.
-pub const LIMITE_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+/// Teto de corpo do upload: mesma constante da rota REAL de upload
+/// (`uploads::LIMITE_UPLOAD_BYTES`), que por sua vez casa com o
+/// `client_max_body_size` do nginx (`docs/18-DEPLOY-PUBLICO-NGINX.md`).
+use super::uploads::LIMITE_UPLOAD_BYTES;
 
 /// Teto de duração, conferido depois do decode e antes do DSP.
 ///

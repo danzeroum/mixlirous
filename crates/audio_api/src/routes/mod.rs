@@ -72,7 +72,17 @@ pub fn api_router() -> Router<AppState> {
         .route("/auth/sse-session", post(auth::post_sse_session))
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
-        .route("/uploads/{*object_key}", put(uploads::upload_put))
+        // QA-0001: o default do axum é 2 MB — o upload REAL de WAV (uma
+        // faixa passa de 50 MB; ver uploads.rs) tomava 413 aqui, embora o
+        // nginx de produção já liberasse 100 MB (client_max_body_size em
+        // docs/18). Mesmo teto da rota de diagnóstico, fonte única:
+        // uploads::LIMITE_UPLOAD_BYTES.
+        .route(
+            "/uploads/{*object_key}",
+            put(uploads::upload_put).layer(DefaultBodyLimit::max(
+                uploads::LIMITE_UPLOAD_BYTES,
+            )),
+        )
         .route(
             "/tracks",
             post(tracks::create_track).get(tracks::list_tracks),
@@ -98,5 +108,6 @@ pub fn dev_router() -> Router<AppState> {
         )
         .route("/dev/slice/{id}", get(dev_slice::audio))
         // O default do axum e 2 MB -- uma faixa real em WAV passa de 50 MB.
-        .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
+        // Mesma constante da rota real de upload (QA-0001).
+        .layer(DefaultBodyLimit::max(uploads::LIMITE_UPLOAD_BYTES))
 }
