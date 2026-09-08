@@ -2,19 +2,20 @@ import { useCallback } from 'react'
 import { ReactFlow, Controls, MiniMap, Background, BackgroundVariant, type NodeProps, type Connection } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useGraphStore, type RemixNode } from '../store/graphStore'
+import { canvasColors } from '../lib/theme'
 
 function AudioNode({ data }: NodeProps<RemixNode>) {
   return (
-    <div className="p-2 bg-blue-600 rounded shadow">
+    <div className="p-2 bg-manual-600 rounded shadow">
       <span className="text-white">{data.label}</span>
-      {data.status && <div className="text-xs text-blue-200">{data.status}</div>}
+      {data.status && <div className="text-xs text-manual-200">{data.status}</div>}
     </div>
   )
 }
 
 function EffectNode({ data }: NodeProps<RemixNode>) {
   return (
-    <div className="p-2 bg-purple-600 rounded shadow">
+    <div className="p-2 bg-ai-600 rounded shadow">
       <span className="text-white">{data.label}</span>
     </div>
   )
@@ -29,7 +30,7 @@ function RemixCanvas() {
 
   if (nodes.length === 0) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-gray-400">
+      <div className="w-full h-full flex items-center justify-center text-ink-400">
         <p>Envie uma faixa para começar a montar o remix.</p>
       </div>
     )
@@ -47,7 +48,7 @@ function RemixCanvas() {
       className="w-full h-full"
     >
       <Controls />
-      <MiniMap nodeColor="#2563eb" />
+      <MiniMap nodeColor={canvasColors.graphEdge} />
       <Background variant={BackgroundVariant.Dots} />
     </ReactFlow>
   )
