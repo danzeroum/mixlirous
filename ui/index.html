@@ -4,9 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mixlirous</title>
+    <meta name="description" content="Mixlirous — assistente de mixagem de áudio com IA assistida. O áudio nunca é enviado para o provedor LLM; apenas metadados numéricos." />
   </head>
   <body>
-    <div id="root"></div>
+    <header>
+      <h1 class="sr-only">Mixlirous</h1>
+      <nav aria-label="Principal" class="sr-only">
+        <a href="/">Início</a>
+        <a href="/politica.html">Política de Privacidade</a>
+      </nav>
+    </header>
+    <main>
+      <div id="root"></div>
+    </main>
+    <footer>
+      <small>
+        <a href="/politica.html">Política de Privacidade</a> ·
+        Mixlirous — áudio nunca enviado ao provedor LLM.
+      </small>
+    </footer>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

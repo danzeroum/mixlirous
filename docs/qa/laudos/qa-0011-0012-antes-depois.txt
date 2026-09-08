@@ -1,0 +1,56 @@
+QA-0011 + QA-0012 — HTML semântico + página de Política de Privacidade
+estática acessível: antes/depois (empírico, suíte WebQA)
+
+================================================================================
+QA-0011 — HTML semântico (frontend/test_html_quality.py::test_uso_de_html_semantico)
+ANTES:
+  test_uso_de_html_semantico FAILED
+  "Pouco HTML semântico (encontrado: nenhum) — dificulta acessibilidade e
+   manutenção." (assert 0 >= 2)
+  O index.html tinha só <div id="root">, sem header/nav/main/footer/article/section.
+
+DEPOIS (ui/index.html com header + nav + main + footer):
+  test_uso_de_html_semantico PASSED (4 tags: header, nav, main, footer)
+
+Bonus: meta description adicionada → test_meta_description também PASSED
+(era XFAIL). 8/8 testes de html_quality passando.
+
+================================================================================
+QA-0012 — Política de Privacidade acessível (lgpd/test_transparencia.py)
+ANTES:
+  test_politica_acessivel    FAILED
+  "Nenhum link de política de privacidade encontrado no HTML da home.
+   Informar o titular sobre o tratamento é obrigação (LGPD Art. 9º), não
+   item de roadmap."
+  test_direitos_do_titular  SKIPPED (dependia do link)
+  test_canal_encarregado    SKIPPED (dependia do link)
+
+DEPOIS (ui/public/politica.html + link em ui/index.html):
+  test_politica_acessivel    PASSED
+  test_direitos_do_titular   PASSED
+  test_canal_encarregado    PASSED (mailto:dpo@mixlirous.local na política)
+
+A política estática cobre:
+- Controlador e DPO (com canal mailto)
+- Dados pessoais tratados (áudio, metadados, JWT, cookie SSE)
+- Finalidade e base legal (Art. 7º, V LGPD)
+- Compartilhamento com terceiros (provedor LLM externo se aplicável)
+- Retenção (storage da instalação, sem expiração automática)
+- Treinamento de modelos (não há pipeline)
+- Direitos do titular (Art. 18 LGPD)
+- Segurança (HTTPS, HSTS, cookies endurecidos)
+- Mudanças (API é fonte da verdade)
+
+Nota: a página é estática (espelho da política viva em
+/api/v1/system/privacy-policy). A API continua sendo a fonte canônica
+para a UI em runtime — esta página existe para atender LGPD Art. 9º
+(comunicação ao titular) e tornar a política acessível a crawlers,
+parsers sem JS, e ao teste automatizado.
+
+================================================================================
+Resumo frontend + lgpd (http-only, sem browser):
+  17 passed, 3 skipped, 2 xfailed
+
+  XFAIL contínuos (sinais de maturidade, não defeitos):
+    test_permissions_policy (Permissions-Policy header — registrado em BACKLOG)
+    test_security_txt (.well-known/security.txt — registrado em BACKLOG)

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Política de Privacidade — Mixlirous</title>
+    <meta name="description" content="Política de privacidade do Mixlirous: tratamento de dados pessoais, retenção, provedor LLM e direitos do titular (LGPD)." />
+  </head>
+  <body>
+    <header>
+      <h1>Política de Privacidade — Mixlirous</h1>
+      <p>Última atualização: ciclo QA inicial (2026-09). Esta página é um resumo estático da política viva servida pela API em <code>/api/v1/system/privacy-policy</code> (autenticada); em caso de divergência, a API é a fonte da verdade.</p>
+      <p>Encarregado pelo tratamento de dados pessoais (DPO):
+        <a href="mailto:dpo@mixlirous.local">dpo@mixlirous.local</a>
+        — substitua pelo canal oficial do domínio onde esta instalação
+        está publicada.</p>
+    </header>
+
+    <main>
+      <article>
+        <h2>1. Quem é o controlador</h2>
+        <p>Esta instalação do Mixlirous é operada pelo time responsável pelo domínio onde a aplicação está publicada. O responsável pelo tratamento (DPO) pode ser contactado pelo canal de segurança divulgado no <code>/.well-known/security.txt</code> quando configurado.</p>
+
+        <h2>2. Dados pessoais tratados</h2>
+        <p>O Mixlirous processa áudio enviado pelo titular (faixas, stems, uploads), metadados de produção (configurações de mix, parâmetros de efeitos) e credenciais de sessão (JWT, cookie <code>mixlirous_session</code> para SSE same-origin). O provedor LLM ativo recebe apenas metadados numéricos e prompts — o áudio original <strong>nunca</strong> é enviado para o provedor externo.</p>
+
+        <h2>3. Finalidade e base legal</h2>
+        <p>Tratamento necessário para a execução de contrato (Art. 7º, V LGPD): o titular envia áudio e parâmetros para receber uma mixagem processada. A análise assistida por IA usa apenas metadados derivados (BPM, tonalidade, energia), não o áudio em si.</p>
+
+        <h2>4. Compartilhamento com terceiros</h2>
+        <p>Para instalações com provedor LLM externo (ex.: OpenAI, Anthropic), prompts e metadados de análise são enviados ao provedor. O provedor é identificado em <code>/api/v1/system/info</code> e a política de retenção dele se aplica em adição a esta. Para instalações com Ollama local, todo o processamento é on-premise — sem egress de áudio ou prompts.</p>
+
+        <h2>5. Retenção</h2>
+        <p>O áudio enviado e os artefatos gerados ficam no storage desta instalação (disco local, MinIO ou S3) até o tenant excluí-los; não há expiração automática configurável nesta versão. O titular pode excluir faixas e jobs a qualquer momento pela UI; a revogação do consentimento (LGPD Art. 8º) remove o registro ativo.</p>
+
+        <h2>6. Treinamento de modelos</h2>
+        <p>Nesta instalação não existe pipeline de treinamento: áudio e prompts não são usados para treinar modelos. Com provedor externo, verifique também a política de retenção/treino do próprio provedor.</p>
+
+        <h2>7. Direitos do titular (LGPD Art. 18)</h2>
+        <p>O titular pode solicitar: confirmação de tratamento, acesso aos dados, correção, anonimização, portabilidade, eliminação. Solicitações devem ser feitas pelo canal de segurança divulgado em <code>/.well-known/security.txt</code>.</p>
+
+        <h2>8. Segurança</h2>
+        <p>Tráfego sobre HTTPS com HSTS (<code>Strict-Transport-Security: max-age=63072000</code>). Cookies de sessão <code>HttpOnly</code> + <code>SameSite=Lax</code>. JWT assinado com segredo configurado por ambiente (falha o boot em <code>CONFIG_ENV</code> não-local sem <code>JWT_SECRET</code>).</p>
+
+        <h2>9. Mudanças nesta política</h2>
+        <p>Esta página é estática; a política viva é servida pela API e pode divergir conforme o provedor LLM ativo. Sempre confira <code>/api/v1/system/privacy-policy</code> para o estado atual.</p>
+      </article>
+    </main>
+
+    <footer>
+      <p><a href="/">Voltar para o Mixlirous</a></p>
+      <p><small>Esta página existe para atender LGPD Art. 9º (comunicação ao titular sobre o tratamento). Conteúdo estático gerado no ciclo QA inicial.</small></p>
+    </footer>
+  </body>
+</html>
