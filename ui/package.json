@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "lint": "eslint .",
-    "lint:colors": "node scripts/lint-colors.mjs"
+    "lint:colors": "node src/scripts/lint-colors.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",

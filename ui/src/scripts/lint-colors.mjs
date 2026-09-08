@@ -16,7 +16,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SRC = fileURLToPath(new URL('../src', import.meta.url))
+// Este arquivo vive em ui/src/scripts/ — SRC é ui/src (um nível acima).
+const SRC = fileURLToPath(new URL('../', import.meta.url))
 
 const NATIVE_FAMILIES =
   'gray|slate|zinc|neutral|stone|green|emerald|teal|cyan|sky|purple|violet|fuchsia|blue|indigo|red|rose|pink|amber|orange|yellow'
