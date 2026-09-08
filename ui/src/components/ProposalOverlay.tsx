@@ -269,7 +269,7 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
               ))}
             </div>
             {hasEdits && (
-              <p className="text-xs text-yellow-300 mt-2">
+              <p className="text-xs text-warn-300 mt-2">
                 Os valores editados sobrescrevem a sugestão da IA — a versão aprovada vai para a
                 receita executada.
               </p>
