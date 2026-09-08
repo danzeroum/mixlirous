@@ -1,0 +1,89 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/z/my-project/.venv-webqa/bin/python
+cachedir: .pytest_cache
+rootdir: /home/z/my-project/repos/qa-suite/webqa-suite
+configfile: pytest.ini
+testpaths: checks, tests
+plugins: bdd-8.1.0, locust-2.46.5, cov-7.1.0, anyio-4.15.1
+collecting ... collected 1709 items / 1689 deselected / 20 selected
+
+checks/backend/test_caching_compression.py::test_resposta_comprimida FAILED [  5%]
+checks/backend/test_caching_compression.py::test_politica_de_cache_declarada PASSED [ 10%]
+checks/backend/test_caching_compression.py::test_validadores_de_cache PASSED [ 15%]
+checks/backend/test_http_basics.py::test_home_responde_2xx PASSED        [ 20%]
+checks/backend/test_http_basics.py::test_https_e_usado FAILED            [ 25%]
+checks/backend/test_http_basics.py::test_http_redireciona_para_https SKIPPED [ 30%]
+checks/backend/test_http_basics.py::test_404_tratado_sem_vazamento FAILED [ 35%]
+checks/backend/test_http_basics.py::test_metodo_nao_suportado_controlado PASSED [ 40%]
+checks/backend/test_observability.py::test_endpoint_de_saude_existe PASSED [ 45%]
+checks/backend/test_observability.py::test_correlacao_de_requisicoes XFAIL [ 50%]
+checks/backend/test_observability.py::test_erro_de_api_e_estruturado SKIPPED [ 55%]
+checks/backend/test_performance.py::test_ttfb_dentro_do_orcamento PASSED [ 60%]
+checks/backend/test_performance.py::test_tempo_total_razoavel PASSED     [ 65%]
+checks/backend/test_performance.py::test_latencia_percentis_sob_rajada SKIPPED [ 70%]
+checks/backend/test_security_headers.py::test_hsts_presente FAILED       [ 75%]
+checks/backend/test_security_headers.py::test_x_content_type_options FAILED [ 80%]
+checks/backend/test_security_headers.py::test_protecao_contra_clickjacking FAILED [ 85%]
+checks/backend/test_security_headers.py::test_content_security_policy_existe FAILED [ 90%]
+checks/backend/test_security_headers.py::test_cookies_endurecidos PASSED [ 95%]
+checks/backend/test_security_headers.py::test_nao_expoe_versao_de_servidor PASSED [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_resposta_comprimida ___________________________
+checks/backend/test_caching_compression.py:17: in test_resposta_comprimida
+    assert any(e in encoding for e in ("gzip", "br", "zstd", "deflate")), (
+E   AssertionError: HTML servido sem compressão — desperdício de banda e pior TTFB efetivo.
+E   assert False
+E    +  where False = any(<generator object test_resposta_comprimida.<locals>.<genexpr> at 0x7f533dba2260>)
+______________________________ test_https_e_usado ______________________________
+checks/backend/test_http_basics.py:18: in test_https_e_usado
+    assert home_response.url.scheme == "https", (
+E   AssertionError: Tráfego final não está sobre HTTPS — risco de segurança e LGPD (dados pessoais em trânsito sem criptografia).
+E   assert 'http' == 'https'
+E     
+E     - https
+E     ?     -
+E     + http
+________________________ test_404_tratado_sem_vazamento ________________________
+checks/backend/test_http_basics.py:38: in test_404_tratado_sem_vazamento
+    assert resp.status_code in (404, 410), f"Rota inexistente retornou {resp.status_code}"
+E   AssertionError: Rota inexistente retornou 200
+E   assert 200 in (404, 410)
+E    +  where 200 = <Response [200 OK]>.status_code
+______________________________ test_hsts_presente ______________________________
+checks/backend/test_security_headers.py:14: in test_hsts_presente
+    assert "strict-transport-security" in home_response.headers, (
+E   AssertionError: Sem HSTS — navegadores podem ser rebaixados a HTTP (downgrade attack).
+E   assert 'strict-transport-security' in Headers({'vary': 'Origin', 'content-type': 'text/html', 'cache-control': 'no-cache', 'etag': 'W/"22a-ifxNzkZ/9014EDdj2DkBvlNYwcU"', 'date': 'Tue, 08 Sep 2026 15:12:32 GMT', 'connection': 'keep-alive', 'keep-alive': 'timeout=5', 'content-length': '554'})
+E    +  where Headers({'vary': 'Origin', 'content-type': 'text/html', 'cache-control': 'no-cache', 'etag': 'W/"22a-ifxNzkZ/9014EDdj2DkBvlNYwcU"', 'date': 'Tue, 08 Sep 2026 15:12:32 GMT', 'connection': 'keep-alive', 'keep-alive': 'timeout=5', 'content-length': '554'}) = <Response [200 OK]>.headers
+_________________________ test_x_content_type_options __________________________
+checks/backend/test_security_headers.py:20: in test_x_content_type_options
+    assert home_response.headers.get("x-content-type-options", "").lower() == "nosniff", (
+E   AssertionError: Sem X-Content-Type-Options: nosniff — risco de MIME sniffing.
+E   assert '' == 'nosniff'
+E     
+E     - nosniff
+______________________ test_protecao_contra_clickjacking _______________________
+checks/backend/test_security_headers.py:28: in test_protecao_contra_clickjacking
+    assert has_xfo or "frame-ancestors" in csp, (
+E   AssertionError: Sem X-Frame-Options nem CSP frame-ancestors — risco de clickjacking.
+E   assert (False or 'frame-ancestors' in '')
+_____________________ test_content_security_policy_existe ______________________
+checks/backend/test_security_headers.py:34: in test_content_security_policy_existe
+    assert "content-security-policy" in home_response.headers, (
+E   AssertionError: Sem Content-Security-Policy — principal mitigação de XSS ausente.
+E   assert 'content-security-policy' in Headers({'vary': 'Origin', 'content-type': 'text/html', 'cache-control': 'no-cache', 'etag': 'W/"22a-ifxNzkZ/9014EDdj2DkBvlNYwcU"', 'date': 'Tue, 08 Sep 2026 15:12:32 GMT', 'connection': 'keep-alive', 'keep-alive': 'timeout=5', 'content-length': '554'})
+E    +  where Headers({'vary': 'Origin', 'content-type': 'text/html', 'cache-control': 'no-cache', 'etag': 'W/"22a-ifxNzkZ/9014EDdj2DkBvlNYwcU"', 'date': 'Tue, 08 Sep 2026 15:12:32 GMT', 'connection': 'keep-alive', 'keep-alive': 'timeout=5', 'content-length': '554'}) = <Response [200 OK]>.headers
+=========================== short test summary info ============================
+SKIPPED [1] checks/backend/test_http_basics.py:26: Alvo já configurado sem HTTPS.
+SKIPPED [1] checks/backend/test_observability.py:45: Alvo não expõe API JSON em /api — teste não aplicável.
+SKIPPED [1] checks/backend/test_performance.py:39: Carga requer opt-in explícito: exporte WEBQA_LOAD_AUTHORIZED=1 somente com autorização do dono do alvo.
+XFAIL checks/backend/test_observability.py::test_correlacao_de_requisicoes - Sem header de correlação (x-request-id/traceparent) — dificulta rastrear incidentes.
+FAILED checks/backend/test_caching_compression.py::test_resposta_comprimida
+FAILED checks/backend/test_http_basics.py::test_https_e_usado - AssertionErro...
+FAILED checks/backend/test_http_basics.py::test_404_tratado_sem_vazamento - A...
+FAILED checks/backend/test_security_headers.py::test_hsts_presente - Assertio...
+FAILED checks/backend/test_security_headers.py::test_x_content_type_options
+FAILED checks/backend/test_security_headers.py::test_protecao_contra_clickjacking
+FAILED checks/backend/test_security_headers.py::test_content_security_policy_existe
+====== 7 failed, 9 passed, 3 skipped, 1689 deselected, 1 xfailed in 2.16s ======

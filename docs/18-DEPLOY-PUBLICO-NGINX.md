@@ -173,9 +173,12 @@ server {
         set $upstream "http://mixlirous-api:8080";
         proxy_pass $upstream;
 
-        # Casa com LIMITE_UPLOAD_BYTES em crates/audio_api/src/routes/dev_slice.rs.
-        # Se os dois números divergirem, o upload morre com 413 do proxy e a
-        # aplicação nunca chega a explicar o motivo.
+        # Casa com LIMITE_UPLOAD_BYTES em crates/audio_api/src/routes/uploads.rs
+        # (a própria API agora impõe o mesmo teto na rota real de upload —
+        # QA-0001: antes só o dev_router tinha o limite e o PUT real tomava
+        # 413 com o default de 2 MB do axum). Divergir qualquer dos três
+        # (nginx, rota real, dev_router) faz o upload morrer numa camada
+        # sem mensagem da outra.
         client_max_body_size 100M;
 
         # Medido, não chutado: 180 s de áudio processam em 0,35 s no build

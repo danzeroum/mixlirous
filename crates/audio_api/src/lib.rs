@@ -13,6 +13,7 @@ pub mod config;
 pub mod instrument;
 pub mod metrics;
 pub mod middleware;
+pub mod problem;
 pub mod recovery;
 pub mod routes;
 pub mod sse;

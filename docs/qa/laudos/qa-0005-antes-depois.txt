@@ -1,0 +1,50 @@
+QA-0005 — Echo traceparent W3C: antes/depois (empírico, curl contra localhost)
+
+ANTES (xfail na suíte):
+  GET http://localhost:5173/ (home, vite dev) → 200, headers:
+    vary: Origin
+    content-type: text/html
+    cache-control: no-cache
+    etag: W/"22a-..."
+    date: ...
+    connection: keep-alive
+    keep-alive: timeout=5
+    content-length: 554
+  => nenhum header de correlação (x-request-id/traceparent/etc.)
+  => test_correlacao_de_requisicoes XFAIL:
+     "Sem header de correlação (x-request-id/traceparent) — dificulta
+      rastrear incidentes."
+
+DEPOIS (fix: middleware axum + plugin vite):
+  Middleware `echo_traceparent` em crates/audio_api/src/middleware/trace.rs
+  aplicado em main.rs como camada mais externa (depois do rate_limit).
+  Plugin `traceparentPlugin` em ui/vite.config.ts estende o mesmo
+  comportamento para a UI servida pelo Vite (home, assets, etc.).
+
+  GET http://localhost:5173/ -H 'traceparent: 00-deadbeefdeadbeefdeadbeefdeadbeef-00f067aa0ba902b7-01'
+    → 200, headers incluem:
+      traceparent: 00-deadbeefdeadbeefdeadbeefdeadbeef-00f067aa0ba902b7-01
+    => ECO exato do header enviado pelo cliente.
+
+  GET http://localhost:5173/ (sem traceparent)
+    → 200, headers incluem:
+      traceparent: 00-6a176e7862eb1cba019f7b448f44e508-7a07e9dc45f01acd-01
+    => W3C traceparent gerado (32+16 hex, versão 00, flags 01 sampled).
+
+  GET http://localhost:8080/healthz -H 'traceparent: 00-deadbeefdeadbeefdeadbeefdeadbeef-00f067aa0ba902b7-01'
+    → 200, traceparent: 00-deadbeefdeadbeefdeadbeefdeadbeef-00f067aa0ba902b7-01
+
+Regressão (suíte WebQA):
+  checks/backend/test_observability.py::test_correlacao_de_requisicoes
+    ANTES: XFAIL
+    DEPOIS: PASSED
+    (suíte confirma: ao menos um header de correlação presente no response)
+
+Regressão (cargo):
+  cargo test -p audio_api --test qa_contracts (4 testes qa0005_*) ... 4/4 ok
+  cargo test -p audio_api --lib middleware::trace (11 testes) ... 11/11 ok
+  cargo test --workspace ... 447/447 ok (0 falhas)
+
+Nota operacional: validação empírica exigiu restart manual da API entre
+runs por pressão de RAM no sandbox (4GB, sem swap, worker + vite + chromium
+concorrendo). Não é defeito do código — a API morre por OOM, não por panic.

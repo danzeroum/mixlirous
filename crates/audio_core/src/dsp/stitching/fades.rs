@@ -81,11 +81,11 @@ mod tests {
             apply_fade_out(&mut pcm, 0, 100, &curve);
             assert!(
                 pcm[0] > 0.9,
-                "{curve:?} deveria come├ºar pr├│ximo do volume cheio"
+                "{curve:?} deveria começar próximo do volume cheio"
             );
             assert!(
                 pcm[99] < 0.15,
-                "{curve:?} deveria terminar pr├│ximo do sil├¬ncio, got {}",
+                "{curve:?} deveria terminar próximo do silêncio, got {}",
                 pcm[99]
             );
         }
@@ -102,12 +102,12 @@ mod tests {
             apply_fade_in(&mut pcm, 0, 100, &curve);
             assert!(
                 pcm[0] < 0.15,
-                "{curve:?} deveria come├ºar pr├│ximo do sil├¬ncio, got {}",
+                "{curve:?} deveria começar próximo do silêncio, got {}",
                 pcm[0]
             );
             assert!(
                 pcm[99] > 0.9,
-                "{curve:?} deveria terminar pr├│ximo do volume cheio"
+                "{curve:?} deveria terminar próximo do volume cheio"
             );
         }
     }

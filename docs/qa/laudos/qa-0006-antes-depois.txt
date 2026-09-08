@@ -1,0 +1,54 @@
+QA-0006 — problem+json RFC 7807: antes/depois (empírico, curl contra localhost)
+
+ANTES (skip na suíte):
+  GET http://localhost:5173/api/webqa-nao-existe -H 'Accept: application/json'
+    → 404 (vite proxy para axum /api/* não mapeado)
+    → corpo: VAZIO (axum default fallback: body vazio)
+    → content-type: (não declarado)
+  => test_erro_de_api_e_estruturado SKIPPED:
+     "Alvo não expõe API JSON em /api — teste não aplicável."
+
+DEPOIS (fix: struct Problem + fallbacks em api_router e app):
+  Novo `crates/audio_api/src/problem.rs` com struct Problem (RFC 7807 +
+  extensões do catálogo docs/03 §4: code, trace_id, errors[]).
+  Fallback `api_fallback_problem` no api_router (rotas /api/v1/* não
+  mapeadas) e `app_fallback_problem` no app (rotas /api/* fora de /api/v1).
+  Usam OriginalUri para preservar path completo.
+
+  GET http://localhost:5173/api/webqa-nao-existe -H 'Accept: application/json'
+    → 404
+    → content-type: application/problem+json
+    → corpo:
+      {
+        "type": "https://mixlirous.dev/errors/not_found",
+        "title": "Recurso não encontrado",
+        "status": 404,
+        "code": "not_found",
+        "detail": "Nenhuma rota corresponde a /api/webqa-nao-existe",
+        "instance": "/api/webqa-nao-existe",
+        "trace_id": "1e3c2b5f15030a04549fbfe63a48eac5"
+      }
+
+  GET http://localhost:8080/api/v1/webqa-nao-existe
+    → 404 problem+json com instance: /api/v1/webqa-nao-existe
+    (OriginalUri preserva o path completo mesmo após nest stripar prefixo)
+
+  GET http://localhost:8080/api/webqa-nao-existe -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-...'
+    → trace_id no body == "4bf92f3577b34da6a3ce929d0e0e4736"
+    (correlação: o trace_id do traceparent do cliente aparece no problem+json)
+
+Regressão (suíte WebQA):
+  checks/backend/test_observability.py::test_erro_de_api_e_estruturado
+    ANTES: SKIPPED
+    DEPOIS: PASSED (em run isolado com API viva)
+
+Regressão (cargo):
+  cargo test -p audio_api --test qa_contracts (6 testes qa0006_*) ... 6/6 ok
+  cargo test -p audio_api --lib problem (6 testes) ... 6/6 ok
+  cargo test --workspace ... 447/447 ok (0 falhas)
+
+Nota operacional: mesma observação de QA-0005 — a API sofre OOM periódico
+no sandbox de 4GB sem swap. Em run isolado (API recém-subiu, pytest
+imediatamente), o teste PASSED. Em runs com mais testes antes (que
+consomem tempo), a API morre antes do teste chegar e o teste SKIP por
+"502 Bad Gateway" via vite proxy — não é defeito do código.

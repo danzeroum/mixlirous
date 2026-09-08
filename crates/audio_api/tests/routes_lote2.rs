@@ -674,3 +674,51 @@ async fn privacy_policy_expoe_campos_auditaveis() {
         .is_empty());
     assert!(!json["region"].as_str().unwrap_or_default().is_empty());
 }
+
+/// QA-0001 (regressão): o PUT real de upload aceita corpo ACIMA do default
+/// de 2 MB do axum — uma faixa WAV real passa disso. Antes do fix, só o
+/// dev_router tinha `DefaultBodyLimit` e o upload real tomava 413
+/// (comportamento reproduzido empiricamente no ciclo QA; ver
+/// docs/qa/ACHADOS.md QA-0001).
+#[tokio::test]
+async fn upload_put_aceita_corpo_acima_do_default_do_axum() {
+    let (app, _tmp) = state();
+    let tenant_id = Uuid::new_v4();
+    let key = format!("/api/v1/uploads/tenant-{tenant_id}/raw/qa-regressao.wav");
+
+    // 3 MB: acima do default (2 MB), muito abaixo do teto real (100 MB).
+    let corpo: Vec<u8> = vec![0u8; 3 * 1024 * 1024];
+    let req = Request::builder()
+        .method("PUT")
+        .uri(key)
+        .header("Authorization", bearer(tenant_id))
+        .body(Body::from(corpo))
+        .unwrap();
+    let resp = router(app).oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+/// QA-0001 (regressão): o presign recusa cedo tamanho declarado acima do
+/// teto — 413 no presign, em vez de 413 no meio do PUT.
+#[tokio::test]
+async fn presign_recusa_tamanho_acima_do_teto() {
+    let (app, _tmp) = state();
+    let tenant_id = Uuid::new_v4();
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/uploads/presign")
+        .header("Authorization", bearer(tenant_id))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "filename": "gigante.wav",
+                "size_bytes": 101 * 1024 * 1024,
+                "content_type": "audio/wav"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let resp = router(app).oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}

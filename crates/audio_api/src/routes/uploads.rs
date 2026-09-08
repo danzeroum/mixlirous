@@ -11,10 +11,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct PresignRequest {
     pub filename: String,
-    #[allow(dead_code)]
+    /// Tamanho declarado do arquivo. Usado para recusar cedo (QA-0001):
+    /// falhar no presign com 413 é melhor do que falhar no meio do PUT.
     pub size_bytes: u64,
     pub content_type: String,
 }
+
+/// Teto de corpo do upload — a rota REAL (`PUT /uploads/{*object_key}`) e a
+/// rota de diagnóstico (`dev_router`) usam este MESMO número, e ele casa com
+/// o `client_max_body_size 100M` do nginx de produção
+/// (`docs/18-DEPLOY-PUBLICO-NGINX.md`). Descasar qualquer dos três faz o
+/// upload morrer com 413 numa camada sem que a outra explique o motivo.
+///
+/// Por que 100 MB: uma faixa real em WAV passa de 50 MB (o default do axum
+/// é 2 MB — o bug QA-0001), e o teto de duração (`LIMITE_DURACAO_SEG` do
+/// dev_slice) rejeita na entrada o que passar do que a VPS aguenta.
+pub const LIMITE_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 pub struct PresignResponse {
@@ -46,6 +58,19 @@ pub async fn presign_upload(
     let safe_name = safe_name.rsplit(['/', '\\']).next().unwrap_or("unknown");
 
     let object_key = format!("tenant-{}/raw/{}", tenant_id, safe_name);
+
+    // QA-0001: recusa cedo quando o tamanho declarado já excede o teto —
+    // o PUT falharia com 413 depois de o cliente subir metade do arquivo.
+    if payload.size_bytes > LIMITE_UPLOAD_BYTES as u64 {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "arquivo de {} bytes excede o teto de upload de {} MB",
+                payload.size_bytes,
+                LIMITE_UPLOAD_BYTES / 1024 / 1024
+            ),
+        ));
+    }
     let upload_url = format!("/api/v1/uploads/{object_key}");
 
     let mut headers = std::collections::HashMap::new();

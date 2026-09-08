@@ -16,3 +16,5 @@ uuid = { version = "1.10", features = ["v4", "serde"] }
 thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
+# QA-0005: geração de trace_id/span_id W3C no middleware de eco.
+rand = "0.9"

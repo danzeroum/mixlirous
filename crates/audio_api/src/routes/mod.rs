@@ -1,6 +1,7 @@
 use crate::state::AppState;
 use axum::{
     extract::DefaultBodyLimit,
+    middleware::from_fn,
     routing::{get, post, put},
     Router,
 };
@@ -72,7 +73,15 @@ pub fn api_router() -> Router<AppState> {
         .route("/auth/sse-session", post(auth::post_sse_session))
         // Upload + Tracks
         .route("/uploads/presign", post(uploads::presign_upload))
-        .route("/uploads/{*object_key}", put(uploads::upload_put))
+        // QA-0001: o default do axum é 2 MB — o upload REAL de WAV (uma
+        // faixa passa de 50 MB; ver uploads.rs) tomava 413 aqui, embora o
+        // nginx de produção já liberasse 100 MB (client_max_body_size em
+        // docs/18). Mesmo teto da rota de diagnóstico, fonte única:
+        // uploads::LIMITE_UPLOAD_BYTES.
+        .route(
+            "/uploads/{*object_key}",
+            put(uploads::upload_put).layer(DefaultBodyLimit::max(uploads::LIMITE_UPLOAD_BYTES)),
+        )
         .route(
             "/tracks",
             post(tracks::create_track).get(tracks::list_tracks),
@@ -82,6 +91,17 @@ pub fn api_router() -> Router<AppState> {
         // Lote 2 (item 2): áudio ORIGINAL por track_id — alimenta o lado
         // "original" do player A/B sem upload manual.
         .route("/tracks/{track_id}/raw", get(tracks::get_track_raw))
+        // QA-0006: fallback problem+json (RFC 7807) para qualquer rota
+        // /api/v1/* não mapeada. Antes, o axum devolvia 404 com corpo
+        // vazio — quebrando o contrato docs/03 §4. O handler lê a URI e o
+        // trace_id (se houver) das extensões da request, deixando a
+        // resposta auto-contida e correlacionável.
+        .fallback(api_fallback_problem)
+        // QA-0005: middleware de eco de `traceparent` (W3C Trace Context)
+        // aplicado no nível do api_router — toda resposta sob /api/v1/*
+        // carrega o header (echo ou gerado). O fallback acima também é
+        // coberto, pois ele pertence a este router.
+        .layer(from_fn(crate::middleware::trace::echo_traceparent))
 }
 
 /// Rotas de diagnostico. **So entram no router se `MIXLIROUS_DEV_SLICE=1`**
@@ -98,5 +118,46 @@ pub fn dev_router() -> Router<AppState> {
         )
         .route("/dev/slice/{id}", get(dev_slice::audio))
         // O default do axum e 2 MB -- uma faixa real em WAV passa de 50 MB.
-        .layer(DefaultBodyLimit::max(dev_slice::LIMITE_UPLOAD_BYTES))
+        // Mesma constante da rota real de upload (QA-0001).
+        .layer(DefaultBodyLimit::max(uploads::LIMITE_UPLOAD_BYTES))
+}
+
+/// Fallback problem+json para o `api_router` (rotas sob `/api/v1/*` não
+/// mapeadas). QA-0006: o contrato docs/03 §4 exige `application/problem+json`
+/// (RFC 7807) em erros de API; antes, o axum devolvia 404 com corpo vazio.
+///
+/// Lê o `trace_id` das extensões da request (inserido pelo middleware
+/// `trace::echo_traceparent`) para incluir no `problem+json` — correlação
+/// entre resposta e logs.
+///
+/// Usa `OriginalUri` (não `Uri`) porque o `nest("/api/v1", ...)` em
+/// `main.rs` remove o prefixo da URI que chega ao `api_router` — sem
+/// `OriginalUri`, o `instance` no problem+json sairia como
+/// `/webqa-nao-existe` em vez de `/api/v1/webqa-nao-existe`.
+async fn api_fallback_problem(
+    axum::extract::OriginalUri(original): axum::extract::OriginalUri,
+    req: axum::extract::Request,
+) -> axum::response::Response {
+    let trace_id = req
+        .extensions()
+        .get::<crate::middleware::trace::TraceIdInResponse>()
+        .map(|t| t.0.clone());
+    crate::problem::not_found(&original, trace_id.as_deref())
+}
+
+/// Fallback problem+json para o app principal — captura qualquer rota
+/// não mapeada que não esteja sob `/api/v1/*` (ex.: `/api/webqa-nao-existe`
+/// não casa com `/api/v1/...`). Mesmo formato do `api_fallback_problem`,
+/// para consistência total do contrato.
+///
+/// Aplicado em `main.rs` como `.fallback(routes::app_fallback_problem)`.
+pub async fn app_fallback_problem(
+    axum::extract::OriginalUri(original): axum::extract::OriginalUri,
+    req: axum::extract::Request,
+) -> axum::response::Response {
+    let trace_id = req
+        .extensions()
+        .get::<crate::middleware::trace::TraceIdInResponse>()
+        .map(|t| t.0.clone());
+    crate::problem::not_found(&original, trace_id.as_deref())
 }

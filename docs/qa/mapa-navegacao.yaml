@@ -1,0 +1,24 @@
+# Mapa de navegação da UI — derivado de ui/src/App.tsx (código é a verdade)
+# SPA por ESTADO (sem react-router): o mesmo URL (/) serve todas as views.
+# Crawlers por link não descobrem views — a navegação é por clique na sidebar.
+
+meta:
+  fonte: "ui/src/App.tsx @ qa/ciclo-inicial (base d45e74e)"
+  gerado_em: "2026-09-08"
+  url_unico: "http://localhost:5173/ (todas as views)"
+  implications_para_qa:
+    - "deep-links não existem: fallback de SPA para paths arbitrários devolve o shell — interage com o check de 404 da suíte"
+    - "caminho de link-crawler: home -> âncoras visíveis no shell (o que estiver no DOM renderizado)"
+
+views:
+  - { id: projetos,     label_nav: "Visão geral",       proposito: "resumo do espaço único do tenant (projeto implícito)" }
+  - { id: biblioteca,   label_nav: "Biblioteca",        proposito: "tracks e artefatos" }
+  - { id: novo-remix,   label_nav: "Novo remix",        proposito: "fluxo guiado por intenção (caminho principal)" }
+  - { id: atividade,    label_nav: "Atividade",         proposito: "jobs e progresso (SSE)" }
+  - { id: workspace,    label_nav: "Espaço de trabalho", proposito: "canvas avançado (PipelineConfig)" }
+
+estado_inicial: "view = novo-remix (default do useState)"
+backend_dependente:
+  - "bootstrap: GET /api/v1/auth/local-session (sessão single-user)"
+  - "biblioteca/atividade: polling + SSE /api/v1/jobs/{id}/events"
+  - "novo-remix: POST /api/v1/uploads/presign -> PUT upload -> POST /api/v1/jobs"

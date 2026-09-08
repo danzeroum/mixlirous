@@ -1,26 +1,26 @@
-//! Distor├º├úo harm├┤nica (THD) ÔÇö docs/17.1 ┬º3.1. Um tom puro entra, processa,
-//! mede a energia nos harm├┤nicos (2x, 3x... da fundamental) contra a energia
-//! na fundamental. THD alta significa que um processo que **n├úo deveria**
-//! distorcer est├í distorcendo ÔÇö clipping intermedi├írio, interpola├º├úo ruim
-//! ou erro de quantiza├º├úo.
+//! Distorção harmônica (THD) — docs/17.1 §3.1. Um tom puro entra, processa,
+//! mede a energia nos harmônicos (2x, 3x... da fundamental) contra a energia
+//! na fundamental. THD alta significa que um processo que **não deveria**
+//! distorcer está distorcendo — clipping intermediário, interpolação ruim
+//! ou erro de quantização.
 //!
-//! **S├│ para as fun├º├Áes cujo ganho ├® um ├║nico escalar aplicado ao buffer
-//! inteiro, n├úo uma curva no tempo.** `apply_lufs_gain` calcula **um** fator
-//! de ganho (da medi├º├úo de LUFS) e multiplica todas as amostras por ele ÔÇö
-//! matematicamente n├úo pode introduzir harm├┤nicos novos, s├│ reescalar os
-//! que j├í existem. `brickwall_limiter`, ap├│s o fix da #37, usa ganho por
-//! amostra (lookahead + release): limitar distorce por defini├º├úo quando
-//! escala, ent├úo ali o teto n├úo ├® o piso num├®rico ÔÇö ├® o teto de 0,1%
-//! (THD_MAX), e a curva cumpre com folga: em tom cont├¡nuo o ganho converge
+//! **Só para as funções cujo ganho é um único escalar aplicado ao buffer
+//! inteiro, não uma curva no tempo.** `apply_lufs_gain` calcula **um** fator
+//! de ganho (da medição de LUFS) e multiplica todas as amostras por ele —
+//! matematicamente não pode introduzir harmônicos novos, só reescalar os
+//! que já existem. `brickwall_limiter`, após o fix da #37, usa ganho por
+//! amostra (lookahead + release): limitar distorce por definição quando
+//! escala, então ali o teto não é o piso numérico — é o teto de 0,1%
+//! (THD_MAX), e a curva cumpre com folga: em tom contínuo o ganho converge
 //! para constante e o THD medido fica em ~1.6e-6 (escalando) e ~8e-7
 //! (abaixo do teto). `fade_in`/`fade_out`/`crossfade` aplicam ganho
-//! **vari├ível no tempo**: medir THD com FFT de janela ├║nica sobre um sinal
-//! cuja envolt├│ria est├í mudando dentro da pr├│pria janela mistura modula├º├úo
-//! de amplitude (esperada, n├úo ├® distor├º├úo) com distor├º├úo harm├┤nica de
-//! verdade ÔÇö o mesmo problema de "espalhamento" que descartou o chirp como
-//! sinal de teste em `aliasing.rs`. N├úo testado aqui por esse motivo, n├úo
-//! por lacuna. `time_stretch` em fator 1,0 ├® bypass puro (`stretch.rs` j├í
-//! testa a identidade) ÔÇö inclu├¡do como caso trivial de refer├¬ncia.
+//! **variável no tempo**: medir THD com FFT de janela única sobre um sinal
+//! cuja envoltória está mudando dentro da própria janela mistura modulação
+//! de amplitude (esperada, não é distorção) com distorção harmônica de
+//! verdade — o mesmo problema de "espalhamento" que descartou o chirp como
+//! sinal de teste em `aliasing.rs`. Não testado aqui por esse motivo, não
+//! por lacuna. `time_stretch` em fator 1,0 é bypass puro (`stretch.rs` já
+//! testa a identidade) — incluído como caso trivial de referência.
 
 use audio_core::dsp::analysis::fft::magnitude_spectrum;
 use audio_core::dsp::mastering::limiter::brickwall_limiter;
@@ -31,8 +31,8 @@ use ndarray::Array1;
 const SAMPLE_RATE: u32 = 44_100;
 const FUNDAMENTAL_HZ: f32 = 1000.0;
 
-/// Tom puro de 1 kHz, dura├º├úo de 1s ÔÇö n├║mero inteiro de ciclos a 44100 Hz,
-/// ent├úo a FFT de janela ├║nica n├úo borra a fundamental entre bins.
+/// Tom puro de 1 kHz, duração de 1s — número inteiro de ciclos a 44100 Hz,
+/// então a FFT de janela única não borra a fundamental entre bins.
 fn tom_puro() -> Vec<f32> {
     (0..SAMPLE_RATE)
         .map(|i| {
@@ -42,8 +42,8 @@ fn tom_puro() -> Vec<f32> {
         .collect()
 }
 
-/// sqrt(energia nos harm├┤nicos 2..=10 / energia na fundamental) ÔÇö mesma
-/// defini├º├úo do docs/17.1 ┬º3.1.
+/// sqrt(energia nos harmônicos 2..=10 / energia na fundamental) — mesma
+/// definição do docs/17.1 §3.1.
 fn thd(pcm: &[f32]) -> f32 {
     let mag = magnitude_spectrum(Array1::from_vec(pcm.to_vec()).view());
     let bin_hz = SAMPLE_RATE as f32 / pcm.len() as f32;
@@ -58,7 +58,7 @@ fn thd(pcm: &[f32]) -> f32 {
     (harm_energy / fund_energy).sqrt()
 }
 
-const THD_MAX: f32 = 0.001; // 0,1% ÔÇö mesmo teto sugerido em docs/17.1 ┬º3.1
+const THD_MAX: f32 = 0.001; // 0,1% — mesmo teto sugerido em docs/17.1 §3.1
 
 #[test]
 fn apply_lufs_gain_nao_distorce() {
@@ -69,17 +69,17 @@ fn apply_lufs_gain_nao_distorce() {
         audio_core::dsp::mastering::lufs::LufsGainOutcome::Applied { .. }
     ));
     let t = thd(&pcm);
-    assert!(t < THD_MAX, "THD {:.4}% ap├│s apply_lufs_gain", t * 100.0);
+    assert!(t < THD_MAX, "THD {:.4}% após apply_lufs_gain", t * 100.0);
 }
 
 #[test]
 fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -3.0, SAMPLE_RATE); // teto acima do pico: n├úo deveria escalar
+    brickwall_limiter(&mut pcm, -3.0, SAMPLE_RATE); // teto acima do pico: não deveria escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,
-        "THD {:.4}% ap├│s brickwall_limiter (abaixo do teto)",
+        "THD {:.4}% após brickwall_limiter (abaixo do teto)",
         t * 100.0
     );
 }
@@ -87,11 +87,11 @@ fn brickwall_limiter_nao_distorce_abaixo_do_teto() {
 #[test]
 fn brickwall_limiter_nao_distorce_ao_escalar() {
     let mut pcm = tom_puro(); // pico 0.5 (~-6 dBFS)
-    brickwall_limiter(&mut pcm, -12.0, SAMPLE_RATE); // teto abaixo do pico: for├ºa escalar
+    brickwall_limiter(&mut pcm, -12.0, SAMPLE_RATE); // teto abaixo do pico: força escalar
     let t = thd(&pcm);
     assert!(
         t < THD_MAX,
-        "THD {:.4}% ap├│s brickwall_limiter (escalando)",
+        "THD {:.4}% após brickwall_limiter (escalando)",
         t * 100.0
     );
 }
@@ -104,7 +104,7 @@ fn time_stretch_em_fator_1_nao_distorce() {
     let t = thd(esticado.as_slice().unwrap());
     assert!(
         t < THD_MAX,
-        "THD {:.4}% ap├│s time_stretch em fator 1,0",
+        "THD {:.4}% após time_stretch em fator 1,0",
         t * 100.0
     );
 }
