@@ -4,6 +4,46 @@ Todos os mudanças notáveis deste projeto serão documentados neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Unreleased] — Sistema de cor da marca
+
+### Adicionado
+
+- **Tokens da marca em `@theme`** (`ui/src/index.css`, fonte canônica
+  `docs/design/tokens/theme.css`) — oito famílias semânticas: `surface`
+  (base neutra-quente, inclui o degrau 850 que a escala padrão do Tailwind v4
+  não tem), `ink` (texto), `action` (teal do CTA da landing), `ai` (violeta do
+  poster), `manual` (azul-ciano do holograma), `warn` (âmbar do case), `danger`
+  (vermelho H=357°, deslocado do coral) e `brand` (coral, exclusivo de marca —
+  R2). Oito famílias. Amostragem e justificativa em `docs/design/00-PALETA-E-ORIGEM.md`.
+- **Constantes para Canvas/React Flow** (`ui/src/lib/theme.ts`) — `theme` +
+  `canvasColors`; Waveform e RemixCanvas importam daqui (fim dos 4 hexes em
+  .tsx; o 5.º, do anel de foco no index.css, virou `var(--color-ai-400)`).
+- **Guardas automatizadas** — teste de sincronia CSS↔TS
+  (`theme.spec.ts`: token a token, falha se um lado divergir ou sumir;
+  também protege o bloco de acessibilidade do #59), teste de contraste
+  calculado (`themeContrast.spec.ts`: fórmula WCAG 2.1 recalcula todos os
+  pares aprovados de `01-TOKENS.md`, inclui o known-fail action-600+branco
+  4.49 que motiva R5) e `npm run lint:colors`
+  (`scripts/lint-colors.mjs`: falha com classe de família nativa ou hex
+  literal fora de index.css e lib/theme.ts).
+
+### Alterado
+
+- **Migração completa das 343 ocorrências de classe de cor** (61 combinações
+  em 12 arquivos) conforme `docs/design/02-MAPA-MIGRACAO.md` — incluindo as
+  seis classes que o mapa não cobria (linhas adicionadas: `bg-red-800`,
+  `text-red-100`, `bg-transparent`, `border-purple-500/700/800` por degrau
+  justificado) e dois refinamentos por proeminência de seleção
+  (`border-purple-500`→`ai-400`, `border-blue-500`→`manual-400`).
+- **Correção de defeito** (`ui/src/App.tsx`): `bg-gray-850` não existe na
+  escala do Tailwind v4 e não gerava CSS — sidebar virou `bg-surface-850`.
+  Única mudança de aparência por correção de defeito, não por troca de paleta.
+- **Semântica R3**: item ativo da navegação global saiu da família `ai`
+  (proibida para seleção genérica) para neutro `surface-700` + `ink-100`.
+- Texto sobre botões: `text-white` preservado só dentro de botão preenchido
+  (R5 — pares calculados com branco; 16 usos); os demais 31 viraram
+  `text-ink-100`. Secundários usam `surface-700` + `ink-100` (R5).
+
 ## [Unreleased] — Plano de design centrado no usuário (etapa única vertical)
 
 ### Adicionado

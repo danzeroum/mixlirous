@@ -109,29 +109,39 @@ Devem importar de `ui/src/lib/theme.ts`.
 
 ## 9. Arquivos a alterar
 
-Inventário completo do escopo (branch do PR #59, 2.401 linhas):
+Inventário **recontado sobre `67ac232`** (main pós-#59/#60 — o #59 alterou
+vários arquivos de UI depois deste mapa ter sido escrito): **343 ocorrências**
+de classe de cor, **61 combinações distintas**, **12 arquivos com classes**
+(294 ocorrências de família nativa + 47 `text-white` + 1 `bg-transparent` +
+1 `bg-black/60`) e **5 hexes literais**.
 
 ```
-ui/src/index.css                       ← recebe o bloco @theme
-ui/src/lib/theme.ts                    ← NOVO
-ui/src/lib/__tests__/theme.spec.ts     ← NOVO (guarda de sincronia)
-ui/src/App.tsx                         (483 linhas)
-ui/src/components/JobTimeline.tsx      (99)
-ui/src/components/Player.tsx           (357)
-ui/src/components/PrivacyPanel.tsx     (109)
-ui/src/components/ProposalOverlay.tsx  (326)
-ui/src/components/RemixCanvas.tsx      (56)
-ui/src/components/ToolPalette.tsx      (88)
-ui/src/components/UploadPanel.tsx      (241)
-ui/src/components/Waveform.tsx         (82)
-ui/src/views/AtividadeView.tsx         (143)
-ui/src/views/BibliotecaView.tsx        (78)
-ui/src/views/NovoRemixView.tsx         (235)
-ui/src/views/ProjetosView.tsx          (74)
-ui/src/views/WorkspaceView.tsx         (30)
+ui/src/index.css                       ← recebeu o bloco @theme (1 hex: anel de foco)
+ui/src/lib/theme.ts                    ← NOVO (Canvas 2D / React Flow)
+ui/src/lib/__tests__/theme.spec.ts     ← NOVO (guarda de sincronia CSS↔TS)
+ui/src/lib/__tests__/themeContrast.spec.ts ← NOVO (contraste WCAG calculado)
+ui/scripts/lint-colors.mjs             ← NOVO (guarda R6: npm run lint:colors)
+ui/src/App.tsx                         (19 ocorrências + bug bg-gray-850)
+ui/src/components/JobTimeline.tsx      (26)
+ui/src/components/Player.tsx           (51)
+ui/src/components/PrivacyPanel.tsx     (24)
+ui/src/components/ProposalOverlay.tsx  (52)
+ui/src/components/RemixCanvas.tsx      (6 + 1 hex)
+ui/src/components/ToolPalette.tsx      (13)
+ui/src/components/UploadPanel.tsx      (32)
+ui/src/components/Waveform.tsx         (0 classes, 3 hexes)
+ui/src/views/AtividadeView.tsx         (44)
+ui/src/views/BibliotecaView.tsx        (17)
+ui/src/views/NovoRemixView.tsx         (33)
+ui/src/views/ProjetosView.tsx          (26)
 ```
 
-Nenhum arquivo de teste existente deve mudar de expectativa: a migração é
+`WorkspaceView.tsx` não tem classe de cor nem hex — não precisou de mudança.
+Todos os destinos das 61 combinações estão definidos nas seções 1–8 deste mapa
+(incluindo as linhas adicionadas na migração: `bg-transparent`, `bg-red-800`,
+`text-red-100`, `border-purple-500/700/800` explicitados por degrau).
+
+Nenhum arquivo de teste existente mudou de expectativa: a migração é
 puramente visual. Se um teste quebrar, é sinal de que um `data-testid`, um texto
 ou uma estrutura foi alterado por engano — reverta a alteração estrutural, não
 o teste.
