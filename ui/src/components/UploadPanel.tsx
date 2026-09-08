@@ -105,14 +105,14 @@ function UploadPanel({
   }, [trackIdExterno, trackId, prompt, onCreateJob])
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg mb-4">
-      <h2 className="text-lg font-bold text-white mb-4">
+    <div className="bg-surface-800 p-6 rounded-lg mb-4">
+      <h2 className="text-lg font-bold text-ink-100 mb-4">
         {soObjetivo ? 'Objetivo do remix' : 'Upload de faixa'}
       </h2>
 
       {!soObjetivo && (
         <div className="mb-4">
-          <label className="block text-sm text-gray-300 mb-2" htmlFor="upload-arquivo">
+          <label className="block text-sm text-ink-300 mb-2" htmlFor="upload-arquivo">
             Arquivo de audio
           </label>
           <input
@@ -121,14 +121,14 @@ function UploadPanel({
             type="file"
             accept="audio/*,.wav,.flac,.aiff,.mp3,.m4a,.aac"
             data-testid="upload-input"
-            className="w-full text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded file:bg-green-600 file:text-white file:border-0"
+            className="w-full text-ink-300 file:mr-4 file:py-2 file:px-4 file:rounded file:bg-action-700 file:text-white file:border-0"
           />
         </div>
       )}
 
       {!soUpload && (
         <div className="mb-4">
-          <span className="block text-sm text-gray-300 mb-2">Como você quer remixar</span>
+          <span className="block text-sm text-ink-300 mb-2">Como você quer remixar</span>
           <div className="flex gap-2" role="radiogroup" aria-label="Modo de processamento">
             <button
               type="button"
@@ -137,8 +137,8 @@ function UploadPanel({
               onClick={() => onModeChange('manual')}
               className={`flex-1 px-3 py-2 rounded text-sm ${
                 mode === 'manual'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-manual-600 text-white'
+                  : 'bg-surface-700 text-ink-300 hover:bg-surface-600'
               }`}
               title="Usa exatamente a receita do canvas — não chama IA."
             >
@@ -151,8 +151,8 @@ function UploadPanel({
               onClick={() => onModeChange('assisted')}
               className={`flex-1 px-3 py-2 rounded text-sm ${
                 mode === 'assisted'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-ai-600 text-white'
+                  : 'bg-surface-700 text-ink-300 hover:bg-surface-600'
               }`}
               title="O assistente propõe a receita a partir do objetivo; você aprova antes de renderizar."
             >
@@ -164,7 +164,7 @@ function UploadPanel({
 
       {!soUpload && (
         <div className="mb-4">
-          <label className="block text-sm text-gray-300 mb-2" htmlFor="objetivo-remix">
+          <label className="block text-sm text-ink-300 mb-2" htmlFor="objetivo-remix">
             {mode === 'assisted'
               ? 'Descreva o que você quer ouvir'
               : 'Descrição (opcional — vira anotação da receita)'}
@@ -179,7 +179,7 @@ function UploadPanel({
                 ? 'ex: versão de 30s para Reels, agressiva, foco na bateria'
                 : 'ex: lote de 50 faixas com a mesma receita validada'
             }
-            className="w-full p-2 bg-gray-700 text-white rounded border border-gray-600 resize-none h-20"
+            className="w-full p-2 bg-surface-700 text-ink-100 rounded border border-surface-600 resize-none h-20"
             maxLength={4096}
           />
         </div>
@@ -191,7 +191,7 @@ function UploadPanel({
             onClick={handleUpload}
             disabled={status === 'uploading'}
             data-testid="upload-button"
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+            className="px-4 py-2 bg-manual-600 text-white rounded hover:bg-manual-500 disabled:opacity-50"
           >
             {status === 'uploading' ? 'Enviando...' : 'Upload'}
           </button>
@@ -211,7 +211,7 @@ function UploadPanel({
                   : undefined
               }
               className={`px-4 py-2 rounded text-white disabled:opacity-50 ${
-                mode === 'assisted' ? 'bg-purple-600 hover:bg-purple-500' : 'bg-green-600 hover:bg-green-500'
+                mode === 'assisted' ? 'bg-ai-600 hover:bg-ai-500' : 'bg-action-700 hover:bg-action-600'
               }`}
             >
               {mode === 'assisted' ? 'Criar remix com assistente' : 'Criar remix com a receita do canvas'}
@@ -224,11 +224,11 @@ function UploadPanel({
         <p
           data-testid="upload-status"
           aria-live="polite"
-          className={`mt-3 text-sm ${status === UPLOAD_STATUS_ERRO ? 'text-red-400' : 'text-green-400'}`}
+          className={`mt-3 text-sm ${status === UPLOAD_STATUS_ERRO ? 'text-danger-400' : 'text-action-400'}`}
         >
           {message}
           {status === UPLOAD_STATUS_ERRO && (
-            <span className="block text-xs text-gray-400 mt-1">
+            <span className="block text-xs text-ink-400 mt-1">
               Verifique a conexão e tente de novo — nada foi perdido.
             </span>
           )}
