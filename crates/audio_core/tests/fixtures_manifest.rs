@@ -133,9 +133,7 @@ fn pico_espectral_hz(
 fn load_manifest() -> Manifest {
     let manifest_path = fixtures_dir().join("manifest.json");
     let raw = std::fs::read_to_string(&manifest_path).unwrap_or_else(|e| {
-        panic!(
-            "{manifest_path:?}: {e} — rode `python scripts/generate_fixtures.py` (docs/17 §2)"
-        )
+        panic!("{manifest_path:?}: {e} — rode `python scripts/generate_fixtures.py` (docs/17 §2)")
     });
     serde_json::from_str(&raw).expect("manifest.json malformado")
 }

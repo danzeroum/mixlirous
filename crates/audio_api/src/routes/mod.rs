@@ -80,9 +80,7 @@ pub fn api_router() -> Router<AppState> {
         // uploads::LIMITE_UPLOAD_BYTES.
         .route(
             "/uploads/{*object_key}",
-            put(uploads::upload_put).layer(DefaultBodyLimit::max(
-                uploads::LIMITE_UPLOAD_BYTES,
-            )),
+            put(uploads::upload_put).layer(DefaultBodyLimit::max(uploads::LIMITE_UPLOAD_BYTES)),
         )
         .route(
             "/tracks",

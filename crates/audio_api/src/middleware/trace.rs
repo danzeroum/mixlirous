@@ -50,7 +50,7 @@ pub async fn echo_traceparent(mut req: Request, next: Next) -> Response {
             let generated = generate_w3c_traceparent();
             let trace_id = trace_id_of(&generated);
             (generated, trace_id)
-        }
+        },
     };
 
     // Disponibiliza o trace_id para handlers via extensões da request.
@@ -119,8 +119,7 @@ pub fn is_valid_w3c_traceparent(raw: &str) -> bool {
 }
 
 fn is_hex_lowercase(s: &str) -> bool {
-    s.bytes()
-        .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Gera um `traceparent` W3C válido aleatório (RNG thread-local).
@@ -316,9 +315,7 @@ mod tests {
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7"
         ));
         // trace_id curto.
-        assert!(!is_valid_w3c_traceparent(
-            "00-deadbeef-00f067aa0ba902b7-01"
-        ));
+        assert!(!is_valid_w3c_traceparent("00-deadbeef-00f067aa0ba902b7-01"));
     }
 
     #[test]

@@ -113,10 +113,8 @@ impl Problem {
     pub fn into_response(self) -> Response {
         let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
         let mut resp = Json(self).into_response();
-        resp.headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(CONTENT_TYPE),
-        );
+        resp.headers_mut()
+            .insert(header::CONTENT_TYPE, HeaderValue::from_static(CONTENT_TYPE));
         *resp.status_mut() = status;
         resp
     }
@@ -164,7 +162,7 @@ pub fn not_found(uri: &Uri, trace_id: Option<&str>) -> Response {
     Problem::new(StatusCode::NOT_FOUND, "not_found")
         .with_detail(format!("Nenhuma rota corresponde a {path}"))
         .with_instance(path.clone())
-        .with_type(format!("https://mixlirous.dev/errors/not_found"))
+        .with_type("https://mixlirous.dev/errors/not_found".to_string())
         .with_trace_id_opt(trace_id.map(|s| s.to_string()))
         .into_response()
 }
@@ -177,7 +175,7 @@ pub fn method_not_allowed(uri: &Uri, trace_id: Option<&str>) -> Response {
     Problem::new(StatusCode::METHOD_NOT_ALLOWED, "method_not_allowed")
         .with_detail(format!("Método não permitido para {path}"))
         .with_instance(path)
-        .with_type(format!("https://mixlirous.dev/errors/method_not_allowed"))
+        .with_type("https://mixlirous.dev/errors/method_not_allowed".to_string())
         .with_trace_id_opt(trace_id.map(|s| s.to_string()))
         .into_response()
 }

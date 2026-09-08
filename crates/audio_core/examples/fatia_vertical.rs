@@ -249,9 +249,7 @@ fn main() -> ExitCode {
             println!("LUFS: ganho de {gain_db:.2} dB aplicado (alvo {target_lufs} LUFS)")
         },
         LufsGainOutcome::UnmeasurableLoudness => {
-            println!(
-                "LUFS: não mensurável (buffer curto/silencioso demais) — buffer não alterado"
-            )
+            println!("LUFS: não mensurável (buffer curto/silencioso demais) — buffer não alterado")
         },
     }
     brickwall_limiter(&mut pcm_final, config.mastering.peak_db, sample_rate);
