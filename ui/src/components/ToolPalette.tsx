@@ -34,22 +34,22 @@ function ToolPalette({ tools, loading }: Props) {
 
   if (loading || tools === null) {
     return (
-      <div className="p-3 bg-gray-800/95 rounded-lg border border-gray-700 text-xs text-gray-400">
+      <div className="p-3 bg-surface-800/95 rounded-lg border border-surface-700 text-xs text-ink-400">
         Carregando ferramentas…
       </div>
     )
   }
 
   return (
-    <div className="p-3 bg-gray-800/95 rounded-lg border border-gray-700 max-h-72 overflow-y-auto">
-      <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-2">
+    <div className="p-3 bg-surface-800/95 rounded-lg border border-surface-700 max-h-72 overflow-y-auto">
+      <h3 className="text-xs font-bold text-ink-300 uppercase tracking-wide mb-2">
         Ferramentas
       </h3>
       {groups.map(([category, list]) => {
         const { available, unavailable } = partitionToolsByAvailability(list)
         return (
           <div key={category} className="mb-3 last:mb-0">
-            <div className="text-[10px] text-gray-500 uppercase mb-1">{category}</div>
+            <div className="text-[10px] text-ink-500 uppercase mb-1">{category}</div>
             <div className="flex flex-wrap gap-1.5">
               {available.map((t) => (
                 <button
@@ -57,7 +57,7 @@ function ToolPalette({ tools, loading }: Props) {
                   type="button"
                   onClick={() => addToolNode(t.name, t.label_ptbr)}
                   title={t.label_ptbr}
-                  className="px-2 py-1 text-xs bg-purple-700 hover:bg-purple-600 text-white rounded disabled:opacity-40"
+                  className="px-2 py-1 text-xs bg-ai-700 hover:bg-ai-600 text-white rounded disabled:opacity-40"
                 >
                   + {t.label_ptbr}
                 </button>
@@ -69,10 +69,10 @@ function ToolPalette({ tools, loading }: Props) {
                   disabled
                   aria-disabled
                   title={describeUnavailableReason(t.unavailable_reason)}
-                  className="px-2 py-1 text-xs bg-gray-700 text-gray-400 rounded cursor-not-allowed line-through"
+                  className="px-2 py-1 text-xs bg-surface-700 text-ink-400 rounded cursor-not-allowed line-through"
                 >
                   {t.label_ptbr}
-                  <span className="ml-1 text-[10px] no-underline text-orange-400">
+                  <span className="ml-1 text-[10px] no-underline text-warn-400">
                     (indisponível)
                   </span>
                 </button>

@@ -63,6 +63,13 @@ audio_api: code 95%, integration 85%
   resiliência: atomic_write, recovery loop
 
 ui: code 95%, integration 92%
+  # PR cor da marca: tokens @theme em index.css (8 famílias — surface/ink/
+  # action/ai/manual/warn/danger/brand, fonte docs/design/) + lib/theme.ts
+  # para Canvas/React Flow. 343 ocorrências de classe de cor migradas (61
+  # combinações, 12 arquivos) + 4 hexes em .tsx eliminados. Guardas: teste
+  # de sincronia CSS↔TS, teste de contraste WCAG 2.1 calculado (15 specs
+  # novos) e npm run lint:colors (zero família nativa / hex fora dos
+  # canônicos). Bug bg-gray-850 da sidebar corrigido (surface-850).
   # Lote 1 do plano Pareto (+5): ToolPalette respeita available=false de
   # GET /tools — ghost tools (compression, dynamic_eq) desabilitadas com
   # motivo no tooltip; lógica em lib/toolFilter.ts com testes Vitest.
@@ -97,6 +104,8 @@ ui: code 95%, integration 92%
   store: graphStore (Zustand) + addToolNode (Lote 1) — fonte do
     pipeline_config (Lote 3)
   lib:
+    theme (NOVO): tokens para contextos sem classe Tailwind (Canvas 2D,
+      React Flow, SVG) + canvasColors — espelhado do @theme por teste
     graphToPipeline (NOVO): serialização grafo→PipelineConfig + validações
       (ciclo, ghost tools, empty) — 11 testes Vitest
     authHeaders (NOVO): Bearer da sessão local para REST
@@ -119,8 +128,9 @@ sprints:
 tests: 500+ rust (nextest, com fixtures; Lote 3: +6 limiter, +4 onset,
   +2 contrato do grafo; PR #59: +5 privacy-policy/consent-handler,
   +3 HTTP revogação/política/peaks-estéreo, +4 avisos de canal e
-  contexto do agente) + 37 ui/vitest (13 + 11 graphToPipeline + 10
-  wavPeaks (+3 avisoCanais) + 7 toolFilter) + 4 specs Playwright
+  contexto do agente) + 49 ui/vitest (13 + 11 graphToPipeline + 10
+  wavPeaks (+3 avisoCanais) + 7 toolFilter + 3 sincronia de tema + 12
+  contraste WCAG) + 4 specs Playwright
   (fluxo feliz + atividade vazia + atividade job real + consentimento
   com revogação)
 build: OK

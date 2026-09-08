@@ -356,10 +356,10 @@ function App() {
   }, [events])
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-surface-900">
       {/* Sidebar com navegação global */}
-      <div className="w-60 flex-shrink-0 bg-gray-850 border-r border-gray-700 p-4 overflow-y-auto flex flex-col">
-        <h1 className="text-xl font-bold text-white mb-4">Mixlirous</h1>
+      <div className="w-60 flex-shrink-0 bg-surface-850 border-r border-surface-700 p-4 overflow-y-auto flex flex-col">
+        <h1 className="text-xl font-bold text-ink-100 mb-4">Mixlirous</h1>
         <nav aria-label="Navegação principal" className="space-y-1 mb-6">
           {NAV.map((n) => (
             <button
@@ -370,8 +370,8 @@ function App() {
               data-testid={`nav-${n.id}`}
               className={`w-full text-left px-3 py-2 rounded text-sm ${
                 view === n.id
-                  ? 'bg-purple-700 text-white font-medium'
-                  : 'text-gray-300 hover:bg-gray-800'
+                  ? 'bg-surface-700 text-ink-100 font-medium'
+                  : 'text-ink-300 hover:bg-surface-800'
               }`}
             >
               {n.label}
@@ -380,27 +380,27 @@ function App() {
         </nav>
 
         {jobId && (
-          <div className="bg-gray-800 p-3 rounded-lg mb-3">
-            <p className="text-sm text-gray-200">Job: {jobId.slice(0, 8)}...</p>
-            <p className="text-xs text-gray-400" aria-live="polite" data-testid="job-status">
+          <div className="bg-surface-800 p-3 rounded-lg mb-3">
+            <p className="text-sm text-ink-200">Job: {jobId.slice(0, 8)}...</p>
+            <p className="text-xs text-ink-400" aria-live="polite" data-testid="job-status">
               Status: {jobStatus || 'aguardando'}
             </p>
-            <p className={`text-xs ${connected ? 'text-green-400' : 'text-gray-500'}`}>
+            <p className={`text-xs ${connected ? 'text-action-400' : 'text-ink-500'}`}>
               {connected ? 'SSE conectado' : 'SSE desconectado — reconectando'}
             </p>
           </div>
         )}
 
         {api.error && (
-          <div className="bg-red-900/50 p-3 rounded-lg mb-3" role="alert">
-            <p className="text-sm text-red-200 font-semibold">
+          <div className="bg-danger-800/50 p-3 rounded-lg mb-3" role="alert">
+            <p className="text-sm text-danger-200 font-semibold">
               Erro {api.error.status || '—'}
             </p>
-            <p className="text-sm text-red-200 mt-1">{api.error.message}</p>
+            <p className="text-sm text-danger-200 mt-1">{api.error.message}</p>
             {/* Item C1: mostra cada campo inválido retornado pelo backend */}
             {api.error.fieldErrors().map((fe, i) => (
-              <p key={i} className="text-xs text-red-300 mt-1">
-                <code className="bg-red-950 px-1 rounded">{fe.field}</code>: {fe.code}
+              <p key={i} className="text-xs text-danger-300 mt-1">
+                <code className="bg-danger-950 px-1 rounded">{fe.field}</code>: {fe.code}
                 {fe.received !== undefined && ` (recebido: ${String(fe.received)})`}
                 {fe.min !== undefined && ` — mínimo: ${fe.min}`}
                 {fe.max !== undefined && ` — máximo: ${fe.max}`}
@@ -410,7 +410,7 @@ function App() {
         )}
 
         {/* Canvas resumido na sidebar para contexto em qualquer visão */}
-        <div className="mt-auto text-xs text-gray-500">
+        <div className="mt-auto text-xs text-ink-500">
           {graphNodes.length > 0
             ? `${graphNodes.length} nó(s) · ${graphEdges.length} ligação(ões) na receita`
             : 'receita vazia — o default do backend será usado'}

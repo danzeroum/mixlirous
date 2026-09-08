@@ -21,7 +21,7 @@
    * ===================================================================== */
   --color-surface-950: #0d0a0a; /* poços, backdrop de modal */
   --color-surface-900: #141010; /* fundo da aplicação           (era gray-900) */
-  --color-surface-850: #1b1615; /* sidebar — corrige o bug bg-gray-850 */
+  --color-surface-850: #1b1615; /* sidebar — o degrau 850 que faltava na escala padrão */
   --color-surface-800: #241d1c; /* painéis, cards               (era gray-800) */
   --color-surface-700: #392f2d; /* controles, tracks, chips     (era gray-700) */
   --color-surface-600: #4a3d3b; /* bordas, divisores            (era gray-600) */

@@ -93,7 +93,7 @@ function NovoRemixView(props: Props) {
     <div className="w-full max-w-3xl mx-auto px-4 py-6 space-y-6 overflow-y-auto" data-testid="novo-remix">
       {/* ── Passo 1 · Upload ── */}
       <section aria-labelledby="passo-upload">
-        <h2 id="passo-upload" className="text-sm font-bold text-purple-300 uppercase tracking-wide mb-2">
+        <h2 id="passo-upload" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
           1 · Envie a faixa
         </h2>
         <UploadPanel
@@ -107,11 +107,11 @@ function NovoRemixView(props: Props) {
 
       {/* ── Passo 2 · Análise ── */}
       {trackId && (
-        <section aria-labelledby="passo-analise" className="bg-gray-800/60 rounded-lg border border-gray-700 p-4">
-          <h2 id="passo-analise" className="text-sm font-bold text-purple-300 uppercase tracking-wide mb-2">
+        <section aria-labelledby="passo-analise" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+          <h2 id="passo-analise" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
             2 · Análise
           </h2>
-          <p className="text-sm text-gray-200 mb-3">
+          <p className="text-sm text-ink-200 mb-3">
             Faixa <strong>{trackName ?? trackId.slice(0, 8)}</strong> pronta. A forma da onda abaixo
             vem dos picos reais calculados pelo backend (mesmos dados que guiam o corte em blocos).
           </p>
@@ -122,18 +122,18 @@ function NovoRemixView(props: Props) {
                 <p
                   role="status"
                   data-testid="mono-notice"
-                  className="mt-2 p-2 rounded bg-orange-950/60 border border-orange-800 text-xs text-orange-200"
+                  className="mt-2 p-2 rounded bg-warn-950/60 border border-warn-800 text-xs text-warn-200"
                 >
                   {avisoCanais(peaks.channels)}
                   {peaks.channels !== undefined && (
-                    <span className="block mt-1 text-orange-300/80 font-mono">
+                    <span className="block mt-1 text-warn-300/80 font-mono">
                       source_channels: {peaks.channels} · processing_channels: 1 ·
                       output_channels: 1 · channel_policy: downmix_arithmetic_mean
                     </span>
                   )}
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-ink-400 mt-2">
                 {peaks.resolution} buckets
                 {peaks.sample_rate ? ` · ${peaks.sample_rate} Hz` : ''} · BPM, tom e seções aparecem
                 aqui quando a análise musical for exposta pelo backend (roadmap Beta — não
@@ -141,15 +141,15 @@ function NovoRemixView(props: Props) {
               </p>
             </>
           ) : (
-            <p className="text-xs text-gray-400" role="status">Calculando picos da faixa…</p>
+            <p className="text-xs text-ink-400" role="status">Calculando picos da faixa…</p>
           )}
         </section>
       )}
 
       {/* ── Passo 3 · Objetivo ── */}
       {trackId && (
-        <section aria-labelledby="passo-objetivo" className="bg-gray-800/60 rounded-lg border border-gray-700 p-4">
-          <h2 id="passo-objetivo" className="text-sm font-bold text-purple-300 uppercase tracking-wide mb-2">
+        <section aria-labelledby="passo-objetivo" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+          <h2 id="passo-objetivo" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
             3 · Objetivo
           </h2>
           <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Pontos de partida">
@@ -158,7 +158,7 @@ function NovoRemixView(props: Props) {
                 key={p.rotulo}
                 type="button"
                 onClick={() => setPrompt(p.texto)}
-                className="px-2.5 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-100 rounded-full border border-gray-600"
+                className="px-2.5 py-1 text-xs bg-surface-700 hover:bg-surface-600 text-ink-100 rounded-full border border-surface-600"
                 title="Preenche o objetivo — edite à vontade"
               >
                 {p.rotulo}
@@ -195,20 +195,20 @@ function NovoRemixView(props: Props) {
       )}
 
       {/* ── Passo 4 · Receita (canvas) ── */}
-      <section aria-labelledby="passo-receita" className="bg-gray-800/60 rounded-lg border border-gray-700 p-4">
-        <h2 id="passo-receita" className="text-sm font-bold text-purple-300 uppercase tracking-wide mb-2">
+      <section aria-labelledby="passo-receita" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+        <h2 id="passo-receita" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
           4 · Receita (canvas)
         </h2>
-        <p className="text-xs text-gray-400 mb-3">
+        <p className="text-xs text-ink-400 mb-3">
           O que está montado aqui é o que o backend executa. Ferramentas indisponíveis nesta
           instalação aparecem desabilitadas com o motivo.
         </p>
         {graphError && (
-          <p role="alert" className="mb-3 p-2 rounded bg-orange-950/60 border border-orange-800 text-sm text-orange-200">
+          <p role="alert" className="mb-3 p-2 rounded bg-warn-950/60 border border-warn-800 text-sm text-warn-200">
             {graphError}
           </p>
         )}
-        <div className="h-72 rounded border border-gray-700 relative overflow-hidden">
+        <div className="h-72 rounded border border-surface-700 relative overflow-hidden">
           <ReactFlowProvider>
             <RemixCanvas />
             <div className="absolute top-2 left-2 z-10 w-56">
@@ -221,9 +221,9 @@ function NovoRemixView(props: Props) {
       {/* ── Passo 5 · Render ── */}
       <section ref={renderRef} aria-labelledby="passo-render">
         {jobId && (
-          <div className="bg-gray-800/60 rounded-lg border border-gray-700 p-4">
+          <div className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
             <div className="flex items-center justify-between">
-              <h2 id="passo-render" className="text-sm font-bold text-purple-300 uppercase tracking-wide">
+              <h2 id="passo-render" className="text-sm font-bold text-ai-300 uppercase tracking-wide">
                 5 · Renderização · job {jobId.slice(0, 8)}
               </h2>
               {(jobStatus === 'queued' || jobStatus === 'processing') && (
@@ -231,7 +231,7 @@ function NovoRemixView(props: Props) {
                   type="button"
                   onClick={onCancelJob}
                   data-testid="cancel-job"
-                  className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                  className="px-3 py-1.5 text-xs bg-surface-700 hover:bg-surface-600 text-ink-100 rounded"
                   title="Interrompe o remix. Você não perde a faixa nem a receita."
                 >
                   Cancelar remix
@@ -254,7 +254,7 @@ function NovoRemixView(props: Props) {
             onMetrics={setMetricsRemix}
           />
           {metricsRemix && (
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-ink-400 mt-2">
               Remix: {formatarDuracao(metricsRemix.durationSec)} · {metricsRemix.sampleRate} Hz ·{' '}
               {metricsRemix.channels === 1 ? 'mono' : `${metricsRemix.channels} canais`} · pico{' '}
               {metricsRemix.peakDbfs.toFixed(1)} dBFS
