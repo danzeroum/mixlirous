@@ -71,7 +71,8 @@ classes antigas mudam de degrau para atingir contraste. Onde a coluna
 | `bg-blue-950/30` | `bg-manual-950/40` |
 | `bg-blue-900/60` | `bg-manual-800/60` |
 | `text-blue-300` `text-blue-200` | `text-manual-300` `text-manual-200` |
-| `border-blue-500` `border-blue-700` | `border-manual-500` `border-manual-700` |
+| `border-blue-500` | `border-manual-400` | borda do painel Original selecionado (Player, par de `bg-manual-950/40`): mesmo papel do par roxo refinado — proeminência igual entre os dois painéis selecionáveis (6.03:1 ≥ 3, R4); `manual-500` daria 4.06:1 |
+| `border-blue-700` | `border-manual-700` | |
 
 ## 6. Atenção (orange/yellow → warn)
 

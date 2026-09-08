@@ -191,10 +191,10 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
   return (
     <div
       data-testid="player"
-      className="bg-gray-800/95 backdrop-blur p-4 rounded-lg border border-gray-700 shadow-lg"
+      className="bg-surface-800/95 backdrop-blur p-4 rounded-lg border border-surface-700 shadow-lg"
     >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-white">
+        <h3 className="text-lg font-bold text-ink-100">
           Pronto — Job {jobId.slice(0, 8)}...
         </h3>
         {downloadUrl && (
@@ -203,7 +203,7 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
             download={`remix-${jobId}.wav`}
             data-testid="download-link"
             onClick={() => setManifesto((m) => (m ? { ...m, exportadoEm: new Date().toISOString() } : m))}
-            className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+            className="px-3 py-1.5 bg-action-700 hover:bg-action-600 text-white rounded text-sm"
           >
             ⬇ Exportar WAV
           </a>
@@ -213,7 +213,7 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
       {/* Waveforms comparadas — mesma escala, agulha no lado ativo */}
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div>
-          <p className="text-xs text-gray-400 mb-1">
+          <p className="text-xs text-ink-400 mb-1">
             Remix {metricsRemix && `· ${formatarDuracao(metricsRemix.durationSec)}`}
           </p>
           {peaksRemix ? (
@@ -222,27 +222,27 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
               height={56}
               progress={activeSource === 'remix' ? progresso : undefined}
               ariaLabel="Forma de onda do remix"
-              className="w-full bg-gray-900/60 rounded"
+              className="w-full bg-surface-900/60 rounded"
             />
           ) : (
-            <div className="h-14 rounded bg-gray-900/60" aria-hidden />
+            <div className="h-14 rounded bg-surface-900/60" aria-hidden />
           )}
         </div>
         <div>
-          <p className="text-xs text-gray-400 mb-1">Original</p>
+          <p className="text-xs text-ink-400 mb-1">Original</p>
           {peaksOriginal ? (
             <Waveform
               peaks={peaksOriginal}
               height={56}
               progress={activeSource === 'original' ? progresso : undefined}
               ariaLabel="Forma de onda do original"
-              className="w-full bg-gray-900/60 rounded"
+              className="w-full bg-surface-900/60 rounded"
             />
           ) : (
-            <div className="h-14 rounded bg-gray-900/60" aria-hidden />
+            <div className="h-14 rounded bg-surface-900/60" aria-hidden />
           )}
           {avisoCanais(canaisOriginal) && (
-            <p role="status" data-testid="player-mono-notice" className="mt-1 text-[11px] text-orange-300">
+            <p role="status" data-testid="player-mono-notice" className="mt-1 text-[11px] text-warn-300">
               {avisoCanais(canaisOriginal)}
             </p>
           )}
@@ -254,14 +254,14 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
         <div
           className={`p-3 rounded border ${
             activeSource === 'remix'
-              ? 'border-purple-500 bg-purple-950/30'
-              : 'border-gray-700'
+              ? 'border-ai-400 bg-ai-950/40'
+              : 'border-surface-700'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-300">Remix</span>
+            <span className="text-sm text-ink-300">Remix</span>
             {activeSource === 'remix' && (
-              <span className="text-xs text-purple-300">▶ tocando</span>
+              <span className="text-xs text-ai-300">▶ tocando</span>
             )}
           </div>
           <audio
@@ -278,16 +278,16 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
         <div
           className={`p-3 rounded border ${
             activeSource === 'original'
-              ? 'border-blue-500 bg-blue-950/30'
-              : 'border-gray-700'
+              ? 'border-manual-400 bg-manual-950/40'
+              : 'border-surface-700'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-300">
+            <span className="text-sm text-ink-300">
               Original {originalUrl ? '' : '(carregue abaixo)'}
             </span>
             {activeSource === 'original' && (
-              <span className="text-xs text-blue-300">▶ tocando</span>
+              <span className="text-xs text-manual-300">▶ tocando</span>
             )}
           </div>
           <audio
@@ -305,13 +305,13 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
         <button
           onClick={handleToggle}
           disabled={!originalUrl && activeSource === 'remix'}
-          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50"
+          className="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-ink-100 rounded text-sm disabled:opacity-50"
           title="Alterna entre remix e original mantendo a posição (como profissionais comparam)."
         >
           ⇄ Alternar A/B
         </button>
         {!trackId && (
-          <label className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm cursor-pointer">
+          <label className="px-3 py-1.5 bg-surface-700 hover:bg-surface-600 text-ink-100 rounded text-sm cursor-pointer">
             ⬆ Carregar original
             <input
               type="file"
@@ -322,41 +322,41 @@ function Player({ jobId, trackId, downloadUrl, onMetrics }: Props) {
           </label>
         )}
         {loadError && (
-          <span className="text-xs text-red-400" role="alert">{loadError}</span>
+          <span className="text-xs text-danger-400" role="alert">{loadError}</span>
         )}
       </div>
 
       {/* Manifesto de exportação — integridade verificável */}
       {manifesto && (
         <details className="mt-3 text-xs" data-testid="export-manifest">
-          <summary className="cursor-pointer text-gray-300 select-none">
+          <summary className="cursor-pointer text-ink-300 select-none">
             Manifesto do arquivo ({tamanhoMb} MB)
           </summary>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-gray-900/70 p-3 rounded font-mono">
-            <dt className="text-gray-400">arquivo</dt>
-            <dd className="text-gray-100 break-all">{manifesto.arquivo}</dd>
-            <dt className="text-gray-400">bytes</dt>
-            <dd className="text-gray-100">{manifesto.bytes}</dd>
-            <dt className="text-gray-400">duração</dt>
-            <dd className="text-gray-100">{manifesto.duracao}</dd>
-            <dt className="text-gray-400">sample rate</dt>
-            <dd className="text-gray-100">{manifesto.sampleRate} Hz</dd>
-            <dt className="text-gray-400">canais</dt>
-            <dd className="text-gray-100">{manifesto.canais}</dd>
-            <dt className="text-gray-400">pico</dt>
-            <dd className="text-gray-100">{manifesto.picoDbfs} dBFS</dd>
-            <dt className="text-gray-400">job_id</dt>
-            <dd className="text-gray-100 break-all">{manifesto.job_id}</dd>
-            <dt className="text-gray-400">sha256</dt>
-            <dd className="text-gray-100 break-all" data-testid="manifest-sha256">{manifesto.sha256}</dd>
-            <dt className="text-gray-400">exportado em</dt>
-            <dd className="text-gray-100">{new Date(manifesto.exportadoEm).toLocaleString('pt-BR')}</dd>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-surface-900/70 p-3 rounded font-mono">
+            <dt className="text-ink-400">arquivo</dt>
+            <dd className="text-ink-100 break-all">{manifesto.arquivo}</dd>
+            <dt className="text-ink-400">bytes</dt>
+            <dd className="text-ink-100">{manifesto.bytes}</dd>
+            <dt className="text-ink-400">duração</dt>
+            <dd className="text-ink-100">{manifesto.duracao}</dd>
+            <dt className="text-ink-400">sample rate</dt>
+            <dd className="text-ink-100">{manifesto.sampleRate} Hz</dd>
+            <dt className="text-ink-400">canais</dt>
+            <dd className="text-ink-100">{manifesto.canais}</dd>
+            <dt className="text-ink-400">pico</dt>
+            <dd className="text-ink-100">{manifesto.picoDbfs} dBFS</dd>
+            <dt className="text-ink-400">job_id</dt>
+            <dd className="text-ink-100 break-all">{manifesto.job_id}</dd>
+            <dt className="text-ink-400">sha256</dt>
+            <dd className="text-ink-100 break-all" data-testid="manifest-sha256">{manifesto.sha256}</dd>
+            <dt className="text-ink-400">exportado em</dt>
+            <dd className="text-ink-100">{new Date(manifesto.exportadoEm).toLocaleString('pt-BR')}</dd>
           </dl>
         </details>
       )}
 
       {erroRemix && (
-        <p className="mt-2 text-xs text-orange-300" role="status">
+        <p className="mt-2 text-xs text-warn-300" role="status">
           Não consegui analisar o WAV para waveform/checksum ({erroRemix}) — o download continua
           funcionando normalmente.
         </p>
