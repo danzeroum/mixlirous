@@ -154,7 +154,32 @@ function gzipPlugin(): Plugin {
           cb?: EndCb,
         ): ServerResponse {
           if (patched) {
-            return origEnd(chunkOrCb as EndChunk | undefined, encodingOrCb as BufferEncoding | undefined, cb as EndCb | undefined)
+            // Repassa os argumentos originais para a sobrecarga correta.
+            // Não usamos `origEnd(chunk, undefined, cb)` porque a
+            // sobrecarga de 3 args exige `encoding: BufferEncoding`
+            // (não-undefined). Discriminamos por tipo e chamamos a
+            // sobrecarga que casa.
+            if (chunkOrCb === undefined) {
+              return origEnd()
+            }
+            if (typeof chunkOrCb === 'string' || chunkOrCb instanceof Uint8Array) {
+              const chunk = typeof chunkOrCb === 'string' ? chunkOrCb : Buffer.from(chunkOrCb)
+              if (typeof encodingOrCb === 'function') {
+                return origEnd(chunk, encodingOrCb)
+              }
+              if (typeof encodingOrCb === 'string') {
+                if (typeof cb === 'function') {
+                  return origEnd(chunk, encodingOrCb, cb)
+                }
+                return origEnd(chunk, encodingOrCb)
+              }
+              return origEnd(chunk)
+            }
+            if (typeof chunkOrCb === 'function') {
+              return origEnd(chunkOrCb)
+            }
+            // Fallback: encerra sem args (não deveria chegar aqui).
+            return origEnd()
           }
           patched = true
 
@@ -184,6 +209,21 @@ function gzipPlugin(): Plugin {
           const contentType = (res.getHeader('Content-Type') as string) ?? ''
           const alreadyCompressed = res.hasHeader('Content-Encoding')
 
+          // Helper para chamar origEnd com os args normalizados — escolhe
+          // a sobrecarga certa em runtime, sem passar `undefined`.
+          const callOrigEnd = (chunk: Buffer): ServerResponse => {
+            if (enc && callback) {
+              return origEnd(chunk, enc, callback)
+            }
+            if (enc) {
+              return origEnd(chunk, enc)
+            }
+            if (callback) {
+              return origEnd(chunk, callback)
+            }
+            return origEnd(chunk)
+          }
+
           if (
             body &&
             body.length >= MIN_BYTES &&
@@ -196,14 +236,14 @@ function gzipPlugin(): Plugin {
             if (!res.hasHeader('Vary')) {
               res.setHeader('Vary', 'Accept-Encoding')
             }
-            return origEnd(compressed, undefined, callback)
+            return callOrigEnd(compressed)
           }
 
           // Sem compressão: repassa argumentos originais.
           if (body) {
-            return origEnd(body, enc, callback)
+            return callOrigEnd(body)
           }
-          return origEnd(callback)
+          return callback ? origEnd(callback) : origEnd()
         }
 
         ;(res as { end: typeof patchedEnd }).end = patchedEnd
