@@ -208,3 +208,65 @@ em run isolado confirma o fix. Laudos `qa-0005-antes-depois.txt` e
 e builds redundantes de chromium (1200, 1234 — `playwright==1.56.0`
 usa build 1194) removidos. `target/debug/deps` teve de ser removido
 também para liberar 5 GB e permitir rebuild. Disco voltou a 50% uso.
+
+---
+
+## 2026-09-09 (S2, continuação 2) — QA-0002/QA-0003/QA-0004/QA-0007 (plugins Vite)
+
+**Estratégia:** todos estes achados moram no dev server Vite
+(headers de segurança, gzip, fallback SPA, proxy /healthz). Resolvidos
+com plugins customizados em `ui/vite.config.ts`:
+
+- **QA-0002** (security headers): `securityHeadersPlugin` adiciona
+  `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Content-Security-Policy` (default-src
+  'self' + unsafe-inline em style-src para HMR), `Referrer-Policy`.
+  Remove `Server`/`X-Powered-By` (não expor versão).
+
+- **QA-0003** (gzip): `gzipPlugin` monkey-patch `res.end` para comprimir
+  respostas textuais (HTML, CSS, JS, JSON) quando cliente envia
+  `Accept-Encoding: gzip`. Vite usa `sirv` que pula compressão para
+  localhost — este plugin não tem essa restrição. Redução de 554→325
+  bytes na home (-41%). Limiar 100 bytes para incluir HTML pequeno.
+
+- **QA-0004** (SPA 404 fallback): `appType: 'mpa'` desliga o fallback
+  SPA. Justificativa: a UI NÃO usa react-router (DIARIO S1 — "5 views
+  por estado, não por URL"), então só `/` precisa servir index.html.
+  Rotas não mapeadas agora devolvem 404 corretamente (antes: 200 HTML).
+
+- **QA-0007** (/healthz proxy): adicionado `/healthz`, `/readyz`,
+  `/metrics` ao `server.proxy`. Antes, /healthz na origem dev caía no
+  fallback SPA e devolvia 200 HTML — check de saúde "passava" pelo
+  motivo errado. Agora proxyado para a API, devolve `{"status":"ok"}`
+  real.
+
+**Validação empírica (suíte WebQA):**
+ANTES (baseline laudos/backend-antes.txt): 7 failed, 9 passed, 3 skipped, 1 xfailed
+DEPOIS: 15 passed, 1 failed, 1 skipped
+
+  PASSED (antes falhava):
+    test_hsts_presente
+    test_x_content_type_options
+    test_protecao_contra_clickjacking
+    test_content_security_policy_existe
+    test_resposta_comprimida
+    test_404_tratado_sem_vazamento
+    test_correlacao_de_requisicoes (qa-0005)
+    test_erro_de_api_e_estruturado (qa-0006)
+
+  PASSED (já passava, agora legit em vez de falso-positivo):
+    test_endpoint_de_saude_existe (não mais via SPA fallback)
+
+  CONTINUA FAILED (régua, não defeito):
+    test_https_e_usado — QA-0008: check exige HTTPS incondicional;
+    alvo local autorizado é http://localhost (loopback).
+
+**Pendências para produção (registradas no BACKLOG):**
+- **P-01**: nginx de produção só declara HSTS — faltam os outros
+  headers de segurança e gzip. Em dev o Vite cobre tudo; em prod o
+  vhost do nginx precisa ser atualizado.
+- **P-02**: `upload_put` recebe `Bytes` em memória — com teto 100 MB
+  (QA-0001), pico de RAM por upload é 100 MB. Streaming para disco é
+  melhoria recomendada para ambientes com RAM limitada.
+
+**Push imediato após commit** (regra 3).

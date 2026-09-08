@@ -15,4 +15,14 @@ Itens que **não** são fix neste ciclo, mas não podem se perder:
 
 ## Pendências técnicas
 
-- _(vazio)_
+- **P-01**: nginx de produção (docs/18 §5.3) só declara HSTS — faltam
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` (ou CSP
+  `frame-ancestors 'none'`), `Content-Security-Policy`, e compressão
+  `gzip`. Em dev o Vite cobre tudo via plugins (commit deste ciclo);
+  em produção os headers precisam ser adicionados ao vhost do nginx.
+  Não bloqueia o ciclo QA (suíte roda contra dev), mas é pendência
+  para o deploy real.
+- **P-02**: `crates/audio_api/src/routes/uploads.rs` — `upload_put`
+  recebe `Bytes` (corpo em memória antes do storage). Com o teto de
+  100 MB (QA-0001), o pico de RAM por upload é 100 MB. Streaming para
+  disco é melhoria recomendada para ambientes com RAM limitada.

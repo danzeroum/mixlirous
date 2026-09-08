@@ -1,0 +1,115 @@
+QA-0002, QA-0003, QA-0004, QA-0007 — plugins Vite para headers, gzip,
+404 fallback, e proxy /healthz: antes/depois (empírico, suíte WebQA
+contra http://localhost:5173)
+
+================================================================================
+ANTES (baseline laudos/backend-antes.txt):
+  7 failed, 9 passed, 3 skipped, 1 xfailed
+
+================================================================================
+QA-0002 — security headers (test_security_headers.py)
+ANTES:
+  test_hsts_presente                     FAILED (sem Strict-Transport-Security)
+  test_x_content_type_options            FAILED (sem X-Content-Type-Options: nosniff)
+  test_protecao_contra_clickjacking      FAILED (sem X-Frame-Options nem CSP frame-ancestors)
+  test_content_security_policy_existe    FAILED (sem Content-Security-Policy)
+  test_cookies_endurecidos              PASSED (sem cookies na home)
+  test_nao_expoe_versao_de_servidor      PASSED (Vite não expõe Server/X-Powered-By)
+
+DEPOIS (plugin securityHeadersPlugin em ui/vite.config.ts):
+  test_hsts_presente                     PASSED (Strict-Transport-Security: max-age=63072000)
+  test_x_content_type_options            PASSED (X-Content-Type-Options: nosniff)
+  test_protecao_contra_clickjacking      PASSED (X-Frame-Options: DENY)
+  test_content_security_policy_existe    PASSED (CSP: default-src 'self'; ...)
+  test_cookies_endurecidos              PASSED
+  test_nao_expoe_versao_de_servidor      PASSED
+
+CSP aplicada (dev):
+  default-src 'self';
+  style-src 'self' 'unsafe-inline';   /* Vite HMR precisa de inline styles */
+  script-src 'self';
+  img-src 'self' data: blob:;
+  font-src 'self' data:;
+  connect-src 'self' ws: wss:;        /* HMR WebSocket */
+  media-src 'self' blob:;
+  frame-ancestors 'none'
+
+Pendência (não bloqueia ciclo): nginx produção (docs/18 §5.3) só declara
+HSTS — X-Content-Type-Options, X-Frame-Options, CSP precisam ser
+adicionados ao vhost em produção. Registrado em BACKLOG.
+
+================================================================================
+QA-0003 — compressão (test_caching_compression.py)
+ANTES:
+  test_resposta_comprimida              FAILED (sem Content-Encoding)
+  test_politica_de_cache_declarada      PASSED (Cache-Control: no-cache do Vite)
+  test_validadores_de_cache              PASSED (Etag W/"22a-...")
+
+DEPOIS (plugin gzipPlugin em ui/vite.config.ts):
+  test_resposta_comprimida              PASSED (Content-Encoding: gzip)
+  test_politica_de_cache_declarada      PASSED
+  test_validadores_de_cache              PASSED
+
+Validação empírica:
+  curl -s -o /dev/null -w "CE: %header{content-encoding}\nCL: %header{content-length}\n" \
+    -H "Accept-Encoding: gzip" http://localhost:5173/
+  → CE: gzip
+  → CL: 325 (original 554, redução ~41%)
+  curl sem Accept-Encoding → 554 bytes sem compressão.
+
+Plugin usa gzipSync de node:zlib. Monkey-patch res.end para capturar body
+final (string ou Buffer) e comprimir se Accept-Encoding: gzip E
+Content-Type textual E body >= 100 bytes. Não intercepta res.write
+(streaming HMR/WebSocket) para não quebrar o hot reload.
+
+================================================================================
+QA-0004 — 404 fallback SPA (test_http_basics.py::test_404_tratado_sem_vazamento)
+ANTES:
+  test_404_tratado_sem_vazamento        FAILED (200 em vez de 404 — fallback SPA)
+  Adicionalmente: /healthz na origem dev devolvia 200 fake (HTML do fallback)
+  em vez do health real da API.
+
+DEPOIS (appType: 'mpa' em ui/vite.config.ts):
+  test_404_tratado_sem_vazamento        PASSED (404 sem stack trace)
+
+Justificativa 'mpa' vs 'spa': a UI NÃO usa react-router (DIARIO S1 —
+"5 views por estado, não por URL"), então só a raiz / precisa servir
+index.html. Modo SPA só faria sentido se houvesse rotas client-side
+como /projects, /library, etc. Em modo MPA, rotas não mapeadas devolvem
+404 corretamente.
+
+================================================================================
+QA-0007 — /healthz proxy (test_observability.py::test_endpoint_de_saude_existe)
+ANTES:
+  test_endpoint_de_saude_existe         PASSED (mas pelo motivo errado —
+  /healthz caía no fallback SPA e devolvia 200 HTML; o teste passava
+  achando que era um health real, mas era o shell da SPA).
+
+DEPOIS (proxy /healthz, /readyz, /metrics em ui/vite.config.ts):
+  test_endpoint_de_saude_existe         PASSED (legítimo — /healthz proxyado
+  para a API, devolve {"status":"ok"} real)
+
+Config adicionada:
+  server.proxy: {
+    '/api': 'http://localhost:8080',
+    '/healthz': 'http://localhost:8080',
+    '/readyz': 'http://localhost:8080',
+    '/metrics': 'http://localhost:8080',
+  }
+
+================================================================================
+Resumo da suíte backend (depois):
+  15 passed, 1 failed (QA-0008 régua — https incondicional em loopback),
+  1 skipped (test_http_redireciona_para_https — depende de HTTPS habilitado)
+
+QA-0008 (régua): check exige HTTPS incondicional; alvo local autorizado é
+http://localhost (loopback). Falha sem ser defeito do alvo — registrado
+como régua em ACHADOS.md, proposto para issue no qa-suite (BACKLOG R-01).
+
+================================================================================
+Nota operacional: mesmo cenário de QA-0005/QA-0006 — API sofre OOM
+periódico no sandbox de 4GB sem swap. Suíte roda em ~0.2s quando a API
+está viva. Todos os 15 testes que dependem apenas da UI (vite + headers +
+gzip + 404) passam consistentemente. Os 3 testes que dependem da API
+(test_correlacao, test_erro_estruturado, test_endpoint_de_saude) passam
+em run imediatamente após restart da API.

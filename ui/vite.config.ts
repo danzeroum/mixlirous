@@ -1,45 +1,38 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type Connect } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
+import { gzipSync } from 'node:zlib'
 
-// QA-0005 — plugin Vite que adiciona `traceparent` (W3C Trace Context) a
-// TODAS as respostas servidas pelo dev server (home, assets, etc.).
+// ===========================================================================
+// QA-0005 — plugin Vite para eco de `traceparent` (W3C Trace Context) em
+// todas as respostas servidas pelo dev server (home, assets, etc.).
 // O contrato docs/03 §1 exige: "cliente envia traceparent (W3C); servidor
-// devolve no response". A API já ecoa via middleware axum; este plugin
-// estende o mesmo comportamento para a UI servida pelo Vite, inclusive
-// quando a request não é proxyada para /api/* (ex.: GET / que devolve o
-// shell da SPA).
-//
-// Fluxo:
-// 1. Lê `traceparent` da request.
-// 2. Se presente e W3C-válido (version-trace_id-parent_id-flags), ecoa.
-// 3. Senão, gera um novo via crypto.randomBytes (16+8 bytes).
-// 4. Seta o header no response — não sobrescreve se já houver (raro).
-//
-// Em produção (nginx servindo build estático) o mesmo comportamento deve
-// ser entregue por add_header no vhost (ver docs/18). Este plugin é
-// específico do dev server.
+// devolve no response". A API ecoa via middleware axum; este plugin
+// estende para a UI servida pelo Vite.
+// ===========================================================================
+const TRACEPARENT_HEADER = 'traceparent'
+const TRACEPARENT_VALID_RE = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/
+
+function generateTraceparent(): string {
+  const traceId = randomBytes(16).toString('hex')
+  const parentId = randomBytes(8).toString('hex')
+  return `00-${traceId}-${parentId}-01`
+}
+
 function traceparentPlugin(): Plugin {
-  const HEADER = 'traceparent'
-  const VALID_RE = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/
-
-  function generate(): string {
-    const traceId = randomBytes(16).toString('hex')
-    const parentId = randomBytes(8).toString('hex')
-    return `00-${traceId}-${parentId}-01`
-  }
-
   return {
     name: 'mixlirous:traceparent-echo',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const incoming =
-          (req.headers[HEADER] as string | undefined)?.trim() ?? ''
-        const value = incoming && VALID_RE.test(incoming) ? incoming : generate()
-        // Não sobrescreve se um middleware interno já setou (caso raro).
-        if (!res.hasHeader(HEADER)) {
-          res.setHeader(HEADER, value)
+          (req.headers[TRACEPARENT_HEADER] as string | undefined)?.trim() ?? ''
+        const value =
+          incoming && TRACEPARENT_VALID_RE.test(incoming)
+            ? incoming
+            : generateTraceparent()
+        if (!res.hasHeader(TRACEPARENT_HEADER)) {
+          res.setHeader(TRACEPARENT_HEADER, value)
         }
         next()
       })
@@ -47,14 +40,202 @@ function traceparentPlugin(): Plugin {
   }
 }
 
+// ===========================================================================
+// QA-0002 — plugin Vite para headers de segurança. Em produção (nginx)
+// estes headers vivem no vhost (docs/18 tem HSTS; X-Content-Type-Options,
+// X-Frame-Options e CSP devem ser adicionados ao nginx também — pendência
+// registrada no DIARIO). No dev server, este plugin garante que a suíte
+// WebQA encontre os headers na origem servida.
+//
+// Headers aplicados:
+// - Strict-Transport-Security: max-age=63072000 (igual docs/18 §5.3).
+//   Em HTTP (dev) browsers ignoram, mas o header está presente para a
+//   suíte verificar; em HTTPS (prod) ele é enforcing.
+// - X-Content-Type-Options: nosniff (OWASP — previne MIME sniffing).
+// - X-Frame-Options: DENY (mitigação de clickjacking; mais simples que
+//   CSP frame-ancestors para o dev server).
+// - Content-Security-Policy: default-src 'self' (mitigação de XSS;
+//   permite inline styles do Vite HMR via 'unsafe-inline' em style-src,
+//   e connect-src 'self' para /api/*).
+// - Referrer-Policy: strict-origin-when-cross-origin (default moderno).
+// - X-Powered-By: removido (não expor versão — test_nao_expoe_versao).
+// ===========================================================================
+function securityHeadersPlugin(): Plugin {
+  return {
+    name: 'mixlirous:security-headers',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        // 'always' semantics: add_header mesmo em respostas de erro.
+        // Vite usa Node http.ServerResponse, que não tem 'always'; a
+        // semântica equivalente é setar antes de next() para todas as
+        // respostas, incluindo as que downstream vão retornar 4xx/5xx.
+        if (!res.hasHeader('Strict-Transport-Security')) {
+          res.setHeader('Strict-Transport-Security', 'max-age=63072000')
+        }
+        if (!res.hasHeader('X-Content-Type-Options')) {
+          res.setHeader('X-Content-Type-Options', 'nosniff')
+        }
+        if (!res.hasHeader('X-Frame-Options')) {
+          res.setHeader('X-Frame-Options', 'DENY')
+        }
+        if (!res.hasHeader('Content-Security-Policy')) {
+          // 'unsafe-inline' em style-src é necessário para o Vite HMR
+          // injetar CSS inline durante o dev. Em prod, o build gera
+          // arquivos CSS externos e a regra pode ser mais restritiva.
+          res.setHeader(
+            'Content-Security-Policy',
+            "default-src 'self'; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "script-src 'self'; " +
+              "img-src 'self' data: blob:; " +
+              "font-src 'self' data:; " +
+              "connect-src 'self' ws: wss:; " +
+              "media-src 'self' blob:; " +
+              "frame-ancestors 'none'",
+          )
+        }
+        if (!res.hasHeader('Referrer-Policy')) {
+          res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+        }
+        // Remove headers que vazam versão de servidor (test_nao_expoe_versao).
+        res.removeHeader('X-Powered-By')
+        res.removeHeader('Server')
+        next()
+      })
+    },
+  }
+}
+
+// ===========================================================================
+// QA-0003 — plugin Vite para compressão gzip em dev server.
+// Vite usa `sirv` que pula compressão para localhost/127.0.0.1 (raciocínio:
+// localhost não tem gargalo de banda). A suíte WebQA testa de fora do
+// processo (httpx), então a compressão é mensurável — e o teste falha
+// porque o header Content-Encoding nunca é setado.
+//
+// Abordagem: monkey-patch `res.end` para capturar o body quando enviado
+// como string/Buffer único (caso do index.html), comprimir se for textual
+// e maior que o limiar, e setar Content-Encoding antes de delegar ao
+// `end` original. Não intercepta `res.write` (streaming) para não quebrar
+// HMR/WebSocket — apenas o caso comum de resposta completa.
+// ===========================================================================
+function gzipPlugin(): Plugin {
+  const COMPRESSIBLE_TYPES = /^(text\/|application\/(?:json|javascript|xml)|image\/svg\+xml)/
+  const MIN_BYTES = 100
+  const ACCEPT_GZIP_RE = /\bgzip\b/i
+
+  return {
+    name: 'mixlirous:gzip-dev',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const acceptEncoding = (req.headers['accept-encoding'] as string) ?? ''
+        if (!ACCEPT_GZIP_RE.test(acceptEncoding)) {
+          next()
+          return
+        }
+
+        const origEnd = res.end.bind(res)
+        let patched = false
+
+        ;(res as any).end = function (chunk?: any, encoding?: any, cb?: any) {
+          if (patched) {
+            return origEnd(chunk, encoding, cb)
+          }
+          patched = true
+
+          // Normalize args: end(), end(chunk), end(chunk, encoding),
+          // end(chunk, cb), end(chunk, encoding, cb).
+          let body: Buffer | null = null
+          let enc: BufferEncoding | undefined
+          let callback: (() => void) | undefined
+
+          if (chunk === undefined) {
+            // end() — sem body, repassa direto.
+            return origEnd()
+          }
+          if (typeof chunk === 'string') {
+            body = Buffer.from(chunk, (encoding as BufferEncoding) ?? 'utf8')
+            enc = typeof encoding === 'string' ? encoding : undefined
+            callback = typeof encoding === 'function' ? encoding : (typeof cb === 'function' ? cb : undefined)
+          } else if (Buffer.isBuffer(chunk)) {
+            body = chunk
+            enc = typeof encoding === 'string' ? (encoding as BufferEncoding) : undefined
+            callback = typeof encoding === 'function' ? encoding : (typeof cb === 'function' ? cb : undefined)
+          } else if (typeof chunk === 'function') {
+            // end(cb) — sem body, callback é o primeiro arg.
+            callback = chunk
+          }
+
+          const contentType = (res.getHeader('Content-Type') as string) ?? ''
+          const alreadyCompressed = res.hasHeader('Content-Encoding')
+
+          if (
+            body &&
+            body.length >= MIN_BYTES &&
+            COMPRESSIBLE_TYPES.test(contentType) &&
+            !alreadyCompressed
+          ) {
+            const compressed = gzipSync(body)
+            res.setHeader('Content-Encoding', 'gzip')
+            res.setHeader('Content-Length', String(compressed.length))
+            if (!res.hasHeader('Vary')) {
+              res.setHeader('Vary', 'Accept-Encoding')
+            }
+            return origEnd(compressed, undefined, callback)
+          }
+
+          // Sem compressão: repassa argumentos originais.
+          if (body) {
+            return origEnd(body, enc, callback)
+          }
+          return origEnd(callback)
+        }
+
+        next()
+      })
+    },
+  }
+}
+
+// ===========================================================================
+// QA-0004 + QA-0007 — Vite por padrão usa appType: 'spa' que serve
+// index.html para qualquer rota não mapeada (200, fallback). Isso:
+// 1. Faz /webqa-rota-inexistente-9f3a devolver 200 (QA-0004 quebra).
+// 2. Faz /healthz na origem dev devolver 200 com HTML em vez do health
+//    real da API (QA-0007 — check de saúde "passa" pelo motivo errado).
+//
+// Mitigação: proxyar /healthz, /readyz, /metrics para a API + mudar para
+// appType 'mpa' (sem fallback SPA). Como a UI NÃO usa react-router (ver
+// DIARIO.md S1: "5 views por estado, não por URL"), só a raiz / precisa
+// servir index.html — o que o Vite faz naturalmente em modo MPA.
+// ===========================================================================
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), traceparentPlugin()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    traceparentPlugin(),
+    securityHeadersPlugin(),
+    gzipPlugin(),
+  ],
+  // QA-0004: 'mpa' desliga o fallback SPA — rotas não mapeadas devolvem
+  // 404 em vez de 200 com index.html. A UI não usa react-router (DIARIO
+  // S1), então só a raiz / precisa servir index.html, e o Vite faz isso
+  // naturalmente em modo MPA. Modo SPA só faria sentido se houvesse
+  // rotas client-side como /projects, /library, etc.
+  appType: 'mpa',
   server: {
     port: 5173,
     open: false, // desligado para runs de QA (HEAD sem navegador)
     proxy: {
       '/api': 'http://localhost:8080',
+      // QA-0007: /healthz, /readyz, /metrics não estavam sendo proxyados
+      // — o check de saúde "passava" via fallback SPA (200 HTML). Agora
+      // proxyados para a API, devolvendo o health real (JSON).
+      '/healthz': 'http://localhost:8080',
+      '/readyz': 'http://localhost:8080',
+      '/metrics': 'http://localhost:8080',
     },
   },
 })
