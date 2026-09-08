@@ -1,0 +1,53 @@
+# Mapa de rotas — derivado de crates/audio_api/src/routes/mod.rs (código é a verdade)
+# Ciclo: qa/ciclo-inicial (2026-09-08). Binário: crates/audio_api (DECISÕES D-001).
+# Porta: 8080. Prefixo da API: /api/v1. Rotas de diagnóstico desligadas
+# (MIXLIROUS_DEV_SLICE ausente) — listadas só como referência de superfície.
+
+meta:
+  fonte: "crates/audio_api/src/routes/mod.rs @ qa/ciclo-inicial (base d45e74e)"
+  gerado_em: "2026-09-08"
+  observacoes:
+    - "GET /jobs/{job_id}/events é stream SSE de longa duração — qualquer cliente HTTP com timeout precisa tratar (não é JSON normal)"
+    - "PUT /uploads/{*object_key} aceita corpo binário (WAV) — ver achados sobre DefaultBodyLimit"
+    - "/healthz e /readyz ficam na RAIZ (fora de /api/v1) por design (docker/ LB)"
+
+rotas:
+  - { metodo: GET,  caminho: /healthz,                        auth: nenhuma, proposito: "liveness" }
+  - { metodo: GET,  caminho: /readyz,                         auth: nenhuma, proposito: "readiness (db+storage)" }
+  - { metodo: GET,  caminho: /metrics,                        auth: nenhuma, proposito: "prometheus" }
+  - { metodo: GET,  caminho: /api/v1/jobs,                    auth: "local-session", proposito: "listar jobs" }
+  - { metodo: POST, caminho: /api/v1/jobs,                    auth: "local-session", proposito: "criar job" }
+  - { metodo: GET,  caminho: /api/v1/jobs/{job_id},           auth: "local-session", proposito: "detalhe" }
+  - { metodo: GET,  caminho: /api/v1/jobs/{job_id}/artifact,  auth: "local-session", proposito: "download artefato" }
+  - { metodo: POST, caminho: /api/v1/jobs/{job_id}/cancel,    auth: "local-session", proposito: "cancelar" }
+  - { metodo: POST, caminho: /api/v1/jobs/{job_id}/retry,     auth: "local-session", proposito: "requeue failed" }
+  - { metodo: GET,  caminho: /api/v1/jobs/{job_id}/events,    auth: "local-session", proposito: "SSE progresso" }
+  - { metodo: GET,  caminho: /api/v1/jobs/{job_id}/proposals, auth: "local-session", proposito: "propostas HITL" }
+  - { metodo: POST, caminho: /api/v1/jobs/{job_id}/proposals/{proposal_id}/approve, auth: "local-session", proposito: "aprovar HITL" }
+  - { metodo: POST, caminho: /api/v1/jobs/{job_id}/proposals/{proposal_id}/reject,  auth: "local-session", proposito: "rejeitar HITL" }
+  - { metodo: POST, caminho: /api/v1/jobs/{job_id}/proposals/{proposal_id}/replan,  auth: "local-session", proposito: "replanejar HITL" }
+  - { metodo: GET,  caminho: /api/v1/prompts,                 auth: "local-session", proposito: "listar prompts" }
+  - { metodo: GET,  caminho: /api/v1/prompts/{prompt_id},     auth: "local-session", proposito: "detalhe prompt" }
+  - { metodo: GET,  caminho: /api/v1/tools,                   auth: "local-session", proposito: "listar tools" }
+  - { metodo: GET,  caminho: /api/v1/tenants/me/quota,        auth: "local-session", proposito: "quota" }
+  - { metodo: GET,  caminho: /api/v1/tenants/me/consent,      auth: "local-session", proposito: "estado consentimento" }
+  - { metodo: POST, caminho: /api/v1/tenants/me/consent,      auth: "local-session", proposito: "registrar consentimento" }
+  - { metodo: DELETE, caminho: /api/v1/tenants/me/consent,    auth: "local-session", proposito: "revogar consentimento" }
+  - { metodo: GET,  caminho: /api/v1/system/info,             auth: "local-session", proposito: "info do sistema" }
+  - { metodo: GET,  caminho: /api/v1/system/privacy-policy,   auth: "local-session", proposito: "política de privacidade auditável" }
+  - { metodo: GET,  caminho: /api/v1/auth/local-session,      auth: nenhuma, proposito: "sessão local single-user" }
+  - { metodo: POST, caminho: /api/v1/auth/sse-session,        auth: "local-session", proposito: "cookie SSE same-origin" }
+  - { metodo: POST, caminho: /api/v1/uploads/presign,         auth: "local-session", proposito: "presign upload" }
+  - { metodo: PUT,  caminho: /api/v1/uploads/{*object_key},   auth: "local-session", proposito: "upload binário" }
+  - { metodo: GET,  caminho: /api/v1/tracks,                  auth: "local-session", proposito: "listar tracks" }
+  - { metodo: POST, caminho: /api/v1/tracks,                  auth: "local-session", proposito: "criar track" }
+  - { metodo: GET,  caminho: /api/v1/tracks/{track_id},       auth: "local-session", proposito: "detalhe track" }
+  - { metodo: GET,  caminho: /api/v1/tracks/{track_id}/peaks, auth: "local-session", proposito: "peaks para waveform" }
+  - { metodo: GET,  caminho: /api/v1/tracks/{track_id}/raw,   auth: "local-session", proposito: "áudio original" }
+
+rotas_diagnostico_desligadas:
+  condicao: "MIXLIROUS_DEV_SLICE=1 E CONFIG_ENV != production"
+  aviso: "nunca expor sem auth_basic (docs/18-DEPLOY-PUBLICO-NGINX.md)"
+  rotas:
+    - { metodo: "GET/POST", caminho: /api/v1/dev/slice }
+    - { metodo: GET, caminho: /api/v1/dev/slice/{id} }
