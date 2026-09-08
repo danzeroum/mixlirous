@@ -384,7 +384,7 @@ function notFoundPagePlugin(): Plugin {
     if (url.startsWith('/metrics')) return false
     if (url.startsWith('/.well-known/')) return false
     if (url === '/favicon.svg' || url === '/favicon.ico') return false
-    if (url === '/politica.html') return false
+    if (url === '/politica.html' || url === '/contato.html') return false
     if (url === '/' || url === '/index.html') return false
     // Não intercepta arquivos com extensão conhecida (css, js, png, etc.)
     if (/\.(css|js|mjs|json|xml|txt|png|jpe?g|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(url)) return false

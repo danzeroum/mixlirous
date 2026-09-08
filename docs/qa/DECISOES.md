@@ -36,4 +36,10 @@ laudos.
 
 ## aguardando-humano
 
-- _(vazio — nada escalado até agora)_
+- **QA-0021 (aceito)**: `test_erro_500_na_api_nao_vaza_detalhe_tecnico`
+  falha no vite preview porque o proxy Node.js gera HTML "500 Internal
+  Server Error" quando a API responde 500. Não é detalhe técnico da
+  Mixlirous (a API axum devolve `application/problem+json` via QA-0006).
+  Em produção (nginx), `proxy_intercept_errors off` deixa o axum
+  responder problem+json. Aceito como limitação do dev server.
+  Justificativa completa em laudos/qa-0019-0021-antes-depois.txt.
