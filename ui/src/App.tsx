@@ -366,7 +366,7 @@ function App() {
               key={n.id}
               type="button"
               onClick={() => setView(n.id)}
-              aria-current={view === n.id ? 'page' : undefined}
+              aria-pressed={view === n.id}
               data-testid={`nav-${n.id}`}
               className={`w-full text-left px-3 py-2 rounded text-sm ${
                 view === n.id

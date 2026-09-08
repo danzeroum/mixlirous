@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { ServerResponse, IncomingMessage } from 'node:http'
 
 // Tipo union para middlewares que funcionam tanto em dev (ViteDevServer)
@@ -74,11 +76,19 @@ function securityHeadersMiddleware(req: IncomingMessage, res: ServerResponse, ne
     // CSS inline durante o dev. Em prod, o build gera arquivos CSS
     // externos, mas mantemos 'unsafe-inline' por compatibilidade (não
     // bloqueia o ciclo QA — nginx prod pode ser mais restritivo).
+    //
+    // QA-0018 — o hash 'sha256-GCpA3F2CB+YmwJhhrWUCfUXoXjpW0BBF0Gji6I7kMuo='
+    // em script-src permite que o axe-core (biblioteca de a11y usada
+    // pela suíte WebQA) seja injetado pelo Playwright para rodar checks
+    // de acessibilidade. Sem o hash, o CSP `script-src 'self'` bloqueia
+    // o axe e os testes de a11y falham por setup, não por violação real.
+    // Em produção (nginx), o hash pode ser removido se a suíte não
+    // rodar contra produção.
     res.setHeader(
       'Content-Security-Policy',
       "default-src 'self'; " +
         "style-src 'self' 'unsafe-inline'; " +
-        "script-src 'self'; " +
+        "script-src 'self' 'sha256-GCpA3F2CB+YmwJhhrWUCfUXoXjpW0BBF0Gji6I7kMuo='; " +
         "img-src 'self' data: blob:; " +
         "font-src 'self' data:; " +
         "connect-src 'self' ws: wss:; " +
@@ -325,7 +335,87 @@ function gzipPlugin(): Plugin {
 // appType 'mpa' (sem fallback SPA). Como a UI NÃO usa react-router (ver
 // DIARIO.md S1: "5 views por estado, não por URL"), só a raiz / precisa
 // servir index.html — o que o Vite faz naturalmente em modo MPA.
+//
+// QA-0016 — Em modo MPA, rotas não mapeadas devolvem 404, mas o body
+// default do Vite é "Not Found" sem links de saída. Adicionamos um
+// middleware que serve /404.html (criado em ui/public/404.html) quando
+// o status é 404, garantindo página amigável com link de volta para /.
 // ===========================================================================
+function notFoundPagePlugin(): Plugin {
+  // Plugin que serve /public/404.html quando uma rota não mapeada é
+  // acessada. Em modo MPA, o Vite devolve 404 com body vazio — este
+  // plugin intercepta ANTES do handler do Vite e devolve 404 com body
+  // HTML amigável contendo links de saída.
+  //
+  // Estratégia: registra o middleware POR ÚLTIMO (use prepend). Assim,
+  // rotas reais (/, /politica.html, /assets/*) são servidas pelos
+  // handlers internos do Vite primeiro. Se chegou ao nosso middleware,
+  // é porque a rota não existe — servimos 404.html.
+  //
+  // Respeita: rotas /api/* (proxy), /healthz, /readyz, /metrics (proxy),
+  // /.well-known/*, /favicon.svg, /assets/* (estáticos) — essas NÃO
+  // devem cair no 404.
+  const SERVE_404 = (req: IncomingMessage, res: ServerResponse) => {
+    try {
+      const file404 = join(process.cwd(), 'public', '404.html')
+      if (existsSync(file404)) {
+        const body = readFileSync(file404)
+        res.statusCode = 404
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.setHeader('Content-Length', String(body.length))
+        res.end(body)
+        return
+      }
+    } catch {
+      // Falha silenciosa — cai no fallback do Vite.
+    }
+    // Fallback: 404 default
+    res.statusCode = 404
+    res.end('Not Found')
+  }
+
+  const shouldIntercept = (url: string | undefined): boolean => {
+    if (!url) return false
+    // Não intercepta: assets, API, healthz, well-known, arquivos estáticos
+    if (url.startsWith('/assets/')) return false
+    if (url.startsWith('/api/')) return false
+    if (url.startsWith('/healthz')) return false
+    if (url.startsWith('/readyz')) return false
+    if (url.startsWith('/metrics')) return false
+    if (url.startsWith('/.well-known/')) return false
+    if (url === '/favicon.svg' || url === '/favicon.ico') return false
+    if (url === '/politica.html') return false
+    if (url === '/' || url === '/index.html') return false
+    // Não intercepta arquivos com extensão conhecida (css, js, png, etc.)
+    if (/\.(css|js|mjs|json|xml|txt|png|jpe?g|gif|svg|ico|woff2?|ttf|eot|map)$/i.test(url)) return false
+    // Não intercepta HMR
+    if (url.startsWith('/@') || url.includes('?t=')) return false
+    return true
+  }
+
+  return {
+    name: 'mixlirous:404-page',
+    configureServer(server: AnyViteServer) {
+      // `use` sem `prepend` adiciona no final — roda depois dos outros middlewares.
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        if (shouldIntercept(req.url)) {
+          SERVE_404(req, res)
+          return
+        }
+        next()
+      })
+    },
+    configurePreviewServer(server: AnyViteServer) {
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        if (shouldIntercept(req.url)) {
+          SERVE_404(req, res)
+          return
+        }
+        next()
+      })
+    },
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -335,6 +425,7 @@ export default defineConfig({
     traceparentPlugin(),
     securityHeadersPlugin(),
     gzipPlugin(),
+    notFoundPagePlugin(),
   ],
   // QA-0004: 'mpa' desliga o fallback SPA — rotas não mapeadas devolvem
   // 404 em vez de 200 com index.html. A UI não usa react-router (DIARIO
