@@ -15,17 +15,17 @@ interface Props {
 function chip(status: string): { label: string; classe: string; acao: 'cancel' | 'retry' | 'abrir' | 'nada' } {
   switch (status.toLowerCase()) {
     case 'completed':
-      return { label: 'Pronto', classe: 'bg-green-900/60 text-green-200 border-green-700', acao: 'abrir' }
+      return { label: 'Pronto', classe: 'bg-action-950/70 text-action-200 border-action-800', acao: 'abrir' }
     case 'failed':
-      return { label: 'Falhou', classe: 'bg-red-900/60 text-red-200 border-red-700', acao: 'retry' }
+      return { label: 'Falhou', classe: 'bg-danger-800/60 text-danger-200 border-danger-700', acao: 'retry' }
     case 'cancelled':
-      return { label: 'Cancelado', classe: 'bg-gray-800 text-gray-300 border-gray-600', acao: 'nada' }
+      return { label: 'Cancelado', classe: 'bg-surface-800 text-ink-300 border-surface-600', acao: 'nada' }
     case 'processing':
-      return { label: 'Processando', classe: 'bg-purple-900/60 text-purple-200 border-purple-700', acao: 'cancel' }
+      return { label: 'Processando', classe: 'bg-ai-800/60 text-ai-200 border-ai-600', acao: 'cancel' }
     case 'queued':
-      return { label: 'Na fila', classe: 'bg-blue-900/60 text-blue-200 border-blue-700', acao: 'cancel' }
+      return { label: 'Na fila', classe: 'bg-manual-800/60 text-manual-200 border-manual-700', acao: 'cancel' }
     default:
-      return { label: status, classe: 'bg-gray-800 text-gray-300 border-gray-600', acao: 'nada' }
+      return { label: status, classe: 'bg-surface-800 text-ink-300 border-surface-600', acao: 'nada' }
   }
 }
 
@@ -41,14 +41,14 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
   }, [])
 
   if (carregando || jobs === null) {
-    return <p className="text-gray-300 text-sm" role="status">Carregando atividade…</p>
+    return <p className="text-ink-300 text-sm" role="status">Carregando atividade…</p>
   }
 
   if (jobs.length === 0) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg border border-gray-700">
-        <h2 className="text-lg font-bold text-white">Nenhum remix ainda</h2>
-        <p className="text-gray-300 text-sm mt-2">
+      <div className="p-6 bg-surface-800 rounded-lg border border-surface-700">
+        <h2 className="text-lg font-bold text-ink-100">Nenhum remix ainda</h2>
+        <p className="text-ink-300 text-sm mt-2">
           Quando você criar um remix, o histórico aparece aqui com estado, avisos e ações de
           recuperação (cancelar, tentar de novo).
         </p>
@@ -59,13 +59,13 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-white">
-          Atividade <span className="text-sm font-normal text-gray-400">({jobs.length} job{jobs.length > 1 ? 's' : ''})</span>
+        <h2 className="text-lg font-bold text-ink-100">
+          Atividade <span className="text-sm font-normal text-ink-400">({jobs.length} job{jobs.length > 1 ? 's' : ''})</span>
         </h2>
         <button
           type="button"
           onClick={onRefresh}
-          className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded"
+          className="px-3 py-1.5 text-sm bg-surface-700 hover:bg-surface-600 text-ink-100 rounded"
         >
           Atualizar
         </button>
@@ -77,18 +77,18 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
             <li
               key={j.job_id}
               className={`p-3 rounded-lg border ${
-                j.job_id === jobAtivoId ? 'border-purple-500 bg-purple-950/30' : 'border-gray-700 bg-gray-800'
+                j.job_id === jobAtivoId ? 'border-ai-400 bg-ai-950/40' : 'border-surface-700 bg-surface-800'
               }`}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-white font-medium truncate">
+                  <p className="text-ink-100 font-medium truncate">
                     Remix {j.job_id.slice(0, 8)}
                     {j.job_id === jobAtivoId && (
-                      <span className="ml-2 text-xs text-purple-300">este espaço</span>
+                      <span className="ml-2 text-xs text-ai-300">este espaço</span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-ink-400">
                     criado em {new Date(j.created_at).toLocaleString('pt-BR')}
                   </p>
                 </div>
@@ -104,7 +104,7 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
                       type="button"
                       onClick={() => onCancel(j.job_id)}
                       data-testid={`cancel-${j.job_id.slice(0, 8)}`}
-                      className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                      className="px-3 py-1.5 text-xs bg-surface-700 hover:bg-surface-600 text-ink-100 rounded"
                       title="Interrompe o job. Nada é cobrado nem perdido — o original continua na biblioteca."
                     >
                       Cancelar
@@ -115,7 +115,7 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
                       type="button"
                       onClick={() => onRetry(j.job_id)}
                       data-testid={`retry-${j.job_id.slice(0, 8)}`}
-                      className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded"
+                      className="px-3 py-1.5 text-xs bg-manual-600 hover:bg-manual-500 text-white rounded"
                       title="Cria uma nova tentativa com a mesma receita; o job original fica guardado."
                     >
                       Tentar de novo
@@ -125,7 +125,7 @@ function AtividadeView({ jobs, carregando, jobAtivoId, onRefresh, onCancel, onRe
                     <button
                       type="button"
                       onClick={() => onAbrir(j.job_id)}
-                      className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-500 text-white rounded"
+                      className="px-3 py-1.5 text-xs bg-action-700 hover:bg-action-600 text-white rounded"
                     >
                       Abrir preview
                     </button>
