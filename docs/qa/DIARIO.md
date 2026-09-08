@@ -51,3 +51,37 @@ install` da UI.
 
 **Próximo:** subir API (CONFIG_ENV=local) + UI (vite), smoke manual
 (`/healthz`, home 5173), primeiro perfil `backend` como linha de base.
+
+---
+
+## 2026-09-08 (S1, continuação) — Stack de pé e baseline backend
+
+**Stack:** API sobe nativa (`CONFIG_ENV=local`, sqlite, storage local,
+porta 8080; build debug 2m34s) + UI vite dev 5173 com proxy `/api`.
+Incidente de ambiente: `npm install` ceifado no meio deixou o binário
+nativo do `lightningcss-linux-x64-gnu` **truncado em 80 KB** (SIGBUS ao
+carregar — vite 8 usa lightningcss/rolldown). Reinstalação do pacote
+resolveu. Registrado como risco operacional do sandbox (processos
+background são ceifados; scripts de instalação agora rodam em
+foreground).
+
+**Baseline perfil `backend`** (laudos/backend-antes.txt):
+**7 failed, 9 passed, 3 skipped, 1 xfailed** —
+f413-upload, sem-headers-de-segurança, sem-compressão, 404-fallback,
+HSTS, https-loopback, x-content-type-options.
+
+**Prova empírica do achado mais grave (QA-0001):** WAV de 5 MB via
+`PUT /api/v1/uploads/{key}` → **413 direto na API** (default do axum =
+2 MB; envio cortado em ~2,75 MB); via proxy vite → 502; 1,5 MB → 204.
+Produção: nginx `client_max_body_size 100M` deixa passar — o axum
+rejeita. Upload real quebrado em produção.
+
+**Armadilhas empíricas registradas:** `/healthz` na origem dev devolve
+**200 fake (HTML do fallback SPA)** — o check de saúde "passa" pelo
+motivo errado; `/api/*` 404 tem corpo vazio (sem problem+json do
+contrato docs/03); `traceparent` não é ecoado (contrato docs/03).
+
+**Achados abertos:** QA-0001..QA-0007 (correções), QA-0008/QA-0009
+(régua). Ordem de ataque: QA-0001 (alta, quebra funcional) →
+QA-0005/QA-0006 (contrato de API) → QA-0002/0003/0004/0007 (vite +
+docs/18).
