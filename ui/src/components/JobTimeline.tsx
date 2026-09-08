@@ -74,30 +74,30 @@ function JobTimeline({ events, terminal }: Props) {
               aria-hidden
               className={`mt-1 inline-block w-2.5 h-2.5 rounded-full border ${
                 f.feita
-                  ? 'bg-green-500 border-green-500'
+                  ? 'bg-action-600 border-action-600'
                   : f.atual
-                    ? 'bg-purple-500 border-purple-400 animate-pulse'
-                    : 'bg-transparent border-gray-500'
+                    ? 'bg-ai-500 border-ai-400 animate-pulse'
+                    : 'bg-transparent border-surface-500'
               }`}
             />
             <div>
-              <p className={`text-sm font-medium ${f.atual ? 'text-white' : f.feita ? 'text-gray-200' : 'text-gray-400'}`}>
+              <p className={`text-sm font-medium ${f.atual ? 'text-ink-100' : f.feita ? 'text-ink-200' : 'text-ink-400'}`}>
                 {f.titulo}
-                {f.atual && <span className="ml-2 text-xs text-purple-300">agora</span>}
+                {f.atual && <span className="ml-2 text-xs text-ai-300">agora</span>}
               </p>
-              <p className="text-xs text-gray-400">{f.descricao}</p>
+              <p className="text-xs text-ink-400">{f.descricao}</p>
             </div>
           </li>
         ))}
       </ol>
 
       {falha && (
-        <div role="status" className="mt-3 p-3 rounded bg-red-950/60 border border-red-800">
-          <p className="text-sm text-red-200 font-semibold">O remix não concluiu — e não foi culpa sua.</p>
-          <p className="text-xs text-red-300 mt-1">
-            <code className="bg-red-900/70 px-1 rounded">{falha.codigo}</code> {falha.detalhe}
+        <div role="status" className="mt-3 p-3 rounded bg-danger-950/60 border border-danger-800">
+          <p className="text-sm text-danger-200 font-semibold">O remix não concluiu — e não foi culpa sua.</p>
+          <p className="text-xs text-danger-300 mt-1">
+            <code className="bg-danger-800/70 px-1 rounded">{falha.codigo}</code> {falha.detalhe}
           </p>
-          <p className="text-xs text-red-300 mt-1">
+          <p className="text-xs text-danger-300 mt-1">
             Use “Tentar de novo” para criar uma nova tentativa com a mesma receita; o job original
             fica guardado no histórico.
           </p>
@@ -111,12 +111,12 @@ function JobTimeline({ events, terminal }: Props) {
               key={`${a.code}-${i}`}
               role="status"
               data-testid={`job-warning-${a.code}`}
-              className="p-3 rounded bg-orange-950/60 border border-orange-800"
+              className="p-3 rounded bg-warn-950/60 border border-warn-800"
             >
-              <p className="text-sm text-orange-200">{a.message}</p>
-              {a.hint && <p className="text-xs text-orange-300/90 mt-1">{a.hint}</p>}
+              <p className="text-sm text-warn-200">{a.message}</p>
+              {a.hint && <p className="text-xs text-warn-300/90 mt-1">{a.hint}</p>}
               {a.measured && (
-                <p className="text-[11px] text-orange-300/80 mt-1 font-mono">
+                <p className="text-[11px] text-warn-300/80 mt-1 font-mono">
                   {Object.entries(a.measured)
                     .map(([k, v]) => `${k}: ${String(v)}`)
                     .join(' · ')}
@@ -128,9 +128,9 @@ function JobTimeline({ events, terminal }: Props) {
       )}
 
       {cancelado && (
-        <div role="status" className="mt-3 p-3 rounded bg-gray-800 border border-gray-600">
-          <p className="text-sm text-gray-200 font-semibold">Remix cancelado.</p>
-          <p className="text-xs text-gray-400 mt-1">
+        <div role="status" className="mt-3 p-3 rounded bg-surface-800 border border-surface-600">
+          <p className="text-sm text-ink-200 font-semibold">Remix cancelado.</p>
+          <p className="text-xs text-ink-400 mt-1">
             Nenhum resultado foi guardado. Você pode criar um novo remix quando quiser.
           </p>
         </div>
