@@ -1,0 +1,10 @@
+Contact: mailto:dpo@mixlirous.local
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: pt-BR, en
+Canonical: https://mixlirous.danzeroum.com/.well-known/security.txt
+
+# Mixlirous — canal de reporte de vulnerabilidades (RFC 9116).
+# Substitua o e-mail e a URL canônica pelos valores do domínio onde
+# esta instalação está publicada. O canal é público para encurtar o
+# tempo entre descoberta e correção — apoio direto ao dever de
+# comunicar incidente (LGPD Art. 48).

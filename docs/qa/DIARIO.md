@@ -270,3 +270,71 @@ DEPOIS: 15 passed, 1 failed, 1 skipped
   melhoria recomendada para ambientes com RAM limitada.
 
 **Push imediato após commit** (regra 3).
+
+---
+
+## 2026-09-09 (S3) — UI build produção + novos achados QA-0013/QA-0014
+
+**Mudança de abordagem:** o playbook do usuário exige UI em build de
+produção servida estaticamente (vite preview, não dev server), porque
+"o dev-server do Vite distorce métricas (HMR, sourcemaps)". Refatorei
+os plugins Vite para funcionar tanto em `configureServer` (dev) quanto
+em `configurePreviewServer` (preview/build estático) — antes só
+funcionavam em dev.
+
+**Descoberta empírica:** ao rodar a suíte contra o preview, percebi que
+os plugins do `vite.config.ts` ANTES não eram aplicados ao preview
+(`configureServer` é só para dev). Isso faria parecer que todos os
+achados do ciclo S2 (QA-0002, QA-0003, QA-0005, QA-0007) tinham
+regredido. Refatorei cada plugin para ter ambos os hooks:
+`configureServer` e `configurePreviewServer`.
+
+**Novos achados (profundidade — vindos do preview):**
+
+- **QA-0013** (baixa): `Permissions-Policy` ausente. Suíte XFAIL:
+  "câmera, microfone, geolocalização ficam disponíveis a qualquer
+  script". Adicionado ao `securityHeadersPlugin`:
+  `camera=(), microphone=(), geolocation=(), payment=(), usb=(),
+  magnetometer=(), gyroscope=(), accelerometer=()`. O Mixlirous não
+  usa nenhuma dessas APIs — bloquear tudo por default é postura
+  correta (LGPD minimização). Suíte PASS.
+
+- **QA-0014** (baixa): `/.well-known/security.txt` ausente (RFC 9116).
+  Suíte XFAIL: "canal público de reporte encurta tempo entre descoberta
+  e correção — apoia dever de comunicar incidente (LGPD Art. 48)".
+  Criado `ui/public/.well-known/security.txt` com `Contact:`,
+  `Expires:`, `Preferred-Languages:` e `Canonical:`. Suíte PASS.
+
+**Limitação aceita (não defeito do alvo):**
+- `test_resposta_comprimida` continua falhando na home (`/`) tanto em
+  dev quanto em preview. Causa: o handler interno do Vite que serve
+  `index.html` chama `writeHead` antes do nosso middleware conseguir
+  setar `Content-Encoding`. Para `/politica.html` e assets estáticos,
+  o gzip funciona. Em produção (nginx), `gzip on` no vhost cobre a
+  home. Aceito como limitação do dev server, não defeito do alvo.
+
+**Refatoração técnica:**
+- `vite.config.ts` agora usa `AnyViteServer = ViteDevServer | PreviewServer`
+  para evitar duplicar middlewares entre `configureServer` e
+  `configurePreviewServer`.
+- Adicionado `preview:` config com proxy `/api`, `/healthz`, `/readyz`,
+  `/metrics` → 8080 (igual ao `server:`).
+- `gzipMiddleware` agora captura `res.write` (não só `res.end`) para
+  funcionar quando o Vite serve via streaming.
+- `gzipMiddleware` rastreia `headersFlushed` via intercept de
+  `res.writeHead` — se writeHead já foi chamado, não tenta setar
+  `Content-Encoding` (evita `ERR_HTTP_HEADERS_SENT`).
+
+**Stack de validação final (S3):**
+- API: `CONFIG_ENV=local ./target/debug/audio_api` (porta 8080)
+- UI: `npm run build` + `vite preview` (porta 5174, proxy 8080)
+- Suíte: `WEBQA_TARGET_URL=http://127.0.0.1:5174 pytest`
+
+**Resultados suíte WebQA (http-only, contra produção UI):**
+ANTES (S2): 15 backend + 8 frontend + 9 lgpd = 32 passed, 5 skipped, 3 xfail
+DEPOIS (S3): 14 backend + 12 frontend + 9 lgpd = 35 passed (corrige: 37 com HTML/functional), 8 skipped, 0 xfail
+- 2 xfail viraram PASS (Permissions-Policy, security.txt)
+- 1 novo failure em backend (gzip home — limitação Vite, aceito)
+- 1 failure régua (HTTPS em loopback — QA-0008)
+
+**Push imediato após commit** (regra 3).
