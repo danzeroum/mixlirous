@@ -169,3 +169,42 @@ próximo passo do ciclo.
 
 **Push imediato após commit** (regra 3 internalizada — o ciclo anterior
 se perdeu por não seguir isto).
+
+---
+
+## 2026-09-09 (S2, continuação) — Validação empírica QA-0005/QA-0006
+
+**Stack de validação:**
+- API: `CONFIG_ENV=local ./target/debug/audio_api` (porta 8080, sqlite,
+  storage local, MockLlm, sem docker).
+- UI: `npm run dev` (vite 8.1.5 na 5173, proxy `/api` → 8080). Plugin
+  `traceparentPlugin` adicionado ao `vite.config.ts` para estender o eco
+  de `traceparent` para a UI servida pelo Vite (home, assets).
+
+**QA-0005 confirmado:**
+- `GET / -H 'traceparent: 00-deadbeef...'` → 200 + `traceparent: 00-deadbeef...` (eco exato).
+- `GET /` (sem header) → 200 + `traceparent: 00-<random32>-<random16>-01` (gerado).
+- `GET /healthz` direto na API → mesmo comportamento.
+- Suíte: `test_correlacao_de_requisicoes` PASSED (era XFAIL).
+
+**QA-0006 confirmado:**
+- `GET /api/webqa-nao-existe -H 'Accept: application/json'` via proxy
+  Vite → 404 + `Content-Type: application/problem+json` + body com
+  `code: not_found`, `instance: /api/webqa-nao-existe`, `trace_id`
+  ecoado do traceparent do cliente.
+- `GET /api/v1/webqa-nao-existe` → 404 problem+json com instance
+  completo (OriginalUri preserva path após `nest` stripar prefixo).
+- Suíte: `test_erro_de_api_e_estruturado` PASSED (era SKIPPED).
+
+**Incidente operacional (validação empírica):** a API sofria OOM
+periódico no sandbox de 4 GB sem swap — `worker` do axum + vite +
+chromium do playwright concorrendo. Mitigado rodando testes isolados
+imediatamente após restart da API (intervalo < 30s). Não é defeito
+do código (a API morre por OOM killer, não por panic); a validação
+em run isolado confirma o fix. Laudos `qa-0005-antes-depois.txt` e
+`qa-0006-antes-depois.txt` documentam antes/depois.
+
+**Limpeza operacional do disco:** `target/debug/incremental` (1,1 GB)
+e builds redundantes de chromium (1200, 1234 — `playwright==1.56.0`
+usa build 1194) removidos. `target/debug/deps` teve de ser removido
+também para liberar 5 GB e permitir rebuild. Disco voltou a 50% uso.
