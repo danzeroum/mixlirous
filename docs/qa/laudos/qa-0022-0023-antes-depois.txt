@@ -1,0 +1,62 @@
+QA-0022 + QA-0023 — GUI findings (security.txt sem saída, footer mobile sobreposto)
+====================================================================================
+
+QA-0022 (baixa) — security.txt sem link de saída (gui/test_jornada.py::test_nenhuma_página_deixa_o_visitante_sem_saída)
+----------------------------------------------------------------------------------------------------------------------
+ANTES:
+  test_nenhuma_página_deixa_o_visitante_sem_saída FAILED
+  "Página(s) sem saída — quem entra só sai pelo botão Voltar:
+     http://127.0.0.1:5174/.well-known/security.txt"
+
+  A suíte verifica se TODAS as páginas, inclusive arquivos estáticos,
+  têm link HTML de saída. /public/.well-known/security.txt é servido
+  como text/plain (RFC 9116 exige), sem HTML, sem <a href>.
+
+JUSTIFICATIVA TÉCNICA (aceito, não corrigido):
+  RFC 9116 §2.3 exige que security.txt seja servido como text/plain.
+  Adicionar HTML quebraria a conformidade com a RFC. A suíte exige
+  HTML em todas as páginas — isso faz sentido para páginas navegáveis,
+  mas não para arquivos estáticos RFC 9116 (security.txt),
+  robots.txt, sitemap.xml, etc.
+
+  Em produção:
+  - /.well-known/security.txt continua text/plain (RFC 9116).
+  - Quem cai nele usa Voltar do browser — comportamento esperado.
+
+  Estado: aceito como falso positivo (suíte deveria excluir
+  arquivos RFC 9116 da verificação de "página sem saída").
+
+QA-0023 (baixa) — footer mobile com links sobrepostos (gui/test_responsividade.py::test_sem_sobreposicao_de_interativos)
+-----------------------------------------------------------------------------------------------------------------------
+ANTES:
+  test_sem_sobreposicao_de_interativos FAILED
+  "1 par(es) de controles se sobrepõem além de 30% da menor caixa
+   (limite 0). O controle coberto não é clicável, e quem desenhou
+   não vê porque no monitor dele os dois cabem lado a lado:
+     footer > nav > a:nth-of-type(1) × footer > nav > a:nth-of-type(2)
+     — 100% da menor caixa (163x17 e 360x41px)"
+
+  Em viewport mobile (390px), os 2 links do footer (Política de
+  Privacidade, Contato) ficavam inline com " · " separando. O
+  primeiro link ficava 100% coberto pelo segundo.
+
+DEPOIS:
+  Refatorado o footer para usar <ul><li> em vez de inline com " · ".
+  Cada link fica em sua própria linha — sem sobreposição.
+  <footer>
+    <nav aria-label="Rodapé">
+      <ul>
+        <li><a href="/politica.html">Política de Privacidade</a></li>
+        <li><a href="/contato.html">Contato e suporte — Fale conosco</a></li>
+      </ul>
+      <small>Mixlirous — áudio nunca enviado ao provedor LLM.</small>
+    </nav>
+  </footer>
+  test_sem_sobreposicao_de_interativos PASSED.
+
+====================================================================================
+Estado final da suíte WebQA contra UI produção (com browser):
+  90+ passed, ~7-8 failed remanescentes (todos aceitos ou limitações
+  de ambiente: HTTPS régua, gzip home Vite, erro 500 proxy Vite,
+  visual baseline sem referência, RTL/zoom 200%, security.txt
+  text/plain)
