@@ -51,7 +51,7 @@ classes antigas mudam de degrau para atingir contraste. Onde a coluna
 | Classe antiga | Token novo | Observação |
 |---|---|---|
 | `bg-purple-600` | `bg-ai-600` | |
-| `bg-purple-700` | `bg-ai-700` | |
+| `bg-purple-700` | `bg-ai-700` | exceto item ativo da navegação global (App.tsx): seleção genérica é **neutra** — `bg-surface-700 text-ink-100` (R3: `ai` nunca significa seleção genérica; padrão neutro do resumo de 01-TOKENS) |
 | `bg-purple-500` | `bg-ai-500` | hover |
 | `bg-purple-950/30` | `bg-ai-950/40` | opacidade sobe: a base quente absorve mais |
 | `bg-purple-900/60` | `bg-ai-800/60` | |
