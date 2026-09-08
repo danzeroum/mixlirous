@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { canvasColors } from '../lib/theme'
 
 interface Props {
   /** Pares [min, max] por bucket — backend (`compute_peaks`) ou `wavPeaks.ts`. */
@@ -57,12 +58,12 @@ function Waveform({ peaks, height = 64, progress, ariaLabel, className }: Props)
         y1={height / 2}
         x2={Math.max(w, 1)}
         y2={height / 2}
-        stroke="#374151"
+        stroke={canvasColors.waveformTrack}
         strokeWidth="1"
         vectorEffect="non-scaling-stroke"
       />
       {paths && (
-        <path d={paths} stroke="#a78bfa" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        <path d={paths} stroke={canvasColors.waveformSource} strokeWidth="1" vectorEffect="non-scaling-stroke" />
       )}
       {needle !== null && (
         <line
@@ -70,7 +71,7 @@ function Waveform({ peaks, height = 64, progress, ariaLabel, className }: Props)
           y1="0"
           x2={needle}
           y2={height}
-          stroke="#34d399"
+          stroke={canvasColors.waveformPlayhead}
           strokeWidth="2"
           vectorEffect="non-scaling-stroke"
         />
