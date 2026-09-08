@@ -1,8 +1,8 @@
-//! Testes de integra├º├úo do decodificador symphonia + pipeline.
+//! Testes de integração do decodificador symphonia + pipeline.
 //!
 //! Usa `encode_wav_to_vec` do `DefaultMixer` para gerar WAV real e
-//! `decode_to_pcm` para decodificar de volta ÔÇö ciclo completo encodeÔåÆdecode
-//! sem depender das fixtures geradas (que n├úo s├úo commitadas).
+//! `decode_to_pcm` para decodificar de volta  ciclo completo encodedecode
+//! sem depender das fixtures geradas (que não são commitadas).
 
 use audio_core::dsp::DefaultMixer;
 use audio_core::io::{decode_to_pcm, downmix_to_mono, DecodedAudio};
@@ -46,7 +46,7 @@ fn roundtrip_16bit_within_quantization() {
     for (exp, got) in original.iter().zip(decoded.interleaved.iter()) {
         assert!(
             (exp - got).abs() < 1e-3,
-            "quantiza├º├úo 16-bit: {exp} vs {got}"
+            "quantização 16-bit: {exp} vs {got}"
         );
     }
 }
@@ -63,8 +63,8 @@ fn decode_rejects_non_audio() {
 #[test]
 fn decode_rejects_empty() {
     let err = decode_to_pcm(&[]).unwrap_err();
-    // N├úo deve panic ÔÇö formato desconhecido para bytes vazios.
-    assert!(format!("{err}").contains("formato") || format!("{err}").contains("n├úo reconhecido"));
+    // Não deve panic — formato desconhecido para bytes vazios.
+    assert!(format!("{err}").contains("formato") || format!("{err}").contains("não reconhecido"));
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn duration_sec_is_frames_divided_by_rate() {
 #[test]
 fn stereo_frames_count_is_correct() {
     let audio = DecodedAudio {
-        interleaved: vec![0.0f32; 6], // 3 frames ├ù 2 canais
+        interleaved: vec![0.0f32; 6], // 3 frames × 2 canais
         channels: 2,
         sample_rate: 44100,
     };

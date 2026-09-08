@@ -85,3 +85,31 @@ contrato docs/03); `traceparent` não é ecoado (contrato docs/03).
 (régua). Ordem de ataque: QA-0001 (alta, quebra funcional) →
 QA-0005/QA-0006 (contrato de API) → QA-0002/0003/0004/0007 (vite +
 docs/18).
+
+---
+
+## 2026-09-08 (S1, continuação 2) — QA-0010: mojibake sistêmico nos fontes
+
+**Descoberta:** 50 arquivos `.rs` com comentários/mensagens corrompidos
+(mojibake — UTF-8 lido como cp850/latin-1 e regravado; travessões como
+`ÔÇö`, acentos como `├ó`). Difícil de ler, bloqueava edição limpa, e
+mensagens de erro exibíveis saíam ilegíveis.
+
+**Correção:** script `repara-mojibake-v3.py` (fora do repo, em
+`scripts/` do agente) — reversão por token com validação UTF-8 gulosa;
+52 arquivos consertados; resíduo zero conferido por varredura de
+assinaturas. `cargo check` + **`cargo test --workspace`: 430 testes,
+0 falhas** (fixtures de áudio gerados localmente conforme design —
+`scripts/generate_fixtures.py`; WAVs são gitignored, só o manifest é
+versionado).
+
+**Nota de honestidade:** os 2 testes de `aliasing` falham ANTES da
+geração de fixtures (passo manual documentado na própria mensagem do
+teste) — não é regressão; com fixtures geradas, verdes.
+
+**Incidente operacional:** disco chegou a 99% (target/ debug 5,8 GB) —
+mesma causa-morte do ciclo anterior. Mitigado: incremental limado,
+chromium redundantes (builds 1200/1234, não usados pela suíte 1.56)
+removidos, caches limpos. O agente deletou por acidente o clone local
+do qa-suite (linha de `rm` longa demais) — re-clonado intacto do
+GitHub; a suíte nunca foi modificada (lei nº 3 preservada).

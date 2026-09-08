@@ -1,7 +1,7 @@
 use ndarray::ArrayView1;
 use realfft::RealFftPlanner;
 
-/// Calcula o espectro de magnitude de um frame de ├íudio
+/// Calcula o espectro de magnitude de um frame de áudio
 pub fn magnitude_spectrum(pcm: ArrayView1<f32>) -> Vec<f32> {
     if pcm.len() < 2 {
         return Vec::new();

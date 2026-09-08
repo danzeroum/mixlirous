@@ -1,33 +1,33 @@
-//! P├│s-processamento e verifica├º├úo de invariantes da sa├¡da do pipeline.
+//! Pós-processamento e verificação de invariantes da saída do pipeline.
 //!
-//! Verifica invariantes cr├¡ticas que devem valer para qualquer sa├¡da do motor
+//! Verifica invariantes críticas que devem valer para qualquer saída do motor
 //! DSP (`docs/10-TESTES-QUALIDADE.md`). Separadas do pipeline para que possam
-//! ser chamadas tanto pelo pr├│prio pipeline quanto por testes de integra├º├úo
+//! ser chamadas tanto pelo próprio pipeline quanto por testes de integração
 //! diretos, sem passar por toda a cadeia.
 
-/// Relat├│rio do p├│s-processamento: o que foi encontrado e corrigido.
+/// Relatório do pós-processamento: o que foi encontrado e corrigido.
 #[derive(Debug, Clone, Default)]
 pub struct PostProcessReport {
-    /// Amostras que excediam ┬▒1.0 e foram limitadas (I1).
+    /// Amostras que excediam ±1.0 e foram limitadas (I1).
     pub samples_limited: usize,
     /// Saltos entre amostras adjacentes suavizados (I4).
     pub click_corrections: usize,
 }
 
-/// Aplica p├│s-processamento seguro ao buffer de sa├¡da.
+/// Aplica pós-processamento seguro ao buffer de saída.
 ///
-/// 1. Limita amostras a ┬▒1.0 (I1) ÔÇö necess├írio para formatos inteiros.
+/// 1. Limita amostras a ±1.0 (I1) — necessário para formatos inteiros.
 /// 2. Suaviza saltos entre amostras adjacentes > limiar (I4).
 ///
-/// O limiar de clique (0.5 por padr├úo) corresponde a ~6 dB de salto entre
-/// amostras consecutivas ÔÇö aud├¡vel como estalo em material de qualidade.
+/// O limiar de clique (0.5 por padrão) corresponde a ~6 dB de salto entre
+/// amostras consecutivas — audível como estalo em material de qualidade.
 ///
 /// # Garantia de I4
-/// O passo 2 aproxima cada amostra do vizinho esquerdo at├® a diferen├ºa cair
-/// no limiar, numa ├║nica varredura da esquerda para a direita. Depois dela,
-/// toda diferen├ºa entre amostras consecutivas ├® `<= click_threshold` ÔÇö
+/// O passo 2 aproxima cada amostra do vizinho esquerdo até a diferença cair
+/// no limiar, numa única varredura da esquerda para a direita. Depois dela,
+/// toda diferença entre amostras consecutivas é `<= click_threshold` —
 /// inclusive em impulsos de dois ou mais samples de largura (caso em que uma
-/// m├®dia de 3 samples no ponto central deixaria a borda esquerda do impulso
+/// média de 3 samples no ponto central deixaria a borda esquerda do impulso
 /// intacta e o salto de quase 2x o limiar permaneceria).
 pub fn post_process(pcm: &mut [f32], click_threshold: f32) -> PostProcessReport {
     let mut report = PostProcessReport::default();
@@ -43,10 +43,10 @@ pub fn post_process(pcm: &mut [f32], click_threshold: f32) -> PostProcessReport 
         }
     }
 
-    // I4: suaviza estalos (diferen├ºa adjacente > limiar).
-    // Uma ├║nica varredura garante `|pcm[i] - pcm[i-1]| <= limiar` para todo i:
-    // ao tocar em `pcm[i]`, a dupla (i-1, i) j├í foi resolvida e a dupla
-    // seguinte (i, i+1) ser├í resolvida na pr├│xima itera├º├úo da varredura.
+    // I4: suaviza estalos (diferença adjacente > limiar).
+    // Uma única varredura garante `|pcm[i] - pcm[i-1]| <= limiar` para todo i:
+    // ao tocar em `pcm[i]`, a dupla (i-1, i) já foi resolvida e a dupla
+    // seguinte (i, i+1) será resolvida na próxima iteração da varredura.
     for i in 1..pcm.len() {
         let diff = pcm[i] - pcm[i - 1];
         if diff.abs() > click_threshold {
@@ -60,7 +60,7 @@ pub fn post_process(pcm: &mut [f32], click_threshold: f32) -> PostProcessReport 
 
 /// Verifica os invariantes sem modificar o buffer.
 ///
-/// ├Ütil para testes e para emitir warnings via SSE sem alterar a sa├¡da.
+/// Útil para testes e para emitir warnings via SSE sem alterar a saída.
 pub fn check_invariants(pcm: &[f32], click_threshold: f32) -> PostProcessReport {
     let samples_limited = pcm.iter().filter(|&&s| s.abs() > 1.0).count();
 
@@ -121,7 +121,7 @@ mod tests {
         let mut pcm = vec![0.0f32, 0.0, 0.9, 0.0, 0.0];
         let report = post_process(&mut pcm, 0.5);
         assert_eq!(report.click_corrections, 1);
-        // A m├®dia de 3 deve reduzir o pico
+        // A média de 3 deve reduzir o pico
         assert!(
             pcm[2].abs() < 0.9,
             "estalo deveria ser suavizado: {}",
@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(pcm, original);
     }
 
-    // I1: invariante de clipping ÔÇö ap├│s post_process, nenhuma amostra excede ┬▒1.0
+    // I1: invariante de clipping — após post_process, nenhuma amostra excede ±1.0
     #[test]
     fn invariant_i1_no_clipping_after_post_process() {
         let mut pcm = vec![0.0f32; 1000];
@@ -167,7 +167,7 @@ mod tests {
         }
     }
 
-    // I4: invariante de continuidade ÔÇö ap├│s post_process, nenhum salto > limiar
+    // I4: invariante de continuidade — após post_process, nenhum salto > limiar
     #[test]
     fn invariant_i4_no_clicks_after_post_process() {
         let mut pcm = vec![0.0f32; 1000];
