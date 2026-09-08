@@ -113,3 +113,59 @@ chromium redundantes (builds 1200/1234, não usados pela suíte 1.56)
 removidos, caches limpos. O agente deletou por acidente o clone local
 do qa-suite (linha de `rm` longa demais) — re-clonado intacto do
 GitHub; a suíte nunca foi modificada (lei nº 3 preservada).
+
+---
+
+## 2026-09-09 (S2) — Retomada: QA-0005 (echo traceparent W3C) e QA-0006 (problem+json RFC 7807)
+
+**Contexto da retomada:** o usuário pediu continuação do ciclo. Estado no
+GitHub em `qa/ciclo-inicial` (commit `56b2c84` — fix QA-0001, upload).
+Cycle lost do sandbox anterior: QA-0005 e QA-0006 foram reescritos do zero
+seguindo os achados em `ACHADOS.md` (extractor existe, eco não; 404
+`/api/*` com corpo vazio).
+
+**Implementação QA-0005 — eco de `traceparent` (W3C Trace Context):**
+- Novo `crates/audio_api/src/middleware/trace.rs`: middleware `from_fn`
+  `echo_traceparent` que lê `traceparent` da request, valida formato W3C
+  (`version-trace_id-parent_id-flags`, 32+16 hex lowercase, não-zero),
+  ecoa se válido ou gera novo via RNG (16 bytes trace_id + 8 bytes
+  parent_id, flags `01` sampled). Insere extensão `TraceIdInResponse` no
+  request para handlers/fallbacks lerem e incluírem no `problem+json`.
+- Aplicado em `main.rs` como **camada mais externa** (depois do
+  `rate_limit`) — vê TODAS as respostas, incluindo 429 e 404 do
+  fallback. No `api_router` também aplicado para testabilidade isolada.
+- 11 testes unitários em `middleware::trace::tests` + 4 testes de
+  integração `qa0005_*` em `tests/qa_contracts.rs`.
+
+**Implementação QA-0006 — `application/problem+json` (RFC 7807):**
+- Novo `crates/audio_api/src/problem.rs`: struct `Problem` com campos
+  RFC 7807 (`type`, `title`, `status`, `detail`, `instance`) + extensões
+  do catálogo docs/03 §4 (`code`, `trace_id`, `errors[]`). Helper
+  `not_found(uri, trace_id)` constrói resposta 404 com
+  `Content-Type: application/problem+json` e body JSON não-vazio.
+- Fallback `api_fallback_problem` no `api_router` (rotas /api/v1/* não
+  mapeadas) e `app_fallback_problem` no app (rotas /api/* fora de
+  /api/v1, ex.: `/api/webqa-nao-existe` que a suíte usa). Ambos usam
+  `OriginalUri` para preservar o path completo — `nest("/api/v1", ...)`
+  stripa o prefixo da URI que chega ao `api_router`.
+- Títulos estáveis por `code` (catálogo `docs/03 §4`) em `title_for_code`
+  — a UI pode apresentar o `title` mesmo sem conhecer o `code`.
+- 6 testes unitários em `problem::tests` + 6 testes de integração
+  `qa0006_*` em `tests/qa_contracts.rs`.
+
+**Validação:**
+- `cargo test --workspace`: **447 testes, 0 falhas, 1 ignored** (lib
+  207 + audio_api lib 142 + audio_agent 71 + aliasing 2 + routes_lote2
+  14 + qa_contracts 10).
+- Fixtures de áudio geradas (`scripts/generate_fixtures.py`) — passo
+  manual documentado, sem ele os 2 testes de aliasing falham por
+  arquivo não encontrado (não regressão).
+- `rand = "0.9"` adicionado ao workspace (novo no `Cargo.toml`).
+
+**Pendência de validação empírica:** a suíte WebQA precisa rodar contra
+API+UI para confirmar que `test_correlacao_de_requisicoes` deixa de
+xfail e `test_erro_de_api_e_estruturado` deixa de skip. Vai rodar no
+próximo passo do ciclo.
+
+**Push imediato após commit** (regra 3 internalizada — o ciclo anterior
+se perdeu por não seguir isto).

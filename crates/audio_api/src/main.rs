@@ -95,6 +95,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut app = Router::new()
         .merge(health)
         .nest("/api/v1", api)
+        // QA-0006: fallback problem+json para qualquer rota não mapeada
+        // fora de /api/v1/* (ex.: `/api/webqa-nao-existe` que a suíte usa).
+        // Rotas dentro de /api/v1/* têm fallback próprio no api_router.
+        .fallback(routes::app_fallback_problem)
         .with_state(state.clone());
 
     // Rate limiter middleware (optional via config)
@@ -103,6 +107,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mw = middleware::rate_limit::rate_limit_middleware(limiter);
         app = app.layer(axum::middleware::from_fn(mw));
     }
+
+    // QA-0005: middleware de eco de `traceparent` (W3C Trace Context).
+    // Aplicado por ÚLTIMO → é a camada MAIS EXTERNA: vê TODAS as respostas
+    // (incluindo 429 do rate_limit e 404 do fallback) e adiciona o header.
+    // Insere `TraceIdInResponse` nas extensões da request, lido pelos
+    // fallbacks problem+json para incluir `trace_id` no body.
+    app = app.layer(axum::middleware::from_fn(
+        middleware::trace::echo_traceparent,
+    ));
 
     // Boot recovery
     recovery::run_recovery(&state).await.unwrap_or_default();
