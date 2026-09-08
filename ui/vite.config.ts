@@ -1,8 +1,9 @@
-import { defineConfig, type Plugin, type Connect } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
+import type { ServerResponse, IncomingMessage } from 'node:http'
 
 // ===========================================================================
 // QA-0005 — plugin Vite para eco de `traceparent` (W3C Trace Context) em
@@ -127,43 +128,57 @@ function gzipPlugin(): Plugin {
   return {
     name: 'mixlirous:gzip-dev',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const acceptEncoding = (req.headers['accept-encoding'] as string) ?? ''
+      server.middlewares.use((req: IncomingMessage, res: ServerResponse, next) => {
+        const acceptEncoding = req.headers['accept-encoding'] ?? ''
         if (!ACCEPT_GZIP_RE.test(acceptEncoding)) {
           next()
           return
         }
 
-        const origEnd = res.end.bind(res)
+        const origEnd = res.end.bind(res) as ServerResponse['end']
         let patched = false
 
-        ;(res as any).end = function (chunk?: any, encoding?: any, cb?: any) {
+        // Tipos da sobrecarga de ServerResponse.end:
+        //   end(cb?: (err?: Error) => void): this
+        //   end(chunk: Uint8Array | string, cb?: (err?: Error) => void): this
+        //   end(chunk: Uint8Array | string, encoding: BufferEncoding, cb?: (err?: Error) => void): this
+        // Como TypeScript não consegue desambiguar via union em runtime, fazemos
+        // a discriminação manual com `typeof` antes de chamar o original.
+        type EndChunk = Uint8Array | string
+        type EndCb = (err?: Error) => void
+
+        const patchedEnd = function (
+          this: ServerResponse,
+          chunkOrCb?: EndChunk | EndCb,
+          encodingOrCb?: BufferEncoding | EndCb,
+          cb?: EndCb,
+        ): ServerResponse {
           if (patched) {
-            return origEnd(chunk, encoding, cb)
+            return origEnd(chunkOrCb as EndChunk | undefined, encodingOrCb as BufferEncoding | undefined, cb as EndCb | undefined)
           }
           patched = true
 
-          // Normalize args: end(), end(chunk), end(chunk, encoding),
-          // end(chunk, cb), end(chunk, encoding, cb).
+          // Normalize args: end(), end(cb), end(chunk), end(chunk, cb),
+          // end(chunk, encoding), end(chunk, encoding, cb).
           let body: Buffer | null = null
           let enc: BufferEncoding | undefined
-          let callback: (() => void) | undefined
+          let callback: EndCb | undefined
 
-          if (chunk === undefined) {
+          if (chunkOrCb === undefined) {
             // end() — sem body, repassa direto.
             return origEnd()
           }
-          if (typeof chunk === 'string') {
-            body = Buffer.from(chunk, (encoding as BufferEncoding) ?? 'utf8')
-            enc = typeof encoding === 'string' ? encoding : undefined
-            callback = typeof encoding === 'function' ? encoding : (typeof cb === 'function' ? cb : undefined)
-          } else if (Buffer.isBuffer(chunk)) {
-            body = chunk
-            enc = typeof encoding === 'string' ? (encoding as BufferEncoding) : undefined
-            callback = typeof encoding === 'function' ? encoding : (typeof cb === 'function' ? cb : undefined)
-          } else if (typeof chunk === 'function') {
+          if (typeof chunkOrCb === 'string') {
+            body = Buffer.from(chunkOrCb, (encodingOrCb as BufferEncoding) ?? 'utf8')
+            enc = typeof encodingOrCb === 'string' ? encodingOrCb : undefined
+            callback = typeof encodingOrCb === 'function' ? encodingOrCb : (typeof cb === 'function' ? cb : undefined)
+          } else if (Buffer.isBuffer(chunkOrCb) || chunkOrCb instanceof Uint8Array) {
+            body = Buffer.isBuffer(chunkOrCb) ? chunkOrCb : Buffer.from(chunkOrCb)
+            enc = typeof encodingOrCb === 'string' ? (encodingOrCb as BufferEncoding) : undefined
+            callback = typeof encodingOrCb === 'function' ? encodingOrCb : (typeof cb === 'function' ? cb : undefined)
+          } else if (typeof chunkOrCb === 'function') {
             // end(cb) — sem body, callback é o primeiro arg.
-            callback = chunk
+            callback = chunkOrCb
           }
 
           const contentType = (res.getHeader('Content-Type') as string) ?? ''
@@ -190,6 +205,8 @@ function gzipPlugin(): Plugin {
           }
           return origEnd(callback)
         }
+
+        ;(res as { end: typeof patchedEnd }).end = patchedEnd
 
         next()
       })
