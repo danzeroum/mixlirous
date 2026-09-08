@@ -67,7 +67,7 @@ function ParameterField({
         value={typeof value === 'number' ? value : 0}
         step="any"
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full p-1.5 bg-gray-700 text-white rounded border border-gray-600 text-sm"
+        className="w-full p-1.5 bg-surface-700 text-ink-100 rounded border border-surface-600 text-sm"
       />
     )
   }
@@ -89,7 +89,7 @@ function ParameterField({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full p-1.5 bg-gray-700 text-white rounded border border-gray-600 text-sm"
+        className="w-full p-1.5 bg-surface-700 text-ink-100 rounded border border-surface-600 text-sm"
       />
     )
   }
@@ -106,7 +106,7 @@ function ParameterField({
             // JSON inválido — mantém o texto; o usuário corrigirá.
           }
         }}
-        className="w-full p-1.5 bg-gray-700 text-white rounded border border-gray-600 text-sm font-mono"
+        className="w-full p-1.5 bg-surface-700 text-ink-100 rounded border border-surface-600 text-sm font-mono"
         rows={3}
       />
     )
@@ -124,7 +124,7 @@ function ParameterField({
           // ignora
         }
       }}
-      className="w-full p-1.5 bg-gray-700 text-white rounded border border-gray-600 text-sm font-mono"
+      className="w-full p-1.5 bg-surface-700 text-ink-100 rounded border border-surface-600 text-sm font-mono"
       rows={3}
     />
   )
@@ -189,60 +189,60 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
   return (
     <div
       data-testid="proposal-overlay"
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-surface-950/70 flex items-center justify-center z-50"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="proposal-title"
-        className="bg-gray-800 rounded-lg p-6 w-[520px] max-w-full max-h-[90vh] overflow-y-auto border border-gray-600"
+        className="bg-surface-800 rounded-lg p-6 w-[520px] max-w-full max-h-[90vh] overflow-y-auto border border-surface-600"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 id="proposal-title" className="text-xl font-bold text-white">
+          <h3 id="proposal-title" className="text-xl font-bold text-ink-100">
             Proposta do assistente
           </h3>
-          <span className="text-xs text-gray-400" aria-live="off">
+          <span className="text-xs text-ink-400" aria-live="off">
             {remainingSec > 0 ? `a proposta fica disponível por ${remainingSec}s` : 'proposta expirada — pode continuar no modo manual'}
           </span>
         </div>
 
         {/* O QUE muda */}
         <div className="mb-3">
-          <p className="text-gray-300 mb-1 text-sm font-semibold">Alteração sugerida</p>
-          <div className="bg-gray-700 p-3 rounded text-sm text-gray-100">
-            <span className="text-purple-300 font-medium">{proposal.toolLabelPtbr}</span>
-            {resumo && <span className="text-gray-300"> — {resumo}</span>}
+          <p className="text-ink-300 mb-1 text-sm font-semibold">Alteração sugerida</p>
+          <div className="bg-surface-700 p-3 rounded text-sm text-ink-100">
+            <span className="text-ai-300 font-medium">{proposal.toolLabelPtbr}</span>
+            {resumo && <span className="text-ink-300"> — {resumo}</span>}
           </div>
           {proposal.atSec !== undefined && (
-            <p className="text-xs text-gray-400 mt-1">Trecho: a partir de {proposal.atSec}s</p>
+            <p className="text-xs text-ink-400 mt-1">Trecho: a partir de {proposal.atSec}s</p>
           )}
         </div>
 
         {/* POR QUÊ */}
         <div className="mb-3">
-          <p className="text-gray-300 mb-1 text-sm font-semibold">Por quê</p>
-          <div className="bg-gray-700 p-3 rounded text-sm text-gray-100">{proposal.reason}</div>
+          <p className="text-ink-300 mb-1 text-sm font-semibold">Por quê</p>
+          <div className="bg-surface-700 p-3 rounded text-sm text-ink-100">{proposal.reason}</div>
         </div>
 
         {/* CONFIANÇA / RISCO / IMPACTO — só quando o backend envia */}
         {(proposal.confidence !== undefined || proposal.risk || proposal.impact) && (
           <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
             {proposal.confidence !== undefined && (
-              <div className="bg-gray-700 p-2 rounded">
-                <p className="text-gray-400">Confiança</p>
-                <p className="text-gray-100 font-medium">{Math.round(proposal.confidence * 100)}%</p>
+              <div className="bg-surface-700 p-2 rounded">
+                <p className="text-ink-400">Confiança</p>
+                <p className="text-ink-100 font-medium">{Math.round(proposal.confidence * 100)}%</p>
               </div>
             )}
             {proposal.risk && (
-              <div className="bg-gray-700 p-2 rounded">
-                <p className="text-gray-400">Risco</p>
-                <p className="text-gray-100 font-medium">{proposal.risk}</p>
+              <div className="bg-surface-700 p-2 rounded">
+                <p className="text-ink-400">Risco</p>
+                <p className="text-ink-100 font-medium">{proposal.risk}</p>
               </div>
             )}
             {proposal.impact && (
-              <div className="bg-gray-700 p-2 rounded">
-                <p className="text-gray-400">Impacto</p>
-                <p className="text-gray-100 font-medium">{proposal.impact}</p>
+              <div className="bg-surface-700 p-2 rounded">
+                <p className="text-ink-400">Impacto</p>
+                <p className="text-ink-100 font-medium">{proposal.impact}</p>
               </div>
             )}
           </div>
@@ -251,13 +251,13 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
         {/* PARÂMETROS editáveis */}
         {Object.keys(proposal.parametersSuggestion).length > 0 && (
           <div className="mb-4">
-            <p className="text-gray-300 mb-2 text-sm font-semibold">
+            <p className="text-ink-300 mb-2 text-sm font-semibold">
               Parâmetros {hasEdits && '(editados por você)'}:
             </p>
-            <div className="bg-gray-700 p-3 rounded space-y-2">
+            <div className="bg-surface-700 p-3 rounded space-y-2">
               {Object.entries(proposal.parametersSuggestion).map(([paramName]) => (
                 <div key={paramName}>
-                  <label className="block text-xs text-gray-400 mb-1">{paramName}</label>
+                  <label className="block text-xs text-ink-400 mb-1">{paramName}</label>
                   <ParameterField
                     name={paramName}
                     value={editedParams[paramName]}
@@ -282,7 +282,7 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
             <button
               onClick={onManual}
               data-testid="proposal-manual"
-              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm"
+              className="px-3 py-2 bg-surface-700 hover:bg-surface-600 rounded text-ink-100 text-sm"
               title="Recusa a proposta e troca para o modo manual — você controla tudo."
             >
               Fazer manualmente
@@ -292,7 +292,7 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
             <button
               onClick={handleAlternative}
               data-testid="proposal-alternative"
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm"
+              className="px-3 py-2 bg-manual-600 hover:bg-manual-500 rounded text-white text-sm"
               title="Pede uma nova sugestão ao assistente a partir do mesmo objetivo."
             >
               Pedir alternativa
@@ -301,7 +301,7 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
           <button
             onClick={onReject}
             data-testid="proposal-reject"
-            className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white text-sm"
+            className="px-3 py-2 bg-surface-600 hover:bg-surface-500 rounded text-ink-100 text-sm"
             title="Recusa a proposta. O remix continua com a receita atual."
           >
             Recusar
@@ -310,12 +310,12 @@ function ProposalOverlay({ proposal, onApprove, onReject, onAlternative, onManua
             ref={approveRef}
             onClick={() => onApprove(hasEdits ? editedParams : undefined)}
             data-testid="proposal-approve"
-            className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-white font-medium text-sm"
+            className="px-4 py-2 bg-action-700 hover:bg-action-600 rounded text-white font-medium text-sm"
           >
             {hasEdits ? 'Aprovar com ajuste' : 'Aprovar'}
           </button>
         </div>
-        <p className="text-[11px] text-gray-500 mt-3">
+        <p className="text-[11px] text-ink-500 mt-3">
           Esc recusa a proposta. Aprovar aplica os parâmetros na receita antes da renderização.
         </p>
       </div>
