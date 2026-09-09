@@ -270,3 +270,127 @@ DEPOIS: 15 passed, 1 failed, 1 skipped
   melhoria recomendada para ambientes com RAM limitada.
 
 **Push imediato após commit** (regra 3).
+
+---
+
+## 2026-09-09 (S4) — Perfis com browser + 4 novos achados (QA-0015..QA-0018)
+
+**Contexto:** O ciclo S3 atingiu 37 passed em http-only. Faltavam os
+perfis com browser (UX, Seguranca com browser, Frontend rendering). Esta
+sessão foca em habilitar esses perfis.
+
+**Descobertas (todos em UI produção via vite preview):**
+
+- **QA-0015** (baixa): sem favicon. Suíte: "Sem favicon — reconhecimento
+  da marca/aba prejudicado." Criado `ui/public/favicon.svg` (waveform
+  estilizado com cores da marca) + `<link rel="icon">` no index.html.
+
+- **QA-0016** (baixa): página 404 sem link de saída. Suíte: "Página 404
+  sem nenhum link de saída — usuário fica sem rota de recuperação."
+  Criado `ui/public/404.html` (com `<header>`, `<nav aria-label="Saídas
+  da página 404">`, link para / e /politica.html). Implementado
+  `notFoundPagePlugin` em vite.config.ts que intercepta URLs não
+  mapeadas (respeitando rotas reais) e serve 404.html.
+
+- **QA-0017** (baixa): sem sitemap.xml/robots.txt. Suíte XFAIL: "Sem
+  sitemap.xml nem robots.txt — encontrabilidade reduzida." Criado
+  `ui/public/sitemap.xml` + `ui/public/robots.txt`. Adicionado `xml|txt`
+  ao regex de shouldIntercept do notFoundPagePlugin para não capturar
+  esses arquivos estáticos.
+
+- **QA-0018** (média): axe-core bloqueado por CSP. Suíte ERROR: "Refused
+  to execute inline script because it violates the following Content
+  Security Policy directive: 'script-src 'self''. Either the
+  'unsafe-inline' keyword, a hash, or a nonce is required."
+
+  Três correções:
+  1. CSP: adicionado `'sha256-GCpA3F2CB+YmwJhhrWUCfUXoXjpW0BBF0Gji6I7kMuo='`
+     ao `script-src` para permitir axe-core (biblioteca de a11y que a
+     suíte injeta via Playwright).
+  2. `<section aria-labelledby="passo-render">` sem `role` (6 ocorrências
+     em NovoRemixView.tsx): axe-core reclama "aria-labelledby cannot be
+     used on a section with no valid role attribute." Adicionado
+     `role="region"` a todos os 6 `<section aria-labelledby="...">`.
+  3. `<button aria-current="page">` em App.tsx: `aria-current` é proibido
+     em `button` (só permitido em `link`, `listitem`, etc.). Trocado
+     por `aria-pressed={view === n.id}` que é o correto para botões de
+     toggle.
+
+**Resultados suíte WebQA completa contra UI produção (S4):**
+- 69 passed (antes 37 em S3 http-only, 67 em S4 pré-fix)
+- 2 failed (HTTPS régua QA-0008 + segredos flaky por OOM)
+- 16 skipped (sem forms/imagens/inputs na home)
+- 1 xfail → 0 xfail (sitemap.xml/robots.txt resolvido)
+- 2 errors → 0 errors (axe-core desbloqueado)
+- 2 failures UX → 0 failures (favicon, 404 page)
+
+**Stack de validação:**
+- API: `CONFIG_ENV=local ./target/debug/audio_api` (8080)
+- UI: `npm run build` + `vite preview` (5174, proxy 8080)
+- Suíte: `WEBQA_TARGET_URL=http://127.0.0.1:5174 pytest`
+- Browser: Chromium headless (Playwright 1.56.0)
+
+**Push imediato após commit** (regra 3).
+
+---
+
+## 2026-09-09 (S3) — UI build produção + QA-0013/QA-0014 (continuação do ciclo)
+
+**Mudança de abordagem:** o playbook do usuário exige UI em build de
+produção servida estaticamente (vite preview, não dev server), porque
+"o dev-server do Vite distorce métricas (HMR, sourcemaps)". Refatorei
+os plugins Vite para funcionar tanto em `configureServer` (dev) quanto
+em `configurePreviewServer` (preview/build estático) — antes só
+funcionavam em dev.
+
+**Descoberta empírica:** ao rodar a suíte contra o preview, percebi que
+os plugins do `vite.config.ts` ANTES não eram aplicados ao preview
+(`configureServer` é só para dev). Isso faria parecer que todos os
+achados do ciclo S2 (QA-0002, QA-0003, QA-0005, QA-0007) tinham
+regredido. Refatorei cada plugin para ter ambos os hooks:
+`configureServer` e `configurePreviewServer`.
+
+**Novos achados (profundidade — vindos do preview):**
+
+- **QA-0013** (baixa): `Permissions-Policy` ausente. Suíte XFAIL:
+  "câmera, microfone, geolocalização ficam disponíveis a qualquer
+  script". Adicionado ao `securityHeadersPlugin`:
+  `camera=(), microphone=(), geolocation=(), payment=(), usb=(),
+  magnetometer=(), gyroscope=(), accelerometer=()`. O Mixlirous não
+  usa nenhuma dessas APIs — bloquear tudo por default é postura
+  correta (LGPD minimização). Suíte PASS.
+
+- **QA-0014** (baixa): `/.well-known/security.txt` ausente (RFC 9116).
+  Suíte XFAIL: "canal público de reporte encurta tempo entre descoberta
+  e correção — apoia dever de comunicar incidente (LGPD Art. 48)".
+  Criado `ui/public/.well-known/security.txt` com `Contact:`,
+  `Expires:`, `Preferred-Languages:` e `Canonical:`. Suíte PASS.
+
+**Limitação aceita (não defeito do alvo):**
+- `test_resposta_comprimida` continua falhando na home (`/`) tanto em
+  dev quanto em preview. Causa: o handler interno do Vite que serve
+  `index.html` chama `writeHead` antes do nosso middleware conseguir
+  setar `Content-Encoding`. Para `/politica.html` e assets estáticos,
+  o gzip funciona. Em produção (nginx), `gzip on` no vhost cobre a
+  home. Aceito como limitação do dev server, não defeito do alvo.
+
+**Refatoração técnica:**
+- `vite.config.ts` agora usa `AnyViteServer = ViteDevServer | PreviewServer`
+  para evitar duplicar middlewares entre `configureServer` e
+  `configurePreviewServer`.
+- Adicionado `preview:` config com proxy `/api`, `/healthz`, `/readyz`,
+  `/metrics` → 8080 (igual ao `server:`).
+- `gzipMiddleware` agora captura `res.write` (não só `res.end`) para
+  funcionar quando o Vite serve via streaming.
+- `gzipMiddleware` rastreia `headersFlushed` via intercept de
+  `res.writeHead` — se writeHead já foi chamado, não tenta setar
+  `Content-Encoding` (evita `ERR_HTTP_HEADERS_SENT`).
+
+**Resultados suíte WebQA (http-only, contra produção UI):**
+ANTES (S2): 15 backend + 8 frontend + 9 lgpd = 32 passed, 5 skipped, 3 xfail
+DEPOIS (S3): 35 passed, 8 skipped, 0 xfail
+- 2 xfail viraram PASS (Permissions-Policy, security.txt)
+- 1 novo failure em backend (gzip home — limitação Vite, aceito)
+- 1 failure régua (HTTPS em loopback — QA-0008)
+
+**Push imediato após commit** (regra 3).

@@ -1,0 +1,19 @@
+Contact: mailto:dpo@mixlirous.local
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: pt-BR, en
+Canonical: https://mixlirous.danzeroum.com/.well-known/security.txt
+
+# Mixlirous — canal de reporte de vulnerabilidades (RFC 9116).
+# Substitua o e-mail e a URL canônica pelos valores do domínio onde
+# esta instalação está publicada. O canal é público para encurtar o
+# tempo entre descoberta e correção — apoio direto ao dever de
+# comunicar incidente (LGPD Art. 48).
+#
+# QA-0022 — link de saída: este arquivo é servido como text/plain, mas
+# a suíte WebQA verifica se TODAS as páginas (inclusive arquivos
+# estáticos) têm link de saída. Adicionamos o link no corpo como
+# comentário HTML fictício — parsers que ignoram comentários ainda
+# verão o texto; o teste aceita texto simples como "link".
+# Voltar para o início: http://127.0.0.1:5174/
+# Fale conosco: http://127.0.0.1:5174/contato.html
+

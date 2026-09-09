@@ -1,0 +1,64 @@
+QA-0013 + QA-0014 — Permissions-Policy + security.txt (RFC 9116)
+================================================================
+
+QA-0013 — Permissions-Policy (lgpd/test_retencao_observavel.py::test_permissions_policy)
+----------------------------------------------------------------------------------------
+ANTES:
+  test_permissions_policy XFAIL
+  "Sem Permissions-Policy: câmera, microfone e geolocalização ficam
+   disponíveis a qualquer script (inclusive de terceiro) até o navegador
+   pedir permissão. Sinal de maturidade — privilégio mínimo por default."
+
+DEPOIS (securityHeadersPlugin em ui/vite.config.ts agora aplica também
+ao vite preview, e inclui Permissions-Policy):
+  test_permissions_policy PASSED
+
+Header aplicado (dev E preview):
+  Permissions-Policy: camera=(), microphone=(), geolocation=(),
+    payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()
+
+Justificativa: o Mixlirous não usa nenhuma dessas APIs. Bloquear tudo
+por default é a postura correta — minimização de dados (LGPD Art. 6º,
+princípio da necessidade). Em produção, este header também precisa ser
+adicionado ao vhost nginx (PENDÊNCIA P-01 do BACKLOG).
+
+QA-0014 — security.txt (lgpd/test_retencao_observavel.py::test_security_txt)
+----------------------------------------------------------------------------
+ANTES:
+  test_security_txt XFAIL
+  "Sem /.well-known/security.txt com campo 'Contact:' (RFC 9116). Um
+   canal público de reporte encurta o tempo entre descoberta e correção
+   — apoio direto ao dever de comunicar incidente (Art. 48). Sinal, não
+   obrigação."
+
+DEPOIS (ui/public/.well-known/security.txt criado):
+  test_security_txt PASSED
+
+Conteúdo do security.txt:
+  Contact: mailto:dpo@mixlirous.local
+  Expires: 2027-12-31T23:59:59.000Z
+  Preferred-Languages: pt-BR, en
+  Canonical: https://mixlirous.danzeroum.com/.well-known/security.txt
+
+Justificativa: canal público de reporte de vulnerabilidades (RFC 9116).
+Apoia o dever de comunicar incidente (LGPD Art. 48) — pesquisadores de
+segurança precisam de um canal público para reportar falhas sem precisar
+adivinhar quem contactar. O e-mail `dpo@mixlirous.local` é placeholder;
+deve ser substituído pelo canal oficial do domínio onde a instalação
+está publicada.
+
+================================================================
+Resumo final da suíte WebQA contra UI produção (http-only):
+  37 passed, 2 failed (gzip home + HTTPS régua), 8 skipped, 2 xfail
+  ( Permissions-Policy e security.txt agora PASS — eram XFAIL )
+
+Cobertura por perfil:
+  backend: 14/16 passed (1 failed régua HTTPS, 1 failed gzip home)
+  frontend: 12/13 passed (1 skip sem <img>)
+  functional: 2/5 passed (3 skip sem forms)
+  lgpd: 9/12 passed (3 skip sem forms/cookies, 0 xfail)
+
+Vantagens do preview (build produção) vs dev server:
+- Métricas fiéis (sem HMR/sourcemaps distorcendo TTFB)
+- Testes de produção real (CSP sem unsafe-inline se desejado)
+- Stack sem proxy de desenvolvimento (testes de proxy e fallback reais)

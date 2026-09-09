@@ -1,0 +1,12 @@
+# robots.txt — Mixlirous
+# SPA sem rotas indexáveis (5 views por estado, não por URL). A home é
+# a única rota que deve ser crawleada. /api/* e /politica.html (privada)
+# são bloqueados.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Allow: /politica.html
+
+# Sitemap (substitua pelo domínio em produção)
+Sitemap: http://127.0.0.1:5174/sitemap.xml

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Favicon do Mixlirous — waveform estilizado representando áudio.
+       Cores: usa os tokens da marca (ver ui/src/scripts/lint-colors.mjs).
+       SVG em vez de ICO: escala sem perda, suporta dark mode via CSS. -->
+  <rect width="64" height="64" rx="12" fill="#0a0a0a"/>
+  <g fill="#a3e635" aria-label="Mixlirous waveform">
+    <rect x="8" y="28" width="3" height="8" rx="1"/>
+    <rect x="14" y="22" width="3" height="20" rx="1"/>
+    <rect x="20" y="16" width="3" height="32" rx="1"/>
+    <rect x="26" y="10" width="3" height="44" rx="1"/>
+    <rect x="32" y="6" width="3" height="52" rx="1"/>
+    <rect x="38" y="10" width="3" height="44" rx="1"/>
+    <rect x="44" y="16" width="3" height="32" rx="1"/>
+    <rect x="50" y="22" width="3" height="20" rx="1"/>
+  </g>
+</svg>

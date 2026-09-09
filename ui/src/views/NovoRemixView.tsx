@@ -92,7 +92,7 @@ function NovoRemixView(props: Props) {
   return (
     <div className="w-full max-w-3xl mx-auto px-4 py-6 space-y-6 overflow-y-auto" data-testid="novo-remix">
       {/* ── Passo 1 · Upload ── */}
-      <section aria-labelledby="passo-upload">
+      <section aria-labelledby="passo-upload" role="region">
         <h2 id="passo-upload" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
           1 · Envie a faixa
         </h2>
@@ -107,7 +107,7 @@ function NovoRemixView(props: Props) {
 
       {/* ── Passo 2 · Análise ── */}
       {trackId && (
-        <section aria-labelledby="passo-analise" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+        <section aria-labelledby="passo-analise" role="region" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
           <h2 id="passo-analise" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
             2 · Análise
           </h2>
@@ -148,7 +148,7 @@ function NovoRemixView(props: Props) {
 
       {/* ── Passo 3 · Objetivo ── */}
       {trackId && (
-        <section aria-labelledby="passo-objetivo" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+        <section aria-labelledby="passo-objetivo" role="region" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
           <h2 id="passo-objetivo" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
             3 · Objetivo
           </h2>
@@ -195,7 +195,7 @@ function NovoRemixView(props: Props) {
       )}
 
       {/* ── Passo 4 · Receita (canvas) ── */}
-      <section aria-labelledby="passo-receita" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
+      <section aria-labelledby="passo-receita" role="region" className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
         <h2 id="passo-receita" className="text-sm font-bold text-ai-300 uppercase tracking-wide mb-2">
           4 · Receita (canvas)
         </h2>
@@ -219,7 +219,7 @@ function NovoRemixView(props: Props) {
       </section>
 
       {/* ── Passo 5 · Render ── */}
-      <section ref={renderRef} aria-labelledby="passo-render">
+      <section ref={renderRef} aria-labelledby="passo-render" role="region">
         {jobId && (
           <div className="bg-surface-800/60 rounded-lg border border-surface-700 p-4">
             <div className="flex items-center justify-between">
@@ -245,7 +245,7 @@ function NovoRemixView(props: Props) {
 
       {/* ── Passo 6 · Preview & exportação ── */}
       {jobCompleted && jobId && (
-        <section aria-labelledby="passo-preview">
+        <section aria-labelledby="passo-preview" role="region">
           <h2 id="passo-preview" className="sr-only">Preview e exportação</h2>
           <Player
             jobId={jobId}
