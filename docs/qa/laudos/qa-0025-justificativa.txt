@@ -1,0 +1,99 @@
+QA-0025 — JWT no corpo de /api/v1/auth/local-session (aceito)
+============================================================
+
+**Severidade:** média (em produção: nenhuma — rota 404; em modo local: intencional)
+**Origem:** seguranca/test_segredos.py::test_sem_credenciais_em_js_e_json_de_origem
+**Alvo:** `crates/audio_api/src/routes/auth.rs::get_local_session`
+
+Sintoma
+-------
+
+A suíte WebQA detecta JWT exposto no corpo de `GET /api/v1/auth/local-session`:
+
+```
+[alta] segredo:JWT em http://127.0.0.1:5174/api/v1/auth/local-session:
+  JWT encontrado no corpo de http://127.0.0.1:5174/api/v1/auth/local-session
+
+[media] segredo:CREDENCIAL_NOMEADA em http://127.0.0.1:5174/api/v1/auth/local-session:
+  CREDENCIAL_NOMEADA encontrado no corpo de http://127.0.0.1:5174/api/v1/auth/local-session
+```
+
+A rota devolve:
+
+```json
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "expires_at": "2026-10-09T...",
+  "tenant_id": "...",
+  "user_id": "..."
+}
+```
+
+Investigação
+------------
+
+`GET /api/v1/auth/local-session` é o endpoint de bootstrap da UI em modo
+**local single-user** (`CONFIG_ENV=local`). Contrato (docs/03 §1):
+
+> "Modo local: o servidor emite um JWT de sessão e o frontend o usa
+> como Bearer nos comandos REST e como semente do cookie de SSE."
+
+A UI precisa do token no corpo porque:
+
+1. `EventSource` (browser) não consegue mandar header `Authorization` —
+   a UI usa o cookie `mixlirous_session` (HttpOnly, same-origin) para
+   o handshake SSE.
+2. Para comandos REST (`fetch` com `Authorization: Bearer`), a UI
+   precisa do token no JavaScript — não pode estar só no cookie
+   HttpOnly.
+3. Logo, o token tem que vir no corpo da resposta para a UI armazenar
+   em `localStorage` e usar em chamadas subsequentes.
+
+**Fail-closed em produção:**
+
+```rust
+pub async fn get_local_session(
+    State(state): State<AppState>,
+) -> Result<Response, (StatusCode, String)> {
+    if state.config.config_env != "local" {
+        // 404 de propósito: fora do modo local a rota não existe.
+        // Nunca é um endpoint de login anônimo em produção (docs/08 §1).
+        return Err((StatusCode::NOT_FOUND, "not_found".to_string()));
+    }
+    // ... emitir token e devolver no corpo
+}
+```
+
+Em produção (`CONFIG_ENV=production` ou `default`), a rota retorna 404.
+Não há exposição do JWT em modo produção.
+
+Justificativa técnica (aceito)
+------------------------------
+
+1. **Rota só existe em modo local** — `CONFIG_ENV=local` é o modo
+   single-user para desenvolvimento/QA. Não é exposta publicamente.
+2. **Token é necessário no corpo** — sem ele, a UI não consegue fazer
+   chamadas REST autenticadas. Cookie HttpOnly sozinho não basta para
+   `fetch` com `Authorization: Bearer`.
+3. **Em produção, a rota é 404** — fail-closed garante que nenhum
+   visitante anônimo consegue um token em produção.
+4. **A suíte WebQA é genérica** — não sabe que esta rota é intencional
+   em modo local. O achado é um falso positivo quando o alvo é
+   `http://localhost` (loopback autorizado).
+
+Mitigação (não implementada — pendência)
+---------------------------------------
+
+Se quisermos fazer a suíte passar sem alterar a régua, poderíamos:
+
+1. Adicionar uma exclusão no `config.yaml` da WebQA Suite para
+   `/api/v1/auth/local-session` no teste de segredos. Mas isso seria
+   mexer na régua (config do consumidor, não na suíte) — aceitável
+   mas não fizemos neste ciclo.
+2. Ou mover o token para um header customizado (ex.: `X-Session-Token`)
+   em vez do corpo — mas isso quebra o contrato docs/03 §1 e exige
+   mudança na UI.
+
+Estado: **aceito com justificativa técnica** — em produção, a rota é
+404 e não há exposição. Em modo local, a exposição é intencional e
+necessária para o bootstrap da UI.
