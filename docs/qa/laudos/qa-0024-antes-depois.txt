@@ -1,0 +1,196 @@
+QA-0024 — Bug central do produto: SSE perdia job.completed quando worker completava rápido
+==========================================================================================
+
+**Severidade:** alta
+**Origem:** e2e Playwright full-flow.spec.ts:58 + investigação manual dirigida
+**Alvo:** `crates/audio_api/src/sse/hub.rs` (EventHub) + `crates/audio_api/src/routes/sse.rs` (job_stream handler)
+
+Sintoma
+-------
+
+O teste e2e "fluxo feliz: upload → job → aprovação HITL → download do artefato"
+falhava consistentemente com timeout de 180s esperando `getByTestId('player')`
+ficar visível. O log da API mostrava:
+
+```
+2026-09-08T23:23:23 INFO audio_api::routes::jobs: job de remix recebido job_id=...
+2026-09-08T23:23:28 INFO audio_api::worker: pipeline finished job_id=...
+2026-09-08T23:23:28 INFO audio_api::worker: pipeline completed job_id=...
+```
+
+O job completou em 5 segundos. Mas o player nunca apareceu na UI em 180s.
+
+Investigação
+------------
+
+Reproduzi o fluxo manualmente com script Python (`scripts/qa-0024-investigar.py`)
+que faz: bootstrap → presign → PUT upload → track → job → SSE listener.
+
+Descoberta: o `EventHub` original tinha uma race condition clássica de
+broadcast channels:
+
+```rust
+// ESTADO ANTERIOR (com bug):
+pub async fn subscribe(&self, job_id: Uuid) -> broadcast::Receiver<JobEvent> {
+    let mut channels = self.channels.write().await;
+    match channels.get(&job_id) {
+        Some(tx) => tx.subscribe(),
+        None => {
+            let (tx, rx) = broadcast::channel(200);
+            channels.insert(job_id, tx);  // canal criado só AQUI
+            rx
+        },
+    }
+}
+
+pub async fn publish(&self, job_id: Uuid, event_type: &str, data: serde_json::Value) {
+    let channels = self.channels.read().await;
+    if let Some(tx) = channels.get(&job_id) {  // só envia se canal já existe
+        let _ = tx.send(event);
+    }
+    // se canal não existe, evento é SILENCIOSAMENTE DESCARTADO
+}
+```
+
+Cronologia da race condition:
+
+1. UI cria job via POST /api/v1/jobs (HTTP 202, retorna job_id).
+2. Worker começa a processar quase instantaneamente.
+3. Worker termina em ~1 segundo, publica `job.state`, `job.progress`,
+   `job.completed` no hub.
+4. **MAS a UI ainda está montando o EventSource** — só assina o SSE
+   depois de receber a resposta do POST /jobs.
+5. Quando o subscribe chega, o `job.completed` já foi publicado e
+   descartado (canal não existia no momento do publish).
+6. UI fica esperando `job.completed` para abrir o player — nunca chega.
+7. Timeout 180s.
+
+O docs/03 §5 exige explicitamente:
+
+> "O servidor mantém um buffer dos últimos **200 eventos** por job para replay."
+> "Reconexão usa `Last-Event-ID`."
+
+**Não estava implementado.**
+
+Correção
+--------
+
+Refatorado `EventHub` (`crates/audio_api/src/sse/hub.rs`):
+
+1. Adicionado `buffers: Arc<RwLock<HashMap<Uuid, (u64, Vec<JobEvent>)>>>`
+   — armazena eventos por job, com seq monotônico por job.
+2. `publish` agora sempre cria o canal broadcast se não existir (em vez
+   de descartar) E armazena o evento no buffer (com limite de 200
+   eventos, descartando os mais antigos quando excede).
+3. Novo método `subscribe_with_replay(job_id, last_event_id)` retorna
+   o `Receiver` + os eventos passados (filtrados por `last_event_id`
+   para suportar reconexão).
+4. `JobEvent` agora tem campo `seq: u64` para `Last-Event-ID`.
+5. `cleanup` mantém o buffer (TTL futuro) — permite reconexão mesmo
+   após o canal broadcast ser limpo.
+
+Handler `job_stream` (`crates/audio_api/src/routes/sse.rs`):
+
+1. Aceita `HeaderMap` para ler `Last-Event-ID` (W3C EventSource envia
+   automaticamente em reconexão).
+2. Chama `subscribe_with_replay` em vez de `subscribe`.
+3. Após `stream.ready`, envia o replay (cada evento com `id(seq)` SSE).
+4. Depois do replay, entra no loop normal de broadcast ao vivo.
+
+Testes de regressão
+-------------------
+
+`crates/audio_api/src/sse/hub.rs` (6 testes):
+
+1. `publish_antes_de_subscribe_nao_perde_evento` — caso de regressão
+   direto: publica antes de qualquer subscribe, depois assina e
+   verifica que recebe os 2 eventos no replay. **Antes do fix, esse
+   teste falharia.**
+2. `last_event_id_filtra_replay_para_reconexao` — publica 3 eventos
+   (seq 0, 1, 2), assina com `last_event_id=0`, deve receber só os
+   eventos 1 e 2 (não o 0 que já processou).
+3. `subscribe_depois_de_subscribe_ainda_recebe_eventos_futuros` —
+   comportamento tradicional do broadcast: múltiplos subscribers
+   recebem eventos publicados depois do subscribe.
+4. `buffer_limite_respeitado` — publica 250 eventos, verifica que o
+   replay tem só 200 (os 50 mais antigos são descartados).
+5. `publish_sem_subscriber_nao_panic` — caso de bordagem: publish em
+   job_id sem subscriber algum não deve panic.
+6. `cleanup_remove_canal_mas_mantem_buffer` — cleanup remove o canal
+   broadcast mas mantém o buffer para reconexão.
+
+Resultado: 6/6 PASSED.
+
+Validação empírica (script Python)
+---------------------------------
+
+Reprodução manual com `scripts/qa-0024-investigar.py`:
+
+```
+[00:32:20] Job: c81bd4e7-b16c-4fd3-9447-9a56ed6b1c0e
+[00:32:22] Esperou 2s, agora assina SSE com replay
+[00:32:22] SSE status=200
+[00:32:22]   event: stream.ready
+[00:32:22]   data: {"job_id":"...","replay_count":6,"resumed_from":null}
+[00:32:22]   event: job.state
+[00:32:22]   data: {"stage":"loading_audio","status":"processing"}
+[00:32:22]   id: 0
+[00:32:22]   event: job.state
+[00:32:22]   data: {"stage":"decoding","status":"processing"}
+[00:32:22]   id: 1
+[00:32:22]   event: job.state
+[00:32:22]   data: {"stage":"dsp_processing","status":"processing"}
+[00:32:22]   id: 2
+[00:32:22]   event: job.warning
+[00:32:22]   data: {"at_sec":null,"code":"pipeline_warning",...}
+[00:32:22]   id: 3
+[00:32:22]   event: job.state
+[00:32:22]   data: {"stage":"storing_artifact","status":"processing"}
+[00:32:22]   id: 4
+[00:32:22]   event: job.completed
+[00:32:22] ✓ SUCESSO: job.completed recebido via replay
+```
+
+**Replay funcionando:** o cliente assina 2 segundos depois do job
+completar, recebe `stream.ready` com `replay_count: 6`, e em seguida
+todos os 6 eventos (incluindo `job.completed`) via replay. Antes do
+fix, o cliente receberia apenas `stream.ready` e ficaria esperando
+para sempre.
+
+Estado do e2e Playwright
+------------------------
+
+O e2e `full-flow.spec.ts:58` continua falhando no sandbox do agente
+(4 GB RAM sem swap) por OOM durante a execução — não por causa do
+bug. A validação Python acima confirma que o bug está corrigido. Em
+ambiente com mais RAM (runner do Actions via `qa-gui.yml` ou máquina
+de desenvolvimento), o e2e deve passar.
+
+Justificativa para não ter sido pego antes
+------------------------------------------
+
+Este bug não foi pego nos ciclos anteriores porque:
+
+1. A suíte WebQA não tem teste que crie um job completo — só testa
+   endpoints HTTP isolados. O SSE é um lacuna conhecida (mapa-rotas.yaml
+   marca `/api/v1/jobs/{id}/events` como excluido_de: [latencia,
+   http_basics]).
+2. O e2e do próprio repo (`full-flow.spec.ts`) é o único que exercita
+   o fluxo completo, e ele se auto-pula se a stack não estiver de pé.
+   No sandbox do agente, a stack sofria OOM periódico e o e2e pulava
+   ou falhava por timeout — sempre atribuído a "limitação de sandbox".
+3. A investigação dirigida (script Python que reproduz o fluxo com
+   logs detalhados) foi necessária para isolar o bug de OOM.
+
+Este é o achado mais valioso do ciclo: **a régua (WebQA Suite) não
+cobria o fluxo central do produto** — só testes dirigidos fora da
+régua conseguiram isolar o bug.
+
+Pendências
+----------
+
+1. Adicionar teste de integração em `crates/audio_api/tests/` que
+   reproduza o cenário: criar job, esperar completar, DEPOIS assinar
+   SSE, validar que recebe `job.completed` via replay.
+2. Avaliar adicionar à WebQA Suite um teste de SSE com replay (mas
+   a régua é genérica — não assume protocolo SSE específico do alvo).

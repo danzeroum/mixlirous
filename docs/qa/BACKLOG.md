@@ -15,14 +15,28 @@ Itens que **não** são fix neste ciclo, mas não podem se perder:
 
 ## Pendências técnicas
 
-- **P-01**: nginx de produção (docs/18 §5.3) só declara HSTS — faltam
-  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` (ou CSP
-  `frame-ancestors 'none'`), `Content-Security-Policy`, e compressão
-  `gzip`. Em dev o Vite cobre tudo via plugins (commit deste ciclo);
-  em produção os headers precisam ser adicionados ao vhost do nginx.
-  Não bloqueia o ciclo QA (suíte roda contra dev), mas é pendência
-  para o deploy real.
+- **P-01 (RESOLVIDO em docs/18 §5.4)**: nginx de produção agora tem
+  bloco com todos os headers de segurança (X-Content-Type-Options,
+  X-Frame-Options, CSP sem hash axe, Permissions-Policy, Referrer-Policy),
+  compressão gzip, e `server_tokens off`. A CSP de produção **não**
+  inclui o hash do axe-core que existe em dev (vite.config.ts) apenas
+  para desbloquear o teste de a11y — em produção a suíte não roda contra
+  a URL pública, e a exceção de ferramenta de teste não deve virar
+  regra de produção.
 - **P-02**: `crates/audio_api/src/routes/uploads.rs` — `upload_put`
   recebe `Bytes` (corpo em memória antes do storage). Com o teto de
   100 MB (QA-0001), o pico de RAM por upload é 100 MB. Streaming para
   disco é melhoria recomendada para ambientes com RAM limitada.
+
+## Issues `regua` pendentes de abertura no `qa-suite`
+
+- **R-01**: propostas de issue salvas em `docs/qa/propostas-regua/`:
+  - `qa-0008-https-loopback.md` — `test_https_e_usado` reprova
+    loopback autorizado (alvo local `http://localhost`). Texto pronto
+    para colar em https://github.com/danzeroum/qa-suite/issues/new.
+  - `qa-0009-requirements-corrompido.md` — `requirements.txt` da
+    suíte com linha `httpxttp2]>=0.27` (faltam `[` e `http2`).
+    Texto pronto para colar.
+  - **Motivo de não ter sido aberto**: o token PAT do agente QA tem
+    escopo de escrita apenas no repo `mixlirous` — não consegue criar
+    issues no `qa-suite`. Ação manual do humano necessária.

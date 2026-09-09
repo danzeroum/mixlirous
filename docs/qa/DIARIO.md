@@ -334,7 +334,92 @@ sessão foca em habilitar esses perfis.
 
 ---
 
-## 2026-09-09 (S3) — UI build produção + QA-0013/QA-0014 (continuação do ciclo)
+## 2026-09-09 (S5) — Ciclo 2: P-01 + qa-gui.yml + QA-0024 (bug central) + QA-0025
+
+**Contexto:** O veredito do humano após merge do PR #63 apontou 5
+próximos passos. Esta sessão endereça todos eles em branch nova
+`qa/ciclo-2-gui` (corrigindo o desvio cosmético do ciclo anterior
+que usou `qa/ciclo-inicial`).
+
+### Entregas do ciclo
+
+**1. R-01 (issues no qa-suite):**
+Token PAT do agente QA tem escopo de escrita apenas no repo
+`mixlirous` — não consegue criar issues no `qa-suite`. Texto pronto
+das issues (QA-0008 HTTPS loopback, QA-0009 requirements.txt
+corrompido) salvo em `docs/qa/propostas-regua/` para o humano
+abrir manualmente. BACKLOG atualizado com motivo.
+
+**2. P-01 (nginx headers+gzip em produção):**
+Nova seção 5.4 em `docs/18-DEPLOY-PUBLICO-NGINX.md` com bloco
+completo: gzip, X-Content-Type-Options, X-Frame-Options, CSP,
+Permissions-Policy, Referrer-Policy, server_tokens off. **CSP de
+produção NÃO inclui o hash do axe-core** que existe em dev apenas
+para desbloquear o teste de a11y — a exceção de ferramenta de
+teste não vira regra de produção. BACKLOG atualizado: P-01 marcado
+como RESOLVIDO.
+
+**3. qa-gui.yml (workflow Actions para perfis com browser):**
+Novo workflow `.github/workflows/qa-gui.yml` que sobe API + UI
+preview, clona qa-suite, instala deps, roda todos os perfis com
+browser (UX, GUI, Seguranca com browser, Frontend rendering,
+Acceptance BDD) no GitHub Actions (7 GB RAM) em vez do sandbox do
+agente (4 GB). Roda em PRs que tocam UI ou crates/audio_api, e em
+push para main. Upload de laudo (pytest.xml + report/) como artifact.
+
+**4. QA-0024 — bug central do produto (SSE perdia job.completed):**
+
+Investigação dirigida revelou bug real (não limitação de sandbox):
+`EventHub.publish` descartava eventos publicados antes do primeiro
+`subscribe`. Quando o worker completava em ~1s (mais rápido que a
+UI abrir o SSE), o `job.completed` era perdido — exatamente o
+sintoma do e2e `full-flow.spec.ts:58` que falhava com timeout 180s.
+
+Bug raiz: `EventHub` usava `tokio::sync::broadcast` que só entrega
+eventos publicados APÓS o subscribe. `publish` em canal inexistente
+era `let _ =` (silenciosamente descartado). docs/03 §5 exige buffer
+de 200 eventos para replay — **não implementado**.
+
+Correção:
+- `EventHub` agora tem `buffers: HashMap<Uuid, (u64, Vec<JobEvent>)>`
+  com até 200 eventos por job.
+- Novo `subscribe_with_replay(job_id, last_event_id)` retorna
+  `Receiver` + replay filtrado por `last_event_id`.
+- `publish` sempre cria o canal (em vez de descartar) e armazena no
+  buffer com `seq` monotônico por job.
+- `job_stream` handler lê header `Last-Event-ID` (W3C EventSource)
+  e envia replay antes do stream ao vivo.
+- 6 testes de regressão cobrindo: publish antes de subscribe,
+  reconexão via Last-Event-ID, comportamento tradicional do
+  broadcast, limite de 200 eventos, publish sem subscriber, cleanup
+  mantém buffer.
+
+Validação empírica via script Python (`scripts/qa-0024-investigar.py`):
+após fix, cliente que assina 2s DEPOIS do job completar recebe
+`replay_count: 6` e o `job.completed` via replay. Antes do fix,
+receberia apenas `stream.ready` e esperaria para sempre.
+
+**5. Re-execução limpa do check de segredos:**
+
+Confirmado: **não é OOM nem flaky** — é achado real (QA-0025).
+`GET /api/v1/auth/local-session` devolve JWT no corpo da resposta.
+Em modo local (single-user, `CONFIG_ENV=local`), é intencional
+(fail-closed em prod retorna 404). Aceito com justificativa técnica
+em `docs/qa/laudos/qa-0025-justificativa.txt`.
+
+### Resumo do ciclo
+
+- **Branch:** `qa/ciclo-2-gui` (corrigindo desvio cosmético do
+  ciclo anterior que usou `qa/ciclo-inicial`).
+- **Novos achados:** 2 (QA-0024 alta, QA-0025 média aceito).
+- **Achados corrigidos:** 1 (QA-0024 — bug central do produto).
+- **Pendências fechadas:** P-01 (nginx prod).
+- **Pendências abertas:** R-01 (token sem escopo no qa-suite —
+  texto pronto em `docs/qa/propostas-regua/`).
+- **Workflow novo:** `qa-gui.yml` — repetibilidade dos perfis GUI
+  no Actions (problema estrutural do ciclo anterior).
+
+**Push imediato após commit** (regra 3).
 
 **Mudança de abordagem:** o playbook do usuário exige UI em build de
 produção servida estaticamente (vite preview, não dev server), porque

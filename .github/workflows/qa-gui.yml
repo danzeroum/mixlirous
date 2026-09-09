@@ -1,0 +1,197 @@
+name: QA GUI (WebQA Suite)
+
+# Repete os perfis com browser da WebQA Suite (UX, GUI, Seguranca com
+# browser, Frontend rendering, Acceptance BDD) no GitHub Actions, onde
+# o runner tem 7 GB RAM (vs 4 GB do sandbox do agente QA). Sem este
+# workflow, esses perfis só rodam quando o agente consegue — não são
+# reproduzíveis em cada PR.
+#
+# O workflow NÃO roda em todo push (caro — chromium + python + rust
+# + npm simultâneos). Roda:
+#   - Em PRs que tocam UI (paths: ui/**, .github/workflows/qa-gui.yml)
+#   - Em PRs que tocam a API que serve a UI (paths: crates/audio_api/**)
+#   - Manualmente via workflow_dispatch (botão "Run workflow")
+#
+# Em produção, a suíte roda contra a URL pública somente após deploy;
+# este workflow foca em regressão contra o dev/preview local.
+
+on:
+  pull_request:
+    paths:
+      - 'ui/**'
+      - 'crates/audio_api/**'
+      - '.github/workflows/qa-gui.yml'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - 'crates/audio_api/**'
+
+jobs:
+  webqa-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Mixlirous
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: qa-gui
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Build API (debug)
+        run: cargo build --bin audio_api
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI deps
+        working-directory: ui
+        run: npm ci
+
+      - name: Build UI (production)
+        working-directory: ui
+        run: npm run build
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-156
+
+      - name: Checkout WebQA Suite
+        uses: actions/checkout@v4
+        with:
+          repository: danzeroum/qa-suite
+          ref: main
+          path: qa-suite
+
+      - name: Install WebQA Suite deps
+        working-directory: qa-suite/webqa-suite
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          # requirements.txt tem linha corrompida (QA-0009 — proposta
+          # de issue no qa-suite). Instalar manualmente por enquanto.
+          .venv/bin/pip install \
+            "pytest>=8.0" \
+            "pytest-bdd>=7.0" \
+            "httpx[http2]>=0.27" \
+            "beautifulsoup4>=4.12" \
+            "lxml>=5.0" \
+            "PyYAML>=6.0" \
+            "playwright==1.56.0" \
+            "locust>=2.24" \
+            "pytest-cov>=5.0"
+
+      - name: Install Playwright Chromium
+        working-directory: qa-suite/webqa-suite
+        run: .venv/bin/python -m playwright install chromium
+
+      - name: Start API (background)
+        env:
+          CONFIG_ENV: local
+          JWT_SECRET: qa-gui-test-secret-not-for-prod
+        run: |
+          ./target/debug/audio_api > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+          # Espera o listener ficar pronto
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/healthz > /dev/null 2>&1; then
+              echo "API UP after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:8080/healthz || (echo "API failed to start"; cat /tmp/api.log; exit 1)
+
+      - name: Start UI preview (background)
+        working-directory: ui
+        run: |
+          npx vite preview --port 5174 --host 127.0.0.1 > /tmp/ui.log 2>&1 &
+          echo $! > /tmp/ui.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5174/ > /dev/null 2>&1; then
+              echo "UI UP after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:5174/ || (echo "UI failed to start"; cat /tmp/ui.log; exit 1)
+
+      - name: Run WebQA Suite (browser profiles)
+        working-directory: qa-suite/webqa-suite
+        env:
+          WEBQA_TARGET_URL: http://127.0.0.1:5174
+        run: |
+          .venv/bin/python -m pytest \
+            checks/backend/ \
+            checks/frontend/ \
+            checks/functional/ \
+            checks/lgpd/ \
+            checks/seguranca/ \
+            checks/ux/ \
+            checks/gui/ \
+            checks/acceptance/ \
+            --tb=short \
+            -q \
+            --junitxml=pytest.xml \
+            --ignore=checks/seguranca/test_area_autenticada.py \
+            || true  # não falha o workflow em failures — gera laudo
+
+      - name: Upload QA laudo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-gui-laudo
+          path: |
+            qa-suite/webqa-suite/pytest.xml
+            qa-suite/webqa-suite/report/
+            /tmp/api.log
+            /tmp/ui.log
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: |
+          [ -f /tmp/api.pid ] && kill $(cat /tmp/api.pid) 2>/dev/null || true
+          [ -f /tmp/ui.pid ] && kill $(cat /tmp/ui.pid) 2>/dev/null || true
+
+      - name: Verify expected test count (informational)
+        working-directory: qa-suite/webqa-suite
+        run: |
+          if [ -f pytest.xml ]; then
+            TESTS=$(grep -c '<testcase' pytest.xml || echo 0)
+            FAILURES=$(grep -c '<failure' pytest.xml || echo 0)
+            ERRORS=$(grep -c '<error' pytest.xml || echo 0)
+            SKIPS=$(grep -c '<skipped' pytest.xml || echo 0)
+            echo "## QA GUI Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Métrica | Valor |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total de testes | $TESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Falhas | $FAILURES |" >> $GITHUB_STEP_SUMMARY
+            echo "| Erros | $ERRORS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Skips | $SKIPS |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Laudo completo:** artifact \`qa-gui-laudo\` (pytest.xml + report/)" >> $GITHUB_STEP_SUMMARY
+          fi

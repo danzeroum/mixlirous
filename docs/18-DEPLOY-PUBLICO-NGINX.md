@@ -200,6 +200,107 @@ fora do ar, e continua mirando um IP velho se o container reiniciar.
 docker exec btv-nginx-prod nginx -t && docker exec btv-nginx-prod nginx -s reload
 ```
 
+### 5.4 Headers de segurança + compressão (P-01 do ciclo QA)
+
+A §5.3 só declarava `Strict-Transport-Security` (HSTS). O ciclo WebQA
+(`docs/qa/ACHADOS.md` QA-0002..QA-0007, QA-0013) revelou que a aplicação
+dependia do dev server Vite para entregar headers como
+`X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`,
+`Permissions-Policy`, e compressão `gzip` — todos ausentes no vhost de
+produção. Esta seção adiciona o bloco que **fecha a paridade dev→prod**.
+
+Adicionar ao `server { listen 443 ssl; ... }` da §5.3 (dentro do bloco,
+antes do `location`):
+
+```nginx
+# === P-01: headers de segurança + gzip (paridade com dev server) ===
+
+# Compressão gzip: ativa para todos os Content-Types textuais. Em dev o
+# Vite cobre via plugin (gzipPlugin em ui/vite.config.ts); em prod o
+# nginx faz o serviço. Sem isto, a home de ~1 KB viaja sem compressão
+# (QA-0003 aceito como limitação do dev server — em prod tem que ter).
+gzip on;
+gzip_vary on;
+gzip_min_length 100;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_types
+    text/plain
+    text/html
+    text/css
+    text/xml
+    application/json
+    application/javascript
+    application/xml
+    image/svg+xml;
+
+# Headers de segurança — sempre (even on 4xx/5xx). O `always` é
+# obrigatório porque sem ele o nginx só seta em 2xx, e a suíte WebQA
+# verifica em todas as respostas, incluindo 404.
+#
+# ATENÇÃO: a CSP abaixo NÃO inclui o hash do axe-core que existe em
+# dev (vite.config.ts) apenas para desbloquear o teste de a11y. Em
+# produção, a suíte WebQA não roda contra a URL pública — não há
+# motivo para permitir inline scripts. O hash foi explicitamente
+# removido aqui para evitar a exceção de ferramenta de teste virar
+# regra de produção.
+add_header Strict-Transport-Security "max-age=63072000" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" always;
+
+# CSP: default-src 'self' é a postura correta. 'unsafe-inline' em
+# style-src porque o build do Vite às vezes gera CSS inline em
+# critical-path; sem isto a renderização quebra. Sem 'unsafe-inline'
+# em script-src — todos os scripts vêm de arquivos externos
+# (assets/*.js com hash no nome).
+add_header Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss:; media-src 'self' blob:; frame-ancestors 'none'" always;
+
+# Remove headers que vazam versão de servidor (QA-0002 — test_nao_expoe_versao).
+server_tokens off;
+```
+
+#### Por que `wss:` e não `ws:` em `connect-src`
+
+Em produção, todo tráfego é HTTPS. O `connect-src 'self' wss:` permite
+WebSocket seguro (que o HMR do Vite usa em dev, mas em prod é só SSE
+sobre HTTP). `ws:` (insecure) seria um downgrade implícito se a URL
+mudasse — não há motivo para permitir.
+
+#### Por que `gzip_min_length 100` e não o default (20)
+
+Em dev, o limiar é 100 porque a home tem ~1 KB — esse número garante
+que o gzip middleware do Vite tenha motivo para comprimir. Em prod, o
+default 20 bytes já comprime tudo, mas o overhead do header gzip em
+respostas minúsculas (favicon, robots.txt) é maior que o ganho. 100
+bytes é o ponto onde gzip passa a valer a pena.
+
+#### Como validar
+
+```bash
+# De fora do servidor (substitua pelo domínio real):
+curl -sI https://mixlirous.danzeroum.com/ | grep -iE "strict-transport|x-content-type|x-frame|content-security|permissions-policy|referrer-policy"
+# Esperado: 6 linhas, todas com os valores da configuração acima.
+
+curl -sI -H "Accept-Encoding: gzip" https://mixlirous.danzeroum.com/ | grep -i "content-encoding"
+# Esperado: content-encoding: gzip
+
+curl -sI https://mixlirous.danzeroum.com/ | grep -iE "^server:"
+# Esperado: vazio (server_tokens off remove o header).
+```
+
+#### Pendência que esta seção fecha
+
+- **P-01** (BACKLOG.md): nginx de produção só declarava HSTS — agora
+  tem a paridade completa com o dev server.
+- **QA-0003** (gzip na home): aceito como limitação do Vite preview;
+  em produção este bloco cobre.
+- **QA-0021** (erro 500 vaza detalhe): em produção, o nginx por
+  default tem `proxy_intercept_errors off` — deixa o axum responder
+  `application/problem+json` (QA-0006). Não precisa de `error_page`
+  customizado.
+
 ---
 
 ## 6. Verificação, nesta ordem
